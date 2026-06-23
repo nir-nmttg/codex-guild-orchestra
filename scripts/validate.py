@@ -572,11 +572,15 @@ def validate_dialogue_policy(value: object, label: str) -> None:
 def validate_compat_context(value: object, label: str) -> None:
     entries = sequence(value, label)
     require(entries, f"{label} は Claude 互換 context disposition の雛形を含めてください。")
-    entry = mapping(entries[0], f"{label}[0]")
-    for key in ("source_type", "path", "sha256", "trust", "applies_to", "status", "disposition", "skip_reason"):
-        require(key in entry, f"{label}[0].{key} が必要です。")
-    require(entry.get("source_type") == "claude", f"{label}[0].source_type は claude にしてください。")
-    require(entry.get("trust") == "untrusted", f"{label}[0].trust は untrusted にしてください。")
+    for index, value_entry in enumerate(entries):
+        entry_label = f"{label}[{index}]"
+        entry = mapping(value_entry, entry_label)
+        for key in ("source_type", "path", "sha256", "trust", "applies_to", "status", "disposition", "skip_reason"):
+            require(key in entry, f"{entry_label}.{key} が必要です。")
+        for key in ("content", "rendered_context", "settings", "raw_content"):
+            require(key not in entry, f"{entry_label} に raw payload key `{key}` を含めないでください。")
+        require(entry.get("source_type") == "claude", f"{entry_label}.source_type は claude にしてください。")
+        require(entry.get("trust") == "untrusted", f"{entry_label}.trust は untrusted にしてください。")
 
 
 def validate_queue_templates() -> None:
@@ -1591,17 +1595,39 @@ def validate_claude_compat_smoke() -> None:
         (target / ".claude/skills/deploy").mkdir(parents=True)
         (target / ".claude/skills/skipme").mkdir(parents=True)
         (target / ".claude/commands").mkdir(parents=True)
+        (target / ".claude/agents/researcher").mkdir(parents=True)
+        (target / ".git").mkdir(parents=True)
         (target / "packages/web/.claude/skills/deploy").mkdir(parents=True)
         (target / "packages/web/.claude/skills/forked").mkdir(parents=True)
         (target / "packages/web/.claude/skills/pluginish/.claude-plugin").mkdir(parents=True)
+        (target / "packages/web/vendor/.git").mkdir(parents=True)
+        (target / "packages/web/vendor/.claude/skills/nested").mkdir(parents=True)
         (target / "secret-token").mkdir(parents=True)
+        (target / "binary").mkdir(parents=True)
+        (target / "large").mkdir(parents=True)
 
         (target / "packages/web/src/app.ts").write_text("export const value = 1;\n", encoding="utf-8")
-        (target / "CLAUDE.md").write_text("# Root Claude\n@docs/context.md\n!printf omit-context\n", encoding="utf-8")
+        (target / "CLAUDE.md").write_text(
+            "# Root Claude\n"
+            "@docs/context.md\n"
+            "@.claude/settings.json\n"
+            "@.mcp.json\n"
+            "@.git/config\n"
+            "@.claude/agents/researcher/CLAUDE.md\n"
+            "!printf omit-context\n",
+            encoding="utf-8",
+        )
         (target / "docs").mkdir()
         (target / "docs/context.md").write_text("Imported context.\n", encoding="utf-8")
+        (target / ".mcp.json").write_text('{"sentinel":"MCP_RENDER_SENTINEL"}\n', encoding="utf-8")
+        (target / ".git/config").write_text("[remote]\nurl = GIT_RENDER_SENTINEL\n", encoding="utf-8")
         (target / ".claude/CLAUDE.md").write_text("# Project Claude\n", encoding="utf-8")
+        (target / ".claude/agents/researcher/CLAUDE.md").write_text("AGENT_RENDER_SENTINEL\n", encoding="utf-8")
         (target / "packages/web/CLAUDE.md").write_text("# Web Claude\n", encoding="utf-8")
+        (target / "packages/web/vendor/CLAUDE.md").write_text("NESTED_GIT_CLAUDE_SENTINEL\n", encoding="utf-8")
+        (target / "packages/web/vendor/.claude/skills/nested/SKILL.md").write_text("---\ndescription: Nested git skill\n---\nNESTED_GIT_SKILL_SENTINEL\n", encoding="utf-8")
+        (target / "binary/CLAUDE.md").write_bytes(b"binary\0context\n")
+        (target / "large/CLAUDE.md").write_text("large context\n" * 12000, encoding="utf-8")
         (target / "secret-token/CLAUDE.md").write_text("do not read\n", encoding="utf-8")
         (target / "excluded").mkdir()
         (target / "excluded/CLAUDE.md").write_text("excluded\n", encoding="utf-8")
@@ -1611,8 +1637,10 @@ def validate_claude_compat_smoke() -> None:
                     "claudeMdExcludes": ["**/excluded/CLAUDE.md"],
                     "skillOverrides": {"skipme": "off", "deploy": "user-invocable-only"},
                     "disableSkillShellExecution": True,
-                    "env": {"SECRET_TOKEN": "redacted"},
+                    "env": {"SECRET_TOKEN": "SETTINGS_ENV_SENTINEL"},
                     "permissions": {"allow": ["Bash(*)"]},
+                    "hooks": {"PreToolUse": "HOOKS_SENTINEL"},
+                    "model": "MODEL_SENTINEL",
                 }
             ),
             encoding="utf-8",
@@ -1639,12 +1667,20 @@ def validate_claude_compat_smoke() -> None:
             encoding="utf-8",
         )
         (target / "packages/web/.claude/skills/deploy/SKILL.md").write_text(
-            "---\ndescription: Deploy web app\narguments: [env]\n---\nDeploy $env.\n!`printf omit-nested`\n",
+            "---\ndescription: Deploy web app\narguments: [env]\nallowed-tools: Bash(git status)\nmodel: opus\n"
+            "effort: high\n---\nDeploy $env.\n!`printf omit-nested`\n",
             encoding="utf-8",
         )
-        (target / "packages/web/.claude/skills/forked/SKILL.md").write_text(
-            "---\ndescription: Forked research\ncontext: fork\n---\nResearch.\n",
-            encoding="utf-8",
+        (target / "packages/web/.claude/skills/forked/SKILL.md").write_bytes(
+            b"---\r\n"
+            b"description: Forked research\r\n"
+            b"context: fork\r\n"
+            b"hooks: unsafe\r\n"
+            b"allowed-tools: Bash(git status)\r\n"
+            b"model: opus\r\n"
+            b"effort: high\r\n"
+            b"---\r\n"
+            b"Research.\r\n",
         )
         (target / "packages/web/.claude/skills/pluginish/.claude-plugin/plugin.json").write_text("{}", encoding="utf-8")
         (target / "packages/web/.claude/skills/pluginish/SKILL.md").write_text(
@@ -1653,14 +1689,22 @@ def validate_claude_compat_smoke() -> None:
         )
 
         scan = run_claude_compat(helper, target, "scan")
+        scan_text = json.dumps(scan, ensure_ascii=False)
         settings = mapping(scan.get("settings"), "claude_compat.scan.settings")
         require("env" in sequence(settings.get("redacted_keys_present"), "claude_compat.scan.settings.redacted_keys_present"), "claude_compat は env を redacted key として扱ってください。")
+        require("hooks" in sequence(settings.get("redacted_keys_present"), "claude_compat.scan.settings.redacted_keys_present"), "claude_compat は hooks を redacted key として扱ってください。")
+        require("model" in sequence(settings.get("ignored_keys_present"), "claude_compat.scan.settings.ignored_keys_present"), "claude 互換設定は非対応設定項目を無視項目として扱ってください。")
+        for sentinel in ("SETTINGS_ENV_SENTINEL", "HOOKS_SENTINEL", "MODEL_SENTINEL", "MCP_RENDER_SENTINEL", "GIT_RENDER_SENTINEL"):
+            require(sentinel not in scan_text, f"claude 互換 scan は検証値 `{sentinel}` を露出しないでください。")
         context_cards = sequence(scan.get("context_cards"), "claude_compat.scan.context_cards")
         skill_cards = sequence(scan.get("skill_cards"), "claude_compat.scan.skill_cards")
         context_by_path = {str(mapping(card, "context_card").get("path")): mapping(card, "context_card") for card in context_cards}
         require(context_by_path["packages/web/CLAUDE.md"].get("applicable") is True, "入れ子の CLAUDE.md は work path に適用される必要があります。")
         require(context_by_path["excluded/CLAUDE.md"].get("status") == "skipped", "claudeMdExcludes は CLAUDE.md を skip してください。")
         require(context_by_path["secret-token/CLAUDE.md"].get("reason") == "secret_like_path", "secret-like CLAUDE.md は skip してください。")
+        require(context_by_path["binary/CLAUDE.md"].get("reason") == "binary_content", "NUL 入り CLAUDE.md は skip してください。")
+        require(context_by_path["large/CLAUDE.md"].get("reason") == "too_large", "上限超過 CLAUDE.md は skip してください。")
+        require("packages/web/vendor/CLAUDE.md" not in context_by_path, "nested git repo 内の CLAUDE.md は scan しないでください。")
         if ".claude/rules/symlink.md" in context_by_path:
             require(context_by_path[".claude/rules/symlink.md"].get("reason") == "symlink_path", "symlink rule は skip してください。")
         skills_by_name = {str(mapping(card, "skill_card").get("qualified_name")): mapping(card, "skill_card") for card in skill_cards}
@@ -1668,19 +1712,50 @@ def validate_claude_compat_smoke() -> None:
         require(skills_by_name["skipme"].get("status") == "skipped", "skillOverrides.off は skill を skip してください。")
         require(skills_by_name["packages/web:pluginish"].get("reason") == "plugin_manifest_present", "plugin manifest を持つ skill は skip してください。")
         require(skills_by_name["packages/web:forked"].get("auto_candidate") is False, "context: fork skill は auto candidate にしないでください。")
+        forked_unsupported = sequence(skills_by_name["packages/web:forked"].get("unsupported_fields"), "claude_compat.forked.unsupported_fields")
+        for metadata_key in ("allowed-tools", "context", "effort", "hooks", "model"):
+            require(metadata_key in forked_unsupported, f"CRLF frontmatter の {metadata_key} は unsupported_fields に検出してください。")
+        forked_unsafe = sequence(skills_by_name["packages/web:forked"].get("unsafe_fields"), "claude_compat.forked.unsafe_fields")
+        for metadata_key in ("context", "hooks"):
+            require(metadata_key in forked_unsafe, f"CRLF frontmatter の {metadata_key} は unsafe_fields に検出してください。")
+        require("packages/web/vendor:nested" not in skills_by_name, "nested git repo 内の SKILL.md は scan しないでください。")
 
         rendered = run_claude_compat(helper, target, "render-skill", "--skill", "packages/web:deploy", "--arguments", "staging")
         require(rendered.get("status") == "rendered", "明示 skill render は成功してください。")
         require("omit-nested" not in str(rendered.get("content")), "動的 command 本文をそのまま render しないでください。")
         require("shell command omitted" in str(rendered.get("content")), "動的 command は無害な marker にしてください。")
         require("Deploy staging" in str(rendered.get("content")), "skill arguments を置換してください。")
+        rendered_unsupported = sequence(rendered.get("unsupported_fields"), "claude_compat.render_skill.unsupported_fields")
+        for metadata_key in ("allowed-tools", "model", "effort"):
+            require(metadata_key in rendered_unsupported, f"{metadata_key} は unsupported_fields に留めてください。")
+        rendered_skill_text = json.dumps(rendered, ensure_ascii=False)
+        for codex_key in ("authority", "model_reasoning_effort", "sandbox_mode"):
+            require(codex_key not in rendered_skill_text, f"Claude metadata を Codex 権限 key `{codex_key}` へ変換しないでください。")
 
         forked = run_claude_compat(helper, target, "render-skill", "--skill", "packages/web:forked")
         require(forked.get("status") == "skipped_unsafe", "context: fork skill は render せず skipped_unsafe にしてください。")
+        require("context" in sequence(forked.get("blocking_fields"), "claude_compat.forked.blocking_fields"), "CRLF frontmatter の context は blocking field にしてください。")
+        require("hooks" in sequence(forked.get("blocking_fields"), "claude_compat.forked.blocking_fields"), "hooks は Codex 権限に変換せず blocking field にしてください。")
 
         rendered_context = run_claude_compat(helper, target, "render-context")
         rendered_text = json.dumps(rendered_context, ensure_ascii=False)
         require("Imported context." in rendered_text, "安全な repo 内 @import は render-context に取り込んでください。")
+        for omitted in (".claude/settings.json", ".mcp.json", ".git/config", ".claude/agents/researcher/CLAUDE.md"):
+            require(f"[import omitted: {omitted}]" in rendered_text, f"危険な @import `{omitted}` は omit marker にしてください。")
+            require(f"import_skipped:{omitted}:" in rendered_text, f"危険な @import `{omitted}` は warning reason を残してください。")
+        for sentinel in (
+            "SETTINGS_ENV_SENTINEL",
+            "HOOKS_SENTINEL",
+            "MODEL_SENTINEL",
+            "MCP_RENDER_SENTINEL",
+            "GIT_RENDER_SENTINEL",
+            "AGENT_RENDER_SENTINEL",
+            "NESTED_GIT_CLAUDE_SENTINEL",
+            "NESTED_GIT_SKILL_SENTINEL",
+            "binary\\u0000context",
+            "large context",
+        ):
+            require(sentinel not in rendered_text, f"claude 互換 render-context は検証値 `{sentinel}` を露出しないでください。")
         require("omit-context" not in rendered_text, "CLAUDE.md の動的 command 本文をそのまま render しないでください。")
         require("shell command omitted" in rendered_text, "CLAUDE.md の動的 command は無害な marker にしてください。")
 

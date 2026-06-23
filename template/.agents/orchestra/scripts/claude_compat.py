@@ -56,6 +56,7 @@ SECRET_PATH_TOKENS = (
     "pii",
     "netrc",
 )
+DENIED_PATH_DIR_NAMES = {".git", ".hg", ".svn", ".orchestra", ".agents", ".codex"}
 SAFE_SUPPORTING_SUFFIXES = {".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".csv"}
 SETTINGS_ALLOWLIST = {
     "claudeMdExcludes",
@@ -133,6 +134,23 @@ def is_secret_like_path(rel_path: str) -> bool:
     return any(token in folded for token in SECRET_PATH_TOKENS)
 
 
+def denied_claude_compat_path(rel_path: str) -> str | None:
+    parts = PurePosixPath(rel_path).parts
+    if any(part in DENIED_PATH_DIR_NAMES for part in parts):
+        return "denied_runtime_path"
+    if parts and parts[-1] == ".mcp.json":
+        return "denied_mcp_config"
+    for index, part in enumerate(parts):
+        if part != ".claude" or index + 1 >= len(parts):
+            continue
+        child = parts[index + 1]
+        if child == "agents":
+            return "denied_claude_agents"
+        if child.startswith("settings") and child.endswith(".json"):
+            return "denied_claude_settings"
+    return None
+
+
 def has_symlink_component(path: Path, root: Path) -> bool:
     try:
         relative = path.relative_to(root)
@@ -170,6 +188,9 @@ def safety_check_file(path: Path, root: Path, *, max_bytes: int = MAX_TEXT_BYTES
     if crosses_nested_git_repo(path, root):
         return False, "nested_git_repo"
     rel = rel_posix(path, root)
+    denied_reason = denied_claude_compat_path(rel)
+    if denied_reason:
+        return False, denied_reason
     if is_secret_like_path(rel):
         return False, "secret_like_path"
     try:
@@ -185,6 +206,33 @@ def read_text_file(path: Path, root: Path, *, max_bytes: int = MAX_TEXT_BYTES) -
     ok, reason = safety_check_file(path, root, max_bytes=max_bytes)
     if not ok:
         return None, reason
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None, "read_failed"
+    if b"\x00" in data:
+        return None, "binary_content"
+    return data.decode("utf-8", errors="replace"), None
+
+
+def read_project_settings_file(path: Path, root: Path) -> tuple[str | None, str | None]:
+    if path != root / ".claude" / "settings.json":
+        return None, "not_project_settings"
+    if has_symlink_component(path, root):
+        return None, "symlink_path"
+    resolved = path.resolve(strict=False)
+    if not is_relative_to(resolved, root):
+        return None, "outside_target_repo"
+    if not path.exists() or not path.is_file():
+        return None, "not_a_file"
+    if crosses_nested_git_repo(path, root):
+        return None, "nested_git_repo"
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return None, "stat_failed"
+    if size > MAX_TEXT_BYTES:
+        return None, "too_large"
     try:
         data = path.read_bytes()
     except OSError:
@@ -239,14 +287,18 @@ def parse_scalar(raw: str) -> Any:
 
 
 def parse_simple_frontmatter(text: str) -> tuple[dict[str, Any], str]:
-    if not text.startswith("---\n"):
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].rstrip("\r\n") != "---":
         return {}, text
-    end = text.find("\n---", 4)
-    if end == -1:
+    end_index: int | None = None
+    for index, line in enumerate(lines[1:], start=1):
+        if line.rstrip("\r\n") == "---":
+            end_index = index
+            break
+    if end_index is None:
         return {}, text
-    raw = text[4:end]
-    body_start = text.find("\n", end + 4)
-    body = "" if body_start == -1 else text[body_start + 1 :]
+    raw = "".join(lines[1:end_index])
+    body = "".join(lines[end_index + 1 :])
     metadata: dict[str, Any] = {}
     list_key: str | None = None
     for line in raw.splitlines():
@@ -300,7 +352,7 @@ def load_project_settings(root: Path) -> dict[str, Any]:
     }
     if not path.exists():
         return result
-    text, reason = read_text_file(path, root)
+    text, reason = read_project_settings_file(path, root)
     if text is None:
         result["status"] = "skipped"
         result["errors"].append(reason)
@@ -337,6 +389,28 @@ def load_project_settings(root: Path) -> dict[str, Any]:
         result["strictPluginOnlyCustomization"] = strict
     result["disableSkillShellExecution"] = raw.get("disableSkillShellExecution") is True
     return result
+
+
+def public_settings_summary(settings: dict[str, Any]) -> dict[str, Any]:
+    allowlisted_keys_present: list[str] = []
+    for key in sorted(SETTINGS_ALLOWLIST):
+        value = settings.get(key)
+        if key == "claudeMdExcludes" and value:
+            allowlisted_keys_present.append(key)
+        elif key == "skillOverrides" and value:
+            allowlisted_keys_present.append(key)
+        elif key == "strictPluginOnlyCustomization" and value is not None:
+            allowlisted_keys_present.append(key)
+        elif key == "disableSkillShellExecution" and value is True:
+            allowlisted_keys_present.append(key)
+    return {
+        "path": settings.get("path"),
+        "status": settings.get("status"),
+        "allowlisted_keys_present": allowlisted_keys_present,
+        "redacted_keys_present": sorted(as_string_list(settings.get("redacted_keys_present"))),
+        "ignored_keys_present": sorted(as_string_list(settings.get("ignored_keys_present"))),
+        "errors": as_string_list(settings.get("errors")),
+    }
 
 
 def expand_braces(pattern: str) -> list[str]:
@@ -873,7 +947,7 @@ def scan(root: Path, work_paths: list[Path], settings: dict[str, Any]) -> dict[s
         "schema_version": "1.0",
         "target_repo_root": root.as_posix(),
         "trust": "untrusted",
-        "settings": settings,
+        "settings": public_settings_summary(settings),
         "work_paths": [work.relative_to(root).as_posix() if work != root else "." for work in work_paths],
         "context_cards": context_cards,
         "skill_cards": skill_cards,
