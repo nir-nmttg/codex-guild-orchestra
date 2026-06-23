@@ -12,6 +12,7 @@ Guild-native runtime の中心は `template/.agents/orchestra/config/settings.ya
 - `ledger`: SQLite event と payload の契約
 - `workers`: 担当ロールと並列上限（設定キーは互換性のため英語）
 - `advisory_consultation`: 設計担当と Trial 統合担当の `inquisitor` が既定で検討する read-only advisor の境界
+- `claude_compat`: 対象 repo 内の Claude artifacts を未信頼 context として読む時の境界
 
 ## 変えてよいもの
 
@@ -20,6 +21,7 @@ Guild-native runtime の中心は `template/.agents/orchestra/config/settings.ya
 - Trial の focus
 - report に求める evidence
 - 役割指示の表現
+- Claude 互換 context の説明、対応する安全な metadata、disposition の表現
 
 ## 変えない方がよいもの
 
@@ -28,6 +30,8 @@ Guild-native runtime の中心は `template/.agents/orchestra/config/settings.ya
 - 破壊的操作、依存追加、migration、deploy、本番影響、認可、公開 API 互換性変更の人間確認
 - 外部入力を未信頼として扱うこと
 - `.orchestra/queue/state.sqlite` を Ledger 正本にすること
+- Claude Skill を Codex native Skill へコピー、登録、導入しないこと
+- Claude の `allowed-tools`、hooks、MCP、plugin、`!command`、`context: fork` を Codex 権限へ変換しないこと
 
 ## 担当ロール
 

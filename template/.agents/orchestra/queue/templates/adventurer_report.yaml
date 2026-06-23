@@ -22,6 +22,15 @@ report:
   research_evidence:
     files_read: []
     verified_findings: []
+    compat_context:
+      - source_type: claude
+        path: null
+        sha256: null
+        trust: untrusted
+        applies_to: []
+        status: null
+        disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
+        skip_reason: null
     skip_reason: null
   trial_recommendation:
     depth: self_check

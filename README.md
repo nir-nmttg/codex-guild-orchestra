@@ -32,6 +32,12 @@ python scripts/validate.py
 
 validator は Guild Law、Quest Charter、Party Tactics、Trial、Ledger の整合を確認します。
 
+## Claude Compatibility
+
+対象 repo に既存の `CLAUDE.md` や `.claude/skills/**/SKILL.md` がある場合、Codex / Guild はそれらを未信頼 context として読めます。
+Claude Skill は Codex native Skill へ変換せず、権限付与、hooks、MCP、dynamic command は実行しません。
+詳しくは [docs/claude-compatibility.md](docs/claude-compatibility.md) を参照してください。
+
 ## Safety
 
 secret / token / credential / password / key / auth / PII は読まず、書かず、要約しません。

@@ -72,6 +72,15 @@ trial:
     questions: []
     target_paths: []
     stop_conditions: []
+    compat_context:
+      - source_type: claude
+        path: null
+        sha256: null
+        trust: untrusted
+        applies_to: []
+        status: null
+        disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
+        skip_reason: null
   decision_options:
     - accept
     - accept_with_risks

@@ -31,6 +31,15 @@ assignment:
   known_context:
     evidence_refs: []
     notes: []
+    compat_context:
+      - source_type: claude
+        path: null
+        sha256: null
+        trust: untrusted
+        applies_to: []
+        status: null
+        disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
+        skip_reason: null
   autonomy_budget:
     subassignments: 0
     extra_file_reads: 0
