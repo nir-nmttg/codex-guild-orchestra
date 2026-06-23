@@ -1,0 +1,42 @@
+artifact_type: "advisor_report"
+schema_version: "3.0"
+workflow_id: null
+structured_data_usage:
+  structured_inputs: []
+  decision_rationale: null
+  evidence_refs: []
+report:
+  id: null
+  quest_id: null
+  assignment_id: null
+  worker_id: advisor
+  owner_worker_id: null
+  target_repo_root: null
+  status: draft
+  decision_authority: false
+  terminal_worker: true
+  owner_synthesis_required: true
+  summary: null
+  focus: []
+  findings: []
+  risks: []
+  unknowns: []
+  confidence_percent: null
+  confidence_basis:
+    verified_findings: []
+    validation_evidence: []
+    unresolved_risks: []
+    blocking_unknowns: []
+  confidence_delta_percent: null
+  new_evidence_refs: []
+  blocking_unknowns_resolved: []
+  blocking_unknowns_remaining: []
+  recommended_next_focus: null
+  research_evidence:
+    files_read: []
+    verified_findings: []
+    skip_reason: null
+  confidence: evidence_limited
+  escalations: []
+  evidence_refs: []
+  timestamp: null

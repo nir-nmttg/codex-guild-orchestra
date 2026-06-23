@@ -1,0 +1,34 @@
+artifact_type: "quest_report"
+schema_version: "3.0"
+workflow_id: null
+structured_data_usage:
+  structured_inputs: []
+  decision_rationale: null
+  evidence_refs: []
+report:
+  id: null
+  quest_id: null
+  assignment_id: null
+  worker_id: adventurer
+  target_repo_root: null
+  status: draft
+  summary: null
+  changed_files: []
+  decisions_made: []
+  validation_evidence:
+    commands: []
+    manual_checks: []
+    not_run: []
+  research_evidence:
+    files_read: []
+    verified_findings: []
+    skip_reason: null
+  trial_recommendation:
+    depth: self_check
+    focus: []
+  confidence: evidence_limited
+  risks: []
+  escalations: []
+  scope_changes_requested: []
+  evidence_refs: []
+  timestamp: null

@@ -1,0 +1,55 @@
+artifact_type: "trial_report"
+schema_version: "3.0"
+workflow_id: null
+structured_data_usage:
+  structured_inputs: []
+  decision_rationale: null
+  evidence_refs: []
+report:
+  id: null
+  quest_id: null
+  trial_id: null
+  worker_id: inquisitor
+  target_repo_root: null
+  status: draft
+  decision: null
+  summary: null
+  trial_depth: null
+  advisor_usage:
+    considered: true
+    used: null
+    skip_reason_required_when_not_used: true
+    skip_reason: null
+  findings:
+    critical: []
+    major: []
+    minor: []
+  advisor_reports: []
+  finding_dispositions:
+    adopted: []
+    rejected: []
+    unresolved: []
+  advisor_dialogue_synthesis:
+    confidence_target_percent: 90
+    owner_confidence_percent: null
+    previous_confidence_percent: null
+    confidence_delta_percent: null
+    new_evidence_refs: []
+    blocking_unknowns_resolved: []
+    blocking_unknowns_remaining: []
+    continue_or_stop: null
+    stop_reason: null
+    raw_discussion_recorded: false
+  validation_evidence:
+    commands: []
+    manual_checks: []
+    not_run: []
+  research_evidence:
+    files_read: []
+    verified_findings: []
+    skip_reason: null
+  confidence: evidence_limited
+  risks: []
+  requested_changes: []
+  evidence_refs: []
+  timestamp: null

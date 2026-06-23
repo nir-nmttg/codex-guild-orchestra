@@ -1,0 +1,34 @@
+model = "gpt-5.5"
+# Root の reasoning effort はここでは固定せず、Codex 起動時のユーザー指定または上位設定を使う。
+model_context_window = 1_000_000
+sandbox_mode = "read-only"
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"
+web_search = "cached"
+allow_login_shell = false
+
+[sandbox_workspace_write]
+network_access = false
+
+[shell_environment_policy]
+inherit = "core"
+exclude = [
+	"*secret*",
+	"*token*",
+	"*credential*",
+	"*password*",
+	"*key*",
+	"*auth*",
+]
+
+[agents]
+max_threads = 12
+# `mapmaking` / `party_quest` / `guild_quest` / `multi_focus_trial` の owner は、
+# `autonomy_budget.subassignments` があれば read-only `advisor` 利用を既定で検討し、使わない理由を残す。
+# `advisor` は terminal worker（終端助言担当）として追加 subagent 起動（追加エージェント起動）を行わず、採否や Ledger 反映も行わない。
+max_depth = 4
+job_max_runtime_seconds = 1200
+
+[features]
+codex_hooks = true
+multi_agent = true

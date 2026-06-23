@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'if ! command -v python3 >/dev/null 2>&1; then printf \"%s\\n\" \"{\\\"continue\\\":true,\\\"systemMessage\\\":\\\"codex-guild-orchestra: python3 が見つからないため Stop hook をスキップしました。\\\"}\"; exit 0; fi; tried_env=0; for base in \"$CODEX_GUILD_ORCHESTRA_ROOT\"; do [ -z \"$base\" ] && continue; tried_env=1; p=$base; while :; do hook=\"$p/.codex/hooks/stop_quality_gate.py\"; settings=\"$p/.agents/orchestra/config/settings.yaml\"; if [ -f \"$hook\" ] && [ -f \"$settings\" ]; then exec /usr/bin/env python3 \"$hook\"; fi; [ \"$p\" = / ] && break; p=$(dirname \"$p\"); done; done; for base in \"$PWD\"; do [ -z \"$base\" ] && continue; p=$base; while :; do hook=\"$p/.codex/hooks/stop_quality_gate.py\"; settings=\"$p/.agents/orchestra/config/settings.yaml\"; if [ -f \"$hook\" ] && [ -f \"$settings\" ]; then if [ \"$tried_env\" = 1 ]; then printf \"%s\\n\" \"codex-guild-orchestra: 環境変数で指定されたギルド規約ルートでは Stop hook root が見つからなかったため、PWD から親方向に見つかった hook を実行します。\" >&2; fi; exec /usr/bin/env python3 \"$hook\"; fi; [ \"$p\" = / ] && break; p=$(dirname \"$p\"); done; done; if [ \"$tried_env\" = 1 ]; then printf \"%s\\n\" \"{\\\"continue\\\":true,\\\"systemMessage\\\":\\\"codex-guild-orchestra: CODEX_GUILD_ORCHESTRA_ROOT と PWD から Stop hook root が見つかりません。CODEX_GUILD_ORCHESTRA_ROOT にはギルド規約ルートを設定してください。\\\"}\"; else printf \"%s\\n\" \"{\\\"continue\\\":true,\\\"systemMessage\\\":\\\"codex-guild-orchestra: Stop hook root が見つかりません。子 repo を repositories/<repo> 配下で起動している場合も PWD から親方向にギルド規約ルートを探索します。見つからない場合は CODEX_GUILD_ORCHESTRA_ROOT にギルド規約ルートを設定してください。\\\"}\"; fi'",
+            "timeout": 10,
+            "statusMessage": "最終回答の要約を確認中"
+          }
+        ]
+      }
+    ]
+  }
+}

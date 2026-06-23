@@ -1,0 +1,61 @@
+artifact_type: "guild_quest_command"
+schema_version: "3.0"
+workflow_id: null
+structured_data_usage:
+  structured_inputs: []
+  decision_rationale: null
+  evidence_refs: []
+commands: []
+
+# 例:
+# commands:
+#   - id: cmd_001
+#     quest_id: quest_001
+#     rank: guild_quest
+#     objective: "`guild_quest` の目的"
+#     strategy:
+#       summary: "Party 分割と安全方針"
+#       main_risks: []
+#       advisory_plan:
+#         consideration_required: true
+#         focus: []
+#         owner_synthesis_required: true
+#         skip_reason_required_when_not_used: true
+#         skip_reason: null
+#       advisor_synthesis:
+#         adopted: []
+#         rejected: []
+#         unresolved: []
+#     parties:
+#       - id: party_001
+#         lead: party_leader
+#         objective: "担当範囲"
+#         owned_scope:
+#           read: []
+#           edit: []
+#           validate: []
+#         authority:
+#           read: true
+#           edit: true
+#           validate: true
+#           local_git: false
+#           external_actions: false
+#         trial_plan:
+#           depth: multi_focus_trial
+#           focus: []
+#     boundaries:
+#       target_repo_root: "<guild_root>/repositories/<repo>"
+#       read_deny: []
+#       edit_deny: []
+#       safety_items: []
+#     autonomy_budget:
+#       subassignments: 5
+#       extra_file_reads: 100
+#       validation_iterations: 3
+#       timebox_minutes: null
+#     escalation_triggers: []
+#     evidence_required: []
+#     ledger:
+#       workflow_id: "wf_001"
+#       event_id: "evt_002"
+#     status: drafted
