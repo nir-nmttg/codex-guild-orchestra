@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import ast
+import os
 from pathlib import Path
 import shutil
 import sqlite3
@@ -38,6 +39,7 @@ REQUIRED_PATHS = [
     "docs/guild-quest-lifecycle.md",
     "docs/customization.md",
     "docs/deployment-patterns.md",
+    "docs/claude-compatibility.md",
     "docs/prompt-recipes.md",
     "docs/localization-management.md",
     "docs/localization-allowlist.txt",
@@ -75,6 +77,7 @@ REQUIRED_PATHS = [
     "template/.agents/orchestra/queue/templates/request.yaml",
     "template/.agents/orchestra/queue/templates/command.yaml",
     "template/.agents/orchestra/scripts/inbox_write.sh",
+    "template/.agents/orchestra/scripts/claude_compat.py",
     "template/.agents/orchestra/scripts/queue_db.py",
     "template/.agents/orchestra/scripts/queue_audit.py",
     "template/.agents/orchestra/scripts/queue_schema.sql",
@@ -224,6 +227,7 @@ ACTIVE_PROSE_PATHS = (
     "docs/agent-deployment.md",
     "docs/customization.md",
     "docs/deployment-patterns.md",
+    "docs/claude-compatibility.md",
     "docs/guild-quest-lifecycle.md",
     "docs/localization-management.md",
     "docs/orchestration-runtime.md",
@@ -365,7 +369,7 @@ def validate_version() -> None:
 def validate_settings() -> None:
     settings = mapping(load_yaml("template/.agents/orchestra/config/settings.yaml"), "settings.yaml")
     require(settings.get("version") == "3.0", "settings.yaml.version は 3.0 にしてください。")
-    for section in ("guild_runtime", "paths", "guild_law", "quest_charter", "workers", "advisory_consultation", "root_session", "party_tactics", "trial", "ledger", "reporting"):
+    for section in ("guild_runtime", "paths", "guild_law", "claude_compat", "quest_charter", "workers", "advisory_consultation", "root_session", "party_tactics", "trial", "ledger", "reporting"):
         require(section in settings, f"settings.yaml に {section} が必要です。")
 
     text = read("template/.agents/orchestra/config/settings.yaml")
@@ -384,6 +388,29 @@ def validate_settings() -> None:
     immutable = sequence(guild_law.get("immutable"), "settings.guild_law.immutable")
     require(immutable, "settings.guild_law.immutable は空にできません。")
     require("human_confirmation_required_for" in guild_law, "settings.guild_law.human_confirmation_required_for が必要です。")
+
+    claude_compat = mapping(settings["claude_compat"], "settings.claude_compat")
+    claude_rule = str(claude_compat.get("rule") or "")
+    require_tokens(
+        claude_rule,
+        ("target_repo_root", "Claude artifacts", "未信頼", "AGENTS", "Guild Law", "Quest Charter", "authority", "boundaries", "disposition"),
+        "settings.claude_compat.rule",
+    )
+    helper = mapping(claude_compat.get("helper"), "settings.claude_compat.helper")
+    require(helper.get("path") == ".agents/orchestra/scripts/claude_compat.py", "claude_compat.helper.path は claude_compat.py にしてください。")
+    require({"scan", "render-context", "render-skill"} <= set(sequence(helper.get("commands"), "settings.claude_compat.helper.commands")), "claude_compat helper command が不足しています。")
+    settings_allowlist = set(sequence(claude_compat.get("settings_allowlist"), "settings.claude_compat.settings_allowlist"))
+    require({"claudeMdExcludes", "skillOverrides", "strictPluginOnlyCustomization", "disableSkillShellExecution"} <= settings_allowlist, "claude_compat.settings_allowlist が不足しています。")
+    unsupported = set(sequence(claude_compat.get("unsupported_execution_surfaces"), "settings.claude_compat.unsupported_execution_surfaces"))
+    require({"allowed-tools", "disallowed-tools", "hooks", "MCP", "plugin", "env", "!command", "context: fork", "model_override", "effort_override", "shell"} <= unsupported, "claude_compat.unsupported_execution_surfaces が不足しています。")
+    claude_safety = mapping(claude_compat.get("safety"), "settings.claude_compat.safety")
+    for key in ("target_repo_only", "reject_symlink_escape", "reject_nested_git_repo", "reject_secret_like_paths"):
+        require(claude_safety.get(key) is True, f"claude_compat.safety.{key} は true にしてください。")
+    for key in ("execute_dynamic_commands", "install_as_codex_skill", "copy_to_agents_skills", "grant_tools_from_allowed_tools"):
+        require(claude_safety.get(key) is False, f"claude_compat.safety.{key} は false にしてください。")
+    require(claude_safety.get("raw_content_ledger_policy") == "do_not_record", "claude_compat raw content は Ledger に残さないでください。")
+    dispositions = set(sequence(claude_compat.get("dispositions"), "settings.claude_compat.dispositions"))
+    require(dispositions == {"applied", "rejected_conflict", "ignored_irrelevant", "skipped_unsafe"}, "claude_compat.dispositions が期待値と一致しません。")
 
     charter = mapping(settings["quest_charter"], "settings.quest_charter")
     required_fields = set(sequence(charter.get("required_fields"), "settings.quest_charter.required_fields"))
@@ -542,6 +569,20 @@ def validate_dialogue_policy(value: object, label: str) -> None:
     )
 
 
+def validate_compat_context(value: object, label: str) -> None:
+    entries = sequence(value, label)
+    require(entries, f"{label} は Claude 互換 context disposition の雛形を含めてください。")
+    for index, value_entry in enumerate(entries):
+        entry_label = f"{label}[{index}]"
+        entry = mapping(value_entry, entry_label)
+        for key in ("source_type", "path", "sha256", "trust", "applies_to", "status", "disposition", "skip_reason"):
+            require(key in entry, f"{entry_label}.{key} が必要です。")
+        for key in ("content", "rendered_context", "settings", "raw_content"):
+            require(key not in entry, f"{entry_label} に raw payload key `{key}` を含めないでください。")
+        require(entry.get("source_type") == "claude", f"{entry_label}.source_type は claude にしてください。")
+        require(entry.get("trust") == "untrusted", f"{entry_label}.trust は untrusted にしてください。")
+
+
 def validate_queue_templates() -> None:
     paths = [
         "template/.agents/orchestra/queue/templates/advisor_assignment.yaml",
@@ -572,6 +613,8 @@ def validate_queue_templates() -> None:
     validate_authority(assignment["authority"], "adventurer_assignment.assignment.authority")
     validate_boundaries(assignment["boundaries"], "adventurer_assignment.assignment.boundaries")
     validate_autonomy_budget(assignment["autonomy_budget"], "adventurer_assignment.assignment.autonomy_budget")
+    assignment_known_context = mapping(assignment.get("known_context"), "adventurer_assignment.assignment.known_context")
+    validate_compat_context(assignment_known_context.get("compat_context"), "adventurer_assignment.assignment.known_context.compat_context")
 
     advisor_assignment = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/advisor_assignment.yaml"), "advisor_assignment").get("assignment"), "advisor_assignment.assignment")
     for key in ("id", "quest_id", "parent_id", "worker_id", "role", "kind", "owner_worker_id", "owner_assignment_id", "objective", "focus", "dialogue_policy", "decision_authority", "terminal_worker", "owner_synthesis_required", "authority", "boundaries", "autonomy_budget", "research_plan", "escalation_triggers", "evidence_required", "status"):
@@ -589,6 +632,8 @@ def validate_queue_templates() -> None:
     require(advisor_authority.get("read") is True and advisor_authority.get("edit") is False and advisor_authority.get("local_git") is False and advisor_authority.get("external_actions") is False, "advisor は read-only にしてください。")
     validate_boundaries(advisor_assignment["boundaries"], "advisor_assignment.assignment.boundaries")
     validate_autonomy_budget(advisor_assignment["autonomy_budget"], "advisor_assignment.assignment.autonomy_budget")
+    advisor_known_context = mapping(advisor_assignment.get("known_context"), "advisor_assignment.assignment.known_context")
+    validate_compat_context(advisor_known_context.get("compat_context"), "advisor_assignment.assignment.known_context.compat_context")
 
     trial = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/inquisitor_trial.yaml"), "inquisitor_trial").get("trial"), "inquisitor_trial.trial")
     for key in ("id", "quest_id", "depth", "focus", "authority", "boundaries", "trial_checks", "depth_guardrails", "autonomy_budget", "research_plan", "decision_options", "evidence_required", "status"):
@@ -613,6 +658,8 @@ def validate_queue_templates() -> None:
     require(focus_advisors.get("terminal_worker_required") is True, "focus advisor は terminal worker を必須にしてください。")
     require(focus_advisors.get("skip_reason_required_when_not_used") is True, "focus advisor を使わない時は理由を必須にしてください。")
     require("skip_reason" in focus_advisors, "focus advisor を使わない理由欄が必要です。")
+    trial_research_plan = mapping(trial.get("research_plan"), "inquisitor_trial.trial.research_plan")
+    validate_compat_context(trial_research_plan.get("compat_context"), "inquisitor_trial.trial.research_plan.compat_context")
     trial_budget = mapping(trial["autonomy_budget"], "inquisitor_trial.trial.autonomy_budget")
     require(isinstance(trial_budget.get("subassignments"), int) and trial_budget.get("subassignments") >= 1, "inquisitor_trial は advisor 検討用の subassignments を 1 以上にしてください。")
     safety_gate_guardrail = mapping(depth_guardrails["safety_gate"], "inquisitor_trial.trial.depth_guardrails.safety_gate")
@@ -623,6 +670,8 @@ def validate_queue_templates() -> None:
         report = mapping(mapping(load_yaml(rel), rel).get("report"), f"{rel}.report")
         for key in ("id", "quest_id", "worker_id", "status", "summary", "validation_evidence", "research_evidence", "confidence", "risks", "evidence_refs"):
             require(key in report, f"{rel}.report.{key} が必要です。")
+        report_research = mapping(report.get("research_evidence"), f"{rel}.report.research_evidence")
+        validate_compat_context(report_research.get("compat_context"), f"{rel}.report.research_evidence.compat_context")
         if rel.endswith("inquisitor_report.yaml"):
             advisor_usage = mapping(report.get("advisor_usage"), f"{rel}.report.advisor_usage")
             require(set(advisor_usage) == {"considered", "used", "skip_reason_required_when_not_used", "skip_reason"}, f"{rel}.report.advisor_usage は検討結果と skip reason 契約だけにしてください。")
@@ -644,6 +693,8 @@ def validate_queue_templates() -> None:
     require(advisor_report["owner_synthesis_required"] is True, "advisor_report.report.owner_synthesis_required は true にしてください。")
     confidence_basis = mapping(advisor_report["confidence_basis"], "advisor_report.report.confidence_basis")
     require(set(confidence_basis) == {"verified_findings", "validation_evidence", "unresolved_risks", "blocking_unknowns"}, "advisor_report.report.confidence_basis が期待値と一致しません。")
+    advisor_research = mapping(advisor_report.get("research_evidence"), "advisor_report.report.research_evidence")
+    validate_compat_context(advisor_research.get("compat_context"), "advisor_report.report.research_evidence.compat_context")
 
 
 def validate_sqlite_schema() -> None:
@@ -1507,6 +1558,208 @@ def validate_install_upgrade_smoke() -> None:
         require(not remaining, "install.py は削除済み旧 template を prune してください: " + ", ".join(remaining))
 
 
+def run_claude_compat(helper: Path, target: Path, *args: str) -> dict[str, object]:
+    result = subprocess.run(
+        [sys.executable, str(helper), "--target-repo-root", str(target), "--work-path", "packages/web/src/app.ts", *args],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    require(result.returncode == 0, f"claude_compat.py {' '.join(args)} が失敗しました: {result.stderr or result.stdout}")
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise ValidationError(f"claude_compat.py の JSON 出力を parse できません: {exc}\n{result.stdout}") from exc
+    require(isinstance(payload, dict), "claude_compat.py の出力は JSON object にしてください。")
+    return payload
+
+
+def validate_claude_compat_smoke() -> None:
+    helper = ROOT / "template/.agents/orchestra/scripts/claude_compat.py"
+    require(helper.exists(), "template/.agents/orchestra/scripts/claude_compat.py が必要です。")
+    py_compile = subprocess.run(
+        [sys.executable, "-m", "py_compile", str(helper)],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    require(py_compile.returncode == 0, "claude_compat.py は Python として parse できる必要があります: " + py_compile.stderr)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "repo"
+        outside = Path(tmp) / "outside.md"
+        (target / "packages/web/src").mkdir(parents=True)
+        (target / ".claude/rules").mkdir(parents=True)
+        (target / ".claude/skills/deploy").mkdir(parents=True)
+        (target / ".claude/skills/skipme").mkdir(parents=True)
+        (target / ".claude/commands").mkdir(parents=True)
+        (target / ".claude/agents/researcher").mkdir(parents=True)
+        (target / ".git").mkdir(parents=True)
+        (target / "packages/web/.claude/skills/deploy").mkdir(parents=True)
+        (target / "packages/web/.claude/skills/forked").mkdir(parents=True)
+        (target / "packages/web/.claude/skills/pluginish/.claude-plugin").mkdir(parents=True)
+        (target / "packages/web/vendor/.git").mkdir(parents=True)
+        (target / "packages/web/vendor/.claude/skills/nested").mkdir(parents=True)
+        (target / "secret-token").mkdir(parents=True)
+        (target / "binary").mkdir(parents=True)
+        (target / "large").mkdir(parents=True)
+
+        (target / "packages/web/src/app.ts").write_text("export const value = 1;\n", encoding="utf-8")
+        (target / "CLAUDE.md").write_text(
+            "# Root Claude\n"
+            "@docs/context.md\n"
+            "@.claude/settings.json\n"
+            "@.mcp.json\n"
+            "@.git/config\n"
+            "@.claude/agents/researcher/CLAUDE.md\n"
+            "!printf omit-context\n",
+            encoding="utf-8",
+        )
+        (target / "docs").mkdir()
+        (target / "docs/context.md").write_text("Imported context.\n", encoding="utf-8")
+        (target / ".mcp.json").write_text('{"sentinel":"MCP_RENDER_SENTINEL"}\n', encoding="utf-8")
+        (target / ".git/config").write_text("[remote]\nurl = GIT_RENDER_SENTINEL\n", encoding="utf-8")
+        (target / ".claude/CLAUDE.md").write_text("# Project Claude\n", encoding="utf-8")
+        (target / ".claude/agents/researcher/CLAUDE.md").write_text("AGENT_RENDER_SENTINEL\n", encoding="utf-8")
+        (target / "packages/web/CLAUDE.md").write_text("# Web Claude\n", encoding="utf-8")
+        (target / "packages/web/vendor/CLAUDE.md").write_text("NESTED_GIT_CLAUDE_SENTINEL\n", encoding="utf-8")
+        (target / "packages/web/vendor/.claude/skills/nested/SKILL.md").write_text("---\ndescription: Nested git skill\n---\nNESTED_GIT_SKILL_SENTINEL\n", encoding="utf-8")
+        (target / "binary/CLAUDE.md").write_bytes(b"binary\0context\n")
+        (target / "large/CLAUDE.md").write_text("large context\n" * 12000, encoding="utf-8")
+        (target / "secret-token/CLAUDE.md").write_text("do not read\n", encoding="utf-8")
+        (target / "excluded").mkdir()
+        (target / "excluded/CLAUDE.md").write_text("excluded\n", encoding="utf-8")
+        (target / ".claude/settings.json").write_text(
+            json.dumps(
+                {
+                    "claudeMdExcludes": ["**/excluded/CLAUDE.md"],
+                    "skillOverrides": {"skipme": "off", "deploy": "user-invocable-only"},
+                    "disableSkillShellExecution": True,
+                    "env": {"SECRET_TOKEN": "SETTINGS_ENV_SENTINEL"},
+                    "permissions": {"allow": ["Bash(*)"]},
+                    "hooks": {"PreToolUse": "HOOKS_SENTINEL"},
+                    "model": "MODEL_SENTINEL",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (target / ".claude/rules/api.md").write_text(
+            "---\npaths:\n  - \"packages/web/**/*.ts\"\n---\nUse API rules.\n",
+            encoding="utf-8",
+        )
+        outside.write_text("outside\n", encoding="utf-8")
+        try:
+            os.symlink(outside, target / ".claude/rules/symlink.md")
+        except OSError:
+            pass
+        (target / ".claude/skills/deploy/SKILL.md").write_text(
+            "---\ndescription: Deploy root app\nallowed-tools: Bash(git status)\n---\nDeploy root.\n!`printf omit-root`\n",
+            encoding="utf-8",
+        )
+        (target / ".claude/skills/skipme/SKILL.md").write_text(
+            "---\ndescription: Hidden skill\n---\nDo not expose.\n",
+            encoding="utf-8",
+        )
+        (target / ".claude/commands/review.md").write_text(
+            "---\ndescription: Review command\n---\nReview $ARGUMENTS.\n",
+            encoding="utf-8",
+        )
+        (target / "packages/web/.claude/skills/deploy/SKILL.md").write_text(
+            "---\ndescription: Deploy web app\narguments: [env]\nallowed-tools: Bash(git status)\nmodel: opus\n"
+            "effort: high\n---\nDeploy $env.\n!`printf omit-nested`\n",
+            encoding="utf-8",
+        )
+        (target / "packages/web/.claude/skills/forked/SKILL.md").write_bytes(
+            b"---\r\n"
+            b"description: Forked research\r\n"
+            b"context: fork\r\n"
+            b"hooks: unsafe\r\n"
+            b"allowed-tools: Bash(git status)\r\n"
+            b"model: opus\r\n"
+            b"effort: high\r\n"
+            b"---\r\n"
+            b"Research.\r\n",
+        )
+        (target / "packages/web/.claude/skills/pluginish/.claude-plugin/plugin.json").write_text("{}", encoding="utf-8")
+        (target / "packages/web/.claude/skills/pluginish/SKILL.md").write_text(
+            "---\ndescription: Plugin skill\n---\nPlugin の内容。\n",
+            encoding="utf-8",
+        )
+
+        scan = run_claude_compat(helper, target, "scan")
+        scan_text = json.dumps(scan, ensure_ascii=False)
+        settings = mapping(scan.get("settings"), "claude_compat.scan.settings")
+        require("env" in sequence(settings.get("redacted_keys_present"), "claude_compat.scan.settings.redacted_keys_present"), "claude_compat は env を redacted key として扱ってください。")
+        require("hooks" in sequence(settings.get("redacted_keys_present"), "claude_compat.scan.settings.redacted_keys_present"), "claude_compat は hooks を redacted key として扱ってください。")
+        require("model" in sequence(settings.get("ignored_keys_present"), "claude_compat.scan.settings.ignored_keys_present"), "claude 互換設定は非対応設定項目を無視項目として扱ってください。")
+        for sentinel in ("SETTINGS_ENV_SENTINEL", "HOOKS_SENTINEL", "MODEL_SENTINEL", "MCP_RENDER_SENTINEL", "GIT_RENDER_SENTINEL"):
+            require(sentinel not in scan_text, f"claude 互換 scan は検証値 `{sentinel}` を露出しないでください。")
+        context_cards = sequence(scan.get("context_cards"), "claude_compat.scan.context_cards")
+        skill_cards = sequence(scan.get("skill_cards"), "claude_compat.scan.skill_cards")
+        context_by_path = {str(mapping(card, "context_card").get("path")): mapping(card, "context_card") for card in context_cards}
+        require(context_by_path["packages/web/CLAUDE.md"].get("applicable") is True, "入れ子の CLAUDE.md は work path に適用される必要があります。")
+        require(context_by_path["excluded/CLAUDE.md"].get("status") == "skipped", "claudeMdExcludes は CLAUDE.md を skip してください。")
+        require(context_by_path["secret-token/CLAUDE.md"].get("reason") == "secret_like_path", "secret-like CLAUDE.md は skip してください。")
+        require(context_by_path["binary/CLAUDE.md"].get("reason") == "binary_content", "NUL 入り CLAUDE.md は skip してください。")
+        require(context_by_path["large/CLAUDE.md"].get("reason") == "too_large", "上限超過 CLAUDE.md は skip してください。")
+        require("packages/web/vendor/CLAUDE.md" not in context_by_path, "nested git repo 内の CLAUDE.md は scan しないでください。")
+        if ".claude/rules/symlink.md" in context_by_path:
+            require(context_by_path[".claude/rules/symlink.md"].get("reason") == "symlink_path", "symlink rule は skip してください。")
+        skills_by_name = {str(mapping(card, "skill_card").get("qualified_name")): mapping(card, "skill_card") for card in skill_cards}
+        require("deploy" in skills_by_name and "packages/web:deploy" in skills_by_name, "root と入れ子の同名 Skill は qualified name を持つ必要があります。")
+        require(skills_by_name["skipme"].get("status") == "skipped", "skillOverrides.off は skill を skip してください。")
+        require(skills_by_name["packages/web:pluginish"].get("reason") == "plugin_manifest_present", "plugin manifest を持つ skill は skip してください。")
+        require(skills_by_name["packages/web:forked"].get("auto_candidate") is False, "context: fork skill は auto candidate にしないでください。")
+        forked_unsupported = sequence(skills_by_name["packages/web:forked"].get("unsupported_fields"), "claude_compat.forked.unsupported_fields")
+        for metadata_key in ("allowed-tools", "context", "effort", "hooks", "model"):
+            require(metadata_key in forked_unsupported, f"CRLF frontmatter の {metadata_key} は unsupported_fields に検出してください。")
+        forked_unsafe = sequence(skills_by_name["packages/web:forked"].get("unsafe_fields"), "claude_compat.forked.unsafe_fields")
+        for metadata_key in ("context", "hooks"):
+            require(metadata_key in forked_unsafe, f"CRLF frontmatter の {metadata_key} は unsafe_fields に検出してください。")
+        require("packages/web/vendor:nested" not in skills_by_name, "nested git repo 内の SKILL.md は scan しないでください。")
+
+        rendered = run_claude_compat(helper, target, "render-skill", "--skill", "packages/web:deploy", "--arguments", "staging")
+        require(rendered.get("status") == "rendered", "明示 skill render は成功してください。")
+        require("omit-nested" not in str(rendered.get("content")), "動的 command 本文をそのまま render しないでください。")
+        require("shell command omitted" in str(rendered.get("content")), "動的 command は無害な marker にしてください。")
+        require("Deploy staging" in str(rendered.get("content")), "skill arguments を置換してください。")
+        rendered_unsupported = sequence(rendered.get("unsupported_fields"), "claude_compat.render_skill.unsupported_fields")
+        for metadata_key in ("allowed-tools", "model", "effort"):
+            require(metadata_key in rendered_unsupported, f"{metadata_key} は unsupported_fields に留めてください。")
+        rendered_skill_text = json.dumps(rendered, ensure_ascii=False)
+        for codex_key in ("authority", "model_reasoning_effort", "sandbox_mode"):
+            require(codex_key not in rendered_skill_text, f"Claude metadata を Codex 権限 key `{codex_key}` へ変換しないでください。")
+
+        forked = run_claude_compat(helper, target, "render-skill", "--skill", "packages/web:forked")
+        require(forked.get("status") == "skipped_unsafe", "context: fork skill は render せず skipped_unsafe にしてください。")
+        require("context" in sequence(forked.get("blocking_fields"), "claude_compat.forked.blocking_fields"), "CRLF frontmatter の context は blocking field にしてください。")
+        require("hooks" in sequence(forked.get("blocking_fields"), "claude_compat.forked.blocking_fields"), "hooks は Codex 権限に変換せず blocking field にしてください。")
+
+        rendered_context = run_claude_compat(helper, target, "render-context")
+        rendered_text = json.dumps(rendered_context, ensure_ascii=False)
+        require("Imported context." in rendered_text, "安全な repo 内 @import は render-context に取り込んでください。")
+        for omitted in (".claude/settings.json", ".mcp.json", ".git/config", ".claude/agents/researcher/CLAUDE.md"):
+            require(f"[import omitted: {omitted}]" in rendered_text, f"危険な @import `{omitted}` は omit marker にしてください。")
+            require(f"import_skipped:{omitted}:" in rendered_text, f"危険な @import `{omitted}` は warning reason を残してください。")
+        for sentinel in (
+            "SETTINGS_ENV_SENTINEL",
+            "HOOKS_SENTINEL",
+            "MODEL_SENTINEL",
+            "MCP_RENDER_SENTINEL",
+            "GIT_RENDER_SENTINEL",
+            "AGENT_RENDER_SENTINEL",
+            "NESTED_GIT_CLAUDE_SENTINEL",
+            "NESTED_GIT_SKILL_SENTINEL",
+            "binary\\u0000context",
+            "large context",
+        ):
+            require(sentinel not in rendered_text, f"claude 互換 render-context は検証値 `{sentinel}` を露出しないでください。")
+        require("omit-context" not in rendered_text, "CLAUDE.md の動的 command 本文をそのまま render しないでください。")
+        require("shell command omitted" in rendered_text, "CLAUDE.md の動的 command は無害な marker にしてください。")
+
+
 def validate_agents() -> None:
     require(tomllib is not None, "TOML 検証には tomllib/tomli が必要です。")
     require(not (ROOT / "template/.codex/agents/spark.toml").exists(), "template/.codex/agents/spark.toml を戻さないでください。")
@@ -1697,6 +1950,7 @@ def main() -> int:
         validate_sqlite_schema,
         validate_queue_db_smoke,
         validate_install_upgrade_smoke,
+        validate_claude_compat_smoke,
         validate_agents,
         validate_active_prose_vocabulary,
         validate_docs_and_instructions,
