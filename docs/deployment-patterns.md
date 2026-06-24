@@ -87,7 +87,7 @@ default `workspace-write` でも `.git/`、`.agents/`、`.codex/` は protected 
 Git 管理したい場合は `--no-git-exclude` を付けてください。
 これは `.git/info/exclude` を新規更新せず、既存の管理ブロックも変更しません。`.agents/orchestra/` と `.codex/` はテンプレート本体として配置されます。
 Codex Skills を共有したい場合の `.agents/skills/` は除外しません。`AGENTS.md` には毎回必要な短い規約だけを置き、再利用ワークフローは Skills 側へ分けてください。
-このテンプレートはレビュー、検証、コミット作成などのリポジトリ単位の Skills を `.agents/skills/` に同梱します。
+このテンプレートは設計、レビュー、検証、コミット作成などのリポジトリ単位の Skills を `.agents/skills/` に同梱します。
 同梱 Skill は `owner: codex-guild-orchestra` と用途別の `scope` を持ちます。オーケストレーション本体向けだけ `orchestra-` 接頭辞を使い、`repositories/` 配下対象リポジトリ向けは接頭辞なしにします。
 不要な Skill は削除できますが、残す場合は `SKILL.md` の `name`、`description`、`owner`、`scope` を壊さないでください。
 
