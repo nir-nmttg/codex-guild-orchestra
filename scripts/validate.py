@@ -71,11 +71,14 @@ REQUIRED_PATHS = [
     "template/.agents/orchestra/queue/templates/adventurer_assignment.yaml",
     "template/.agents/orchestra/queue/templates/adventurer_report.yaml",
     "template/.agents/orchestra/queue/templates/adventurer_inbox.yaml",
+    "template/.agents/orchestra/queue/templates/cartographer_assignment.yaml",
+    "template/.agents/orchestra/queue/templates/cartographer_report.yaml",
     "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
     "template/.agents/orchestra/queue/templates/inquisitor_report.yaml",
     "template/.agents/orchestra/queue/templates/role_inbox.yaml",
     "template/.agents/orchestra/queue/templates/request.yaml",
     "template/.agents/orchestra/queue/templates/command.yaml",
+    "template/.agents/skills/repository-design-mapmaking/SKILL.md",
     "template/.agents/orchestra/scripts/inbox_write.sh",
     "template/.agents/orchestra/scripts/claude_compat.py",
     "template/.agents/orchestra/scripts/queue_db.py",
@@ -588,6 +591,8 @@ def validate_queue_templates() -> None:
         "template/.agents/orchestra/queue/templates/advisor_assignment.yaml",
         "template/.agents/orchestra/queue/templates/advisor_report.yaml",
         "template/.agents/orchestra/queue/templates/adventurer_assignment.yaml",
+        "template/.agents/orchestra/queue/templates/cartographer_assignment.yaml",
+        "template/.agents/orchestra/queue/templates/cartographer_report.yaml",
         "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
         "template/.agents/orchestra/queue/templates/adventurer_report.yaml",
         "template/.agents/orchestra/queue/templates/inquisitor_report.yaml",
@@ -615,6 +620,33 @@ def validate_queue_templates() -> None:
     validate_autonomy_budget(assignment["autonomy_budget"], "adventurer_assignment.assignment.autonomy_budget")
     assignment_known_context = mapping(assignment.get("known_context"), "adventurer_assignment.assignment.known_context")
     validate_compat_context(assignment_known_context.get("compat_context"), "adventurer_assignment.assignment.known_context.compat_context")
+
+    cartographer_assignment = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/cartographer_assignment.yaml"), "cartographer_assignment").get("assignment"), "cartographer_assignment.assignment")
+    for key in ("id", "quest_id", "worker_id", "role", "kind", "rank", "objective", "success_criteria", "non_goals", "focus", "authority", "boundaries", "known_context", "autonomy_budget", "research_plan", "advisor_consultation", "output_requirements", "escalation_triggers", "evidence_required", "status"):
+        require(key in cartographer_assignment, f"cartographer_assignment.assignment.{key} が必要です。")
+    require(cartographer_assignment["worker_id"] == "cartographer", "cartographer_assignment.assignment.worker_id は cartographer にしてください。")
+    require(cartographer_assignment["kind"] == "mapmaking", "cartographer_assignment.assignment.kind は mapmaking にしてください。")
+    require(cartographer_assignment["rank"] == "mapmaking", "cartographer_assignment.assignment.rank は mapmaking にしてください。")
+    validate_authority(cartographer_assignment["authority"], "cartographer_assignment.assignment.authority")
+    cartographer_authority = mapping(cartographer_assignment["authority"], "cartographer_assignment.assignment.authority")
+    require(
+        cartographer_authority.get("read") is True
+        and cartographer_authority.get("edit") is False
+        and cartographer_authority.get("validate") is False
+        and cartographer_authority.get("local_git") is False
+        and cartographer_authority.get("external_actions") is False,
+        "cartographer assignment は read-only にしてください。",
+    )
+    validate_boundaries(cartographer_assignment["boundaries"], "cartographer_assignment.assignment.boundaries")
+    validate_autonomy_budget(cartographer_assignment["autonomy_budget"], "cartographer_assignment.assignment.autonomy_budget")
+    cartographer_known_context = mapping(cartographer_assignment.get("known_context"), "cartographer_assignment.assignment.known_context")
+    validate_compat_context(cartographer_known_context.get("compat_context"), "cartographer_assignment.assignment.known_context.compat_context")
+    cartographer_advisor = mapping(cartographer_assignment.get("advisor_consultation"), "cartographer_assignment.assignment.advisor_consultation")
+    require(set(cartographer_advisor) == {"consideration_required", "assignments", "owner_synthesis_required", "terminal_worker_required", "skip_reason_required_when_not_used", "skip_reason"}, "cartographer advisor_consultation は検討必須と skip reason 契約だけにしてください。")
+    require(cartographer_advisor.get("consideration_required") is True, "cartographer は advisor を既定で検討対象にしてください。")
+    require(cartographer_advisor.get("owner_synthesis_required") is True, "cartographer advisor は owner synthesis を必須にしてください。")
+    require(cartographer_advisor.get("terminal_worker_required") is True, "cartographer advisor は terminal worker を必須にしてください。")
+    require(cartographer_advisor.get("skip_reason_required_when_not_used") is True, "cartographer advisor を使わない時は理由を必須にしてください。")
 
     advisor_assignment = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/advisor_assignment.yaml"), "advisor_assignment").get("assignment"), "advisor_assignment.assignment")
     for key in ("id", "quest_id", "parent_id", "worker_id", "role", "kind", "owner_worker_id", "owner_assignment_id", "objective", "focus", "dialogue_policy", "decision_authority", "terminal_worker", "owner_synthesis_required", "authority", "boundaries", "autonomy_budget", "research_plan", "escalation_triggers", "evidence_required", "status"):
@@ -665,6 +697,24 @@ def validate_queue_templates() -> None:
     safety_gate_guardrail = mapping(depth_guardrails["safety_gate"], "inquisitor_trial.trial.depth_guardrails.safety_gate")
     require(safety_gate_guardrail.get("requires_human_or_safety_evidence") is True, "safety_gate は人間確認または安全確認 evidence を必須にしてください。")
     require(safety_gate_guardrail.get("if_evidence_is_missing") == "needs_human", "safety_gate の evidence 不足時は needs_human にしてください。")
+
+    cartographer_report = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/cartographer_report.yaml"), "cartographer_report").get("report"), "cartographer_report.report")
+    for key in ("id", "quest_id", "assignment_id", "worker_id", "target_repo_root", "status", "summary", "objective", "success_criteria", "terrain_map", "risk_zones", "recommended_quest_rank", "recommended_party_tactics", "recommended_trial", "advisor_usage", "advisor_synthesis", "unknowns", "research_evidence", "confidence", "risks", "evidence_refs"):
+        require(key in cartographer_report, f"cartographer_report.report.{key} が必要です。")
+    require(cartographer_report["worker_id"] == "cartographer", "cartographer_report.report.worker_id は cartographer にしてください。")
+    terrain_map = mapping(cartographer_report["terrain_map"], "cartographer_report.report.terrain_map")
+    require(set(terrain_map) == {"existing_structure", "relevant_paths", "dependencies", "candidate_routes"}, "cartographer_report.report.terrain_map が期待値と一致しません。")
+    recommended_rank = mapping(cartographer_report["recommended_quest_rank"], "cartographer_report.report.recommended_quest_rank")
+    require(recommended_rank.get("rank") == "mapmaking", "cartographer_report.report.recommended_quest_rank.rank は mapmaking にしてください。")
+    cartographer_report_advisor = mapping(cartographer_report["advisor_usage"], "cartographer_report.report.advisor_usage")
+    require(set(cartographer_report_advisor) == {"considered", "used", "skip_reason_required_when_not_used", "skip_reason"}, "cartographer_report.report.advisor_usage は検討結果と skip reason 契約だけにしてください。")
+    require(cartographer_report_advisor.get("considered") is True, "cartographer_report.report.advisor_usage.considered は true にしてください。")
+    require(cartographer_report_advisor.get("used") is None, "cartographer_report.report.advisor_usage.used は draft で採否を先取りしないでください。")
+    require(cartographer_report_advisor.get("skip_reason_required_when_not_used") is True, "cartographer_report.report.advisor_usage.skip_reason_required_when_not_used は true にしてください。")
+    cartographer_synthesis = mapping(cartographer_report["advisor_synthesis"], "cartographer_report.report.advisor_synthesis")
+    require(cartographer_synthesis.get("raw_discussion_recorded") is False, "cartographer_report.report.advisor_synthesis.raw_discussion_recorded は false にしてください。")
+    cartographer_research = mapping(cartographer_report.get("research_evidence"), "cartographer_report.report.research_evidence")
+    validate_compat_context(cartographer_research.get("compat_context"), "cartographer_report.report.research_evidence.compat_context")
 
     for rel in ("template/.agents/orchestra/queue/templates/adventurer_report.yaml", "template/.agents/orchestra/queue/templates/inquisitor_report.yaml"):
         report = mapping(mapping(load_yaml(rel), rel).get("report"), f"{rel}.report")
@@ -1783,6 +1833,8 @@ def validate_agents() -> None:
     require(advisor.get("sandbox_mode") == "read-only", "advisor.toml の sandbox_mode は read-only にしてください。")
     require(advisor.get("model_reasoning_effort") == "xhigh", "advisor.toml の model_reasoning_effort は xhigh にしてください。")
     require_tokens(advisor_text, ("terminal worker", "追加 subagent", "実装", "採否", "Ledger", "owner synthesis", "Guild Law", "confidence-based", "confidence delta", "同じ unknown", "owner が根拠確認"), "template/.codex/agents/advisor.toml")
+    cartographer_text = read("template/.codex/agents/cartographer.toml")
+    require_tokens(cartographer_text, ("設計", "実装計画", "方針整理", "アーキテクチャ", "mapmaking", "read-only advisor"), "template/.codex/agents/cartographer.toml")
     inquisitor = read("template/.codex/agents/inquisitor.toml")
     courier = tomllib.loads(read("template/.codex/agents/courier.toml"))
     require(courier.get("model") == "gpt-5.3-codex-spark", "courier.toml の model は gpt-5.3-codex-spark にしてください。")
@@ -1926,6 +1978,18 @@ def validate_skills() -> None:
     require(
         "追加観点が必要な場合は、Root または `party_leader`" not in final_review,
         "branch-implementation-final-review skill は advisor 契約と衝突する追加観点返却ルールを戻さないでください。",
+    )
+    design_mapmaking = read("template/.agents/skills/repository-design-mapmaking/SKILL.md")
+    design_mapmaking_frontmatter = design_mapmaking.split("---\n", 2)[1]
+    require_tokens(
+        design_mapmaking_frontmatter,
+        ("設計", "実装計画", "方針整理", "アーキテクチャ", "cartographer", "mapmaking"),
+        "template/.agents/skills/repository-design-mapmaking/SKILL.md frontmatter",
+    )
+    require_tokens(
+        design_mapmaking,
+        ("read-only `cartographer`", "tool_unavailable", "target_repo_root", "advisor synthesis", "未信頼入力"),
+        "template/.agents/skills/repository-design-mapmaking/SKILL.md",
     )
 
     runtime_readme = read("template/.agents/orchestra/README.md")

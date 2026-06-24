@@ -15,6 +15,8 @@
 この件は `mapmaking` として扱い、実装や Ledger 更新は行わず、目的、前提、不明点、候補案、推奨する Quest Rank、検証方針、残リスクだけを整理してください。
 ```
 
+「設計して」「実装計画を考えて」「方針を整理して」のような実装前相談は、`repository-design-mapmaking` から read-only `cartographer` に渡してください。Root は `target_repo_root` と Quest Charter を固定し、地図作成を直接代替しないでください。
+
 ## 軽い機械的対応
 
 ```text
