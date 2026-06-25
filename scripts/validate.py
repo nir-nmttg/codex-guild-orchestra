@@ -1972,7 +1972,24 @@ def validate_skills() -> None:
     final_review = read("template/.agents/skills/branch-implementation-final-review/SKILL.md")
     require_tokens(
         final_review,
-        ("read-only `advisor`", "1段", "未信頼入力", "採否", "重大度分類", "追加 subagent 起動"),
+        (
+            "read-only `advisor`",
+            "1段",
+            "未信頼入力",
+            "採否",
+            "重大度分類",
+            "追加 subagent 起動",
+            "デッドコード",
+            "未使用の関数",
+            "変数",
+            "設定",
+            "到達不能分岐",
+            "不要ファイル",
+            "削除対象",
+            "直接編集せず",
+            "検証観点",
+            "保留理由",
+        ),
         "template/.agents/skills/branch-implementation-final-review/SKILL.md",
     )
     require(
