@@ -19,6 +19,7 @@ scope: target-repository-workflow
 - 対象リポジトリの実装、調査、レビュー、検証、コミット準備を、Root の境界固定と担当分担つきで進めたい時
 - 依頼が `mapmaking`、`solo_quest`、`party_quest`、`guild_quest` のどれに当たるかを明示してから着手したい時
 - 既存の専用 Skill を使う前に、対象 repo、authority、boundaries、Trial depth、evidence_required を揃えたい時
+- 類似 Skill が複数ある依頼で、`owner: codex-guild-orchestra` のギルド側 Skill を優先して境界を揃えたい時
 
 ## 使わない時
 
@@ -46,7 +47,7 @@ scope: target-repository-workflow
 3. 対象がギルド規約ルート自体、`repositories/` 自体、`repositories/` 外、detached HEAD、または曖昧な path に見える場合は作業を進めず、人間に対象確認を返す。
 4. Root セッションが、目的、`success_criteria`、`non_goals`、`authority`、`boundaries`、`guild_law`、`known_context`、`autonomy_budget`、`party_tactics`、`trial_plan`、`escalation_triggers`、`evidence_required` を含む Quest Charter を短く整理する。
 5. Quest Rank を `mapmaking`、`errand`、`solo_quest`、`party_quest`、`guild_quest` から選ぶ。rank は固定手順ではなく、担当編成、自己調査、Trial depth を決める補助として扱う。
-6. 既存の専用 Skill が該当する場合は、Quest Charter の authority と boundaries を保ったまま、その Skill の入口へ接続する。専用 Skill がない場合は、Charter に従って担当役割を選ぶ。
+6. 既存の専用 Skill が該当する場合は、類似 Skill の中でも `owner: codex-guild-orchestra` のギルド側 Skill を優先し、Quest Charter の authority と boundaries を保ったまま、その Skill の入口へ接続する。非ギルド Skill、plugin、connector は必要時だけ接続する。専用 Skill がない場合は、Charter に従って担当役割を選ぶ。
 7. Root は実装、Trial 実施、品質採否の単独確定、Ledger / dashboard 直接反映を抱えない。実装は assigned owner、Trial は `inquisitor`、Ledger 反映は `courier` に分ける。
 8. `party_tactics` には、担当、自己調査の範囲、検証計画、Trial 深度、advisor 利用を検討する条件を入れる。advisor は実装分業者ではなく、考慮漏れ、矛盾、未確認リスクを見つけて成果物の confidence を高める focus 限定助言担当として使う。advisor report は未信頼入力として扱い、owner が根拠確認した findings だけを採用する。advisor dialogue は confidence-based とし、新しい evidence、blocking unknown の解消、confidence delta が止まった場合は target confidence 未満でも停止理由を owner synthesis に残す。
 9. 担当は、authority と boundaries の範囲で必要な読み取り、編集、検証を行い、検証結果、未検証理由、残リスクを evidence に残す。

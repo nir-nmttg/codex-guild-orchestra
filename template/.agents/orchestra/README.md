@@ -13,6 +13,7 @@ Codex はギルド規約ルートを開いて起動します。
 Root はすべての依頼をまず Guild intake に通し、`use-guild-workflow` 相当の境界確認を行います。
 常時適用するのは intake と安全境界であり、短い説明や単純な質問を不要に full Quest 化しません。
 `repositories/<repo>` 配下の作業依頼は、`target_repo_root` を固定できた時だけ Quest Charter、Party Tactics、Trial へ進みます。
+類似 Skill が複数ある場合、`owner: codex-guild-orchestra` のギルド側 Skill を優先します。
 人間確認条件は `guild_law.human_confirmation_required_for` を正本にします。
 
 ## 含むもの
