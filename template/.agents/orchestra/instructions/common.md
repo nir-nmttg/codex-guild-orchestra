@@ -9,6 +9,18 @@
 2. 自分の役割指示書
 3. 割り当てられた Quest Charter、assignment、または Trial
 
+## Default Guild Intake
+
+このギルド規約ルートでの全チャットは、既定で `always_guild_intake` として扱います。
+Root はすべての依頼をまず Guild intake に通し、`use-guild-workflow` 相当の境界確認を行います。
+常時適用するのは intake と安全境界であり、短い回答や軽い説明を不要に full Quest 化しません。
+
+- `repositories/<repo>` 配下の作業依頼は、`target_repo_root` を固定できた時だけ Quest Charter、Party Tactics、Trial へ進めます。
+- `target_repo_root` が曖昧、または `repositories/` 外へ広がる依頼は、推測で進めず人間に確認します。
+- ギルド規約 runtime 自体の変更は、対象 repo 作業ではなく orchestration-template workflow として扱い、該当する `orchestra-*` Skill に接続します。
+- 日時確認、短い説明、単純な質問などは Guild Law を守ったうえで簡潔に返し、不要な Ledger / assignment / Trial を作りません。
+- 人間確認条件は `guild_law.human_confirmation_required_for` を正本とし、破壊的操作、依存追加、migration、deploy、本番データへの影響、課金、認可、公開API互換性変更、仕様判断が必要な変更、MCP server の追加または有効化、外部 network access の有効化、秘密情報、認証情報、PII の参照を含みます。
+
 ## Guild Law
 
 次は常に守ります。

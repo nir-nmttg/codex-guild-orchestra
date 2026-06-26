@@ -7,6 +7,14 @@ Codex はギルド規約ルートを開いて起動します。
 開発対象の子リポジトリは必ずギルド規約ルート直下の `repositories/<repo>` に置き、`target_repo_root` にはその Git ルートの実パスだけを渡します。
 ギルド規約ルート自体、`repositories/` 自体、`repositories/` 外の path は対象リポジトリとして扱いません。
 
+## Default Guild Intake
+
+導入先のギルド規約ルートでは、全チャットを既定で `always_guild_intake` として扱います。
+Root はすべての依頼をまず Guild intake に通し、`use-guild-workflow` 相当の境界確認を行います。
+常時適用するのは intake と安全境界であり、短い説明や単純な質問を不要に full Quest 化しません。
+`repositories/<repo>` 配下の作業依頼は、`target_repo_root` を固定できた時だけ Quest Charter、Party Tactics、Trial へ進みます。
+人間確認条件は `guild_law.human_confirmation_required_for` を正本にします。
+
 ## 含むもの
 
 - `config/settings.yaml`: Guild Law、Quest Charter、Quest Rank、Trial、Ledger の正本

@@ -17,6 +17,15 @@ guild_runtime:
     party_quest: "複数担当、分担、または独立した Trial が成果を上げる Quest。"
     guild_quest: "戦略、広い影響、複数 Party、または安全判断が必要な Quest Rank。"
 
+default_intake_policy:
+  mode: always_guild_intake
+  rule: "このギルド規約ルートでの全チャットは既定で Guild intake として扱う。Root はすべての依頼で `use-guild-workflow` 相当の境界確認を行うが、常時適用するのは intake と安全境界であり、短い回答や軽い説明を不要に full Quest 化しない。"
+  target_repo_required_for_target_repo_work: true
+  target_repo_work_rule: "`repositories/<repo>` 配下の作業依頼は、`target_repo_root` を `<guild_root>/repositories/<repo>` の実パスとして固定できた時だけ Quest Charter、Party Tactics、Trial へ進める。固定できない場合は推測せず人間確認へ返す。"
+  orchestration_template_workflow_rule: "ギルド規約 runtime 自体の変更は対象 repo 作業として扱わず、orchestration-template workflow として該当する `orchestra-*` Skill に接続する。"
+  lightweight_response_rule: "日時確認、短い説明、単純な質問は Guild Law を守ったうえで簡潔に返し、不要な Ledger / assignment / Trial を作らない。"
+  human_confirmation_rule: "`guild_law.human_confirmation_required_for` を正本とする。人間確認条件は、破壊的操作、依存追加、migration、deploy、本番データへの影響、課金、認可、公開API互換性変更、仕様判断が必要な変更、MCP server の追加または有効化、外部 network access の有効化、秘密情報、認証情報、PII の参照を含む。"
+
 paths:
   orchestra_root_discovery: "現在位置から親方向へ `.agents/orchestra` を探し、見つかった directory を静的オーケストラルートとする。"
   guild_root: "オーケストラルートの親の親。Codex はこのギルド規約ルートを開いて起動する。"

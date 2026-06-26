@@ -1,32 +1,36 @@
 ---
 name: use-guild-workflow
-description: "ユーザーがギルドの仕組み、Guild Law、Quest Charter、Party Tactics、Trial、Ledger、または Root / adventurer / inquisitor / courier などの役割を明示して、repositories/ 配下の対象リポジトリ作業をギルド運用で進めたい時に使います。"
+description: "ユーザーがギルドの仕組みを明示した時、または AGENTS の `always_guild_intake` 既定により、repositories/ 配下の対象リポジトリ作業を Guild Law / Quest Charter / Party Tactics / Trial / Ledger で進める入口です。"
 owner: codex-guild-orchestra
 scope: target-repository-workflow
 ---
 
 # use-guild-workflow
 
-ギルド規約ルート直下の `repositories/<repo>` として管理される対象リポジトリ作業を、ユーザーが明示的にギルド運用へ乗せたい時の入口です。
+ギルド規約ルート直下の `repositories/<repo>` として管理される対象リポジトリ作業を、ギルド運用へ乗せる入口です。
+ユーザーが明示的にギルド運用を求めた時に加え、AGENTS の `Default Guild Intake` / `always_guild_intake` が有効なギルド規約ルートでは、全チャットの intake でこの Skill 相当の境界確認を行います。
 この Skill は新しい固定手順を定義せず、既存の `Guild Law`、`Quest Charter`、`Party Tactics`、`Trial`、`Ledger` を使って、目的、境界、担当、検証、記録を揃えるために使います。
+常時適用するのは intake と安全境界であり、短い回答や軽い説明を不要に full Quest 化するためには使いません。
 
 ## 使う時
 
 - ユーザーが「ギルドの仕組みを使って」「Guild workflow で」「Quest Charter を切って」「Trial まで回して」「Ledger に残して」などと明示した時
+- AGENTS の `always_guild_intake` 既定により、このギルド規約ルートの全チャットをまず Guild intake として扱う時
 - 対象リポジトリの実装、調査、レビュー、検証、コミット準備を、Root の境界固定と担当分担つきで進めたい時
 - 依頼が `mapmaking`、`solo_quest`、`party_quest`、`guild_quest` のどれに当たるかを明示してから着手したい時
 - 既存の専用 Skill を使う前に、対象 repo、authority、boundaries、Trial depth、evidence_required を揃えたい時
 
 ## 使わない時
 
-- ユーザーが単なる短い回答、軽い説明、またはギルド運用なしの通常対応を求めている時
+- ユーザーが単なる短い回答、軽い説明、または日時確認だけを求めており、Guild Law の確認以外に full Quest 化する価値がない時
 - `target_repo_root` が `<guild_root>/repositories/<repo>` の実パスとして固定できず、推測すると別リポジトリへ作業を広げる危険がある時
 - Git 操作、PR 説明、最終レビューなど、既存の専用 Skill だけで意図と安全境界が十分に満たせる時。ただし、ユーザーがギルド運用を明示した場合は、この Skill で Charter を整えてから専用 Skill へ接続する
+- ギルド規約 runtime 自体の変更が主目的で、`orchestra-instruction-contract-review`、`orchestra-runtime-security-audit`、`orchestra-validation-review` などの orchestration-template workflow で扱うべき時
 - 秘密情報、認証情報、PII の参照、破壊的操作、外部サービス変更、deploy、migration、本番影響を、人間確認なしに進める必要がある時
 
 ## 入力
 
-- ユーザーの依頼文と「ギルドの仕組みを使う」明示
+- ユーザーの依頼文と「ギルドの仕組みを使う」明示、または AGENTS の `always_guild_intake` 既定
 - `target_repo_root`（`<guild_root>/repositories/<repo>` の実パス）
 - 作業目的、成功条件、非目的
 - 許可された authority: read / edit / validate / local git / external actions
@@ -37,7 +41,7 @@ scope: target-repository-workflow
 
 ## 手順
 
-1. Root セッションが、ユーザーの最新指示でギルド運用が明示されていることを確認する。明示がない通常作業へ、この Skill を無理に適用しない。
+1. Root セッションが、ユーザーの最新指示でギルド運用が明示されているか、AGENTS の `always_guild_intake` 既定が有効であることを確認する。常時適用するのは intake と安全境界であり、短い回答や軽い説明を不要に full Quest 化しない。
 2. Root セッションが、対象を `<guild_root>/repositories/<repo>` の `target_repo_root` として固定する。`git rev-parse --show-toplevel` は、Root が明示した `target_repo_root` との一致確認だけに使う。
 3. 対象がギルド規約ルート自体、`repositories/` 自体、`repositories/` 外、detached HEAD、または曖昧な path に見える場合は作業を進めず、人間に対象確認を返す。
 4. Root セッションが、目的、`success_criteria`、`non_goals`、`authority`、`boundaries`、`guild_law`、`known_context`、`autonomy_budget`、`party_tactics`、`trial_plan`、`escalation_triggers`、`evidence_required` を含む Quest Charter を短く整理する。
