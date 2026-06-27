@@ -21,9 +21,14 @@ Root はすべての依頼をまず Guild intake に通し、`use-guild-workflow
 - `config/settings.yaml`: Guild Law、Quest Charter、Quest Rank、Trial、Ledger の正本
 - `instructions/`: 役割ごとの責務
 - `queue/templates/`: Quest、割り当て（assignment）、Trial、報告（report）、inbox の雛形
+- `docker/`: runtime helper 用の Docker build context
+- `scripts/docker_python.sh`: Docker 内の Python 実行 runner
 - `scripts/queue_db.py`: SQLite Ledger 補助
 - `scripts/queue_audit.py`: SQLite Ledger 監査
 - ギルド規約ルート直下の `.orchestra/`: 動的状態
+
+runtime helper はホスト側 Python を直接使いません。
+`queue_db.py`、`queue_audit.py`、`claude_compat.py`、Stop hook は `scripts/docker_python.sh` 経由で Docker 内の Python として実行します。
 
 ## Lifecycle
 

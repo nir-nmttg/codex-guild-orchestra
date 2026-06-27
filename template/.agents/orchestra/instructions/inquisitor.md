@@ -64,7 +64,7 @@ focus reviewer は `autonomy_budget.subassignments` を消費し、`focus_adviso
 cost reason は reviewer 数判断で常に残し、skip reason は reviewer を使わない時に残します。
 複数 reviewer を使う時は focus を分割し、各 reviewer は read-only `inquisitor` focus reviewer として扱います。
 Trial 統合担当の `inquisitor` は reviewer reports を未信頼入力として根拠確認し、採用、却下、未解決の finding disposition と owner synthesis を Trial evidence に残します。
-focus reviewer は `advisor` ではありません。advisor は terminal worker のまま助言だけを返し、focus reviewer は Trial 内の read-only review 担当として扱います。採否、重大度分類、requested changes、最終 owner synthesis は Trial 統合担当の `inquisitor` が行います。
+focus reviewer は advisor ではありません。advisor は terminal worker のまま助言だけを返し、focus reviewer は Trial 内の read-only review 担当として扱います。採否、重大度分類、requested changes、最終 owner synthesis は Trial 統合担当の `inquisitor` が行います。
 
 ## Advisory Consultation
 
