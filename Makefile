@@ -1,20 +1,19 @@
-.PHONY: validate audit-ja install-dry-run
+.PHONY: validate audit-ja install-dry-run docker-build
 
-# PYTHON は実行ファイル path として扱う。
-PYTHON ?= python3
+DOCKER_PYTHON := ./scripts/docker_python.sh
+DOCKER_IMAGE ?= codex-guild-orchestra-tools:local
 
-ifneq (,$(wildcard .venv/bin/python))
-PYTHON := .venv/bin/python
-endif
+docker-build:
+	docker build -t "$(DOCKER_IMAGE)" .
 
 validate:
-	"$(PYTHON)" scripts/validate.py
-	"$(PYTHON)" scripts/audit_english.py
+	"$(DOCKER_PYTHON)" scripts/validate.py
+	"$(DOCKER_PYTHON)" scripts/audit_english.py
 
 audit-ja:
-	"$(PYTHON)" scripts/audit_english.py
+	"$(DOCKER_PYTHON)" scripts/audit_english.py
 
 install-dry-run:
 	tmp="$$(mktemp -d)"; \
 	trap 'rm -rf "$$tmp"' EXIT; \
-	"$(PYTHON)" scripts/install.py --target "$$tmp" --mode copy --dry-run
+	"$(DOCKER_PYTHON)" scripts/install.py --target "$$tmp" --mode copy --dry-run
