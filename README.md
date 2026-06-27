@@ -24,16 +24,17 @@ focus reviewer は `autonomy_budget.subassignments` を消費し、`focus_adviso
 ## Install
 
 ```bash
-python scripts/install.py --target /path/to/guild-root
+./scripts/install.sh --target /path/to/guild-root --mode copy
 ```
 
 導入先では、実作業リポジトリを `<guild_root>/repositories/<repo>` に置きます。
 `target_repo_root` はこの直下の Git ルートだけです。
+導入と検証の Python 実行は Docker 内で行うため、ホスト側に Python 環境は不要です。
 
 ## Validate
 
 ```bash
-python scripts/validate.py
+make validate
 ```
 
 validator は Guild Law、Quest Charter、Party Tactics、Trial、Ledger の整合を確認します。

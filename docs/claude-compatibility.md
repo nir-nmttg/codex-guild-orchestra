@@ -56,21 +56,21 @@ installer には混ぜず、trusted template copy と untrusted repo context 読
 主な command は次です。
 
 ```bash
-python .agents/orchestra/scripts/claude_compat.py \
+.agents/orchestra/scripts/docker_python.sh .agents/orchestra/scripts/claude_compat.py \
   --target-repo-root repositories/example \
   --work-path packages/web/src/app.ts \
   scan
 ```
 
 ```bash
-python .agents/orchestra/scripts/claude_compat.py \
+.agents/orchestra/scripts/docker_python.sh .agents/orchestra/scripts/claude_compat.py \
   --target-repo-root repositories/example \
   --work-path packages/web/src/app.ts \
   render-context
 ```
 
 ```bash
-python .agents/orchestra/scripts/claude_compat.py \
+.agents/orchestra/scripts/docker_python.sh .agents/orchestra/scripts/claude_compat.py \
   --target-repo-root repositories/example \
   --work-path packages/web/src/app.ts \
   render-skill --skill packages/web:deploy --arguments staging

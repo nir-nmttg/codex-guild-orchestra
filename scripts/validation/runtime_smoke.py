@@ -77,10 +77,13 @@ def validate_queue_db_smoke() -> None:
     require(db_retired_values == audit_retired_values == install_retired_values, "廃止済み agent 値を queue_db.py / queue_audit.py / install.py で一致させてください。")
 
     inbox_script = ROOT / "template/.agents/orchestra/scripts/inbox_write.sh"
-    for executable_path in (script, audit_script, inbox_script):
+    docker_runner = ROOT / "template/.agents/orchestra/scripts/docker_python.sh"
+    stop_hook_shell = ROOT / "template/.codex/hooks/stop_quality_gate.sh"
+    for executable_path in (script, audit_script, inbox_script, docker_runner, stop_hook_shell):
         require(executable_path.stat().st_mode & 0o111, f"{executable_path.relative_to(ROOT)} の executable bit を維持してください。")
-    shell = subprocess.run(["bash", "-n", str(inbox_script)], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
-    require(shell.returncode == 0, "inbox_write.sh の shell syntax check が失敗しました: " + shell.stderr)
+    for shell_path in (inbox_script, docker_runner, stop_hook_shell):
+        shell = subprocess.run(["bash", "-n", str(shell_path)], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        require(shell.returncode == 0, f"{shell_path.relative_to(ROOT)} の shell syntax check が失敗しました: " + shell.stderr)
 
     with tempfile.TemporaryDirectory() as tmp:
         runtime_root = Path(tmp) / ".orchestra"

@@ -288,3 +288,8 @@ def validate_skills() -> None:
 def validate_stop_hook() -> None:
     text = read("template/.codex/hooks/stop_quality_gate.py")
     require("Quest" in text and "Trial" in text and "Risk" in text, "stop_quality_gate.py は Quest / Trial / Risk の最終要約を促してください。")
+    hooks = read("template/.codex/hooks.json")
+    hook_shell = read("template/.codex/hooks/stop_quality_gate.sh")
+    require("stop_quality_gate.sh" in hooks, "hooks.json は Docker runner 用 stop_quality_gate.sh を呼び出してください。")
+    require("python3" not in hooks and "/usr/bin/env python" not in hooks, "hooks.json は host Python を直接探索しないでください。")
+    require("docker image inspect" in hook_shell and "CODEX_GUILD_ORCHESTRA_DOCKER_SKIP_BUILD=1" in hook_shell, "stop_quality_gate.sh は cold build せず既存 runtime image だけで実行してください。")

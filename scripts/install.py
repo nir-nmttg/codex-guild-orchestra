@@ -508,6 +508,8 @@ def initialize_sqlite_runtime(source_root: Path, target_root: Path, reset_runtim
 
 def iter_template_files(source_root: Path) -> Iterable[Path]:
     for path in sorted(source_root.rglob('*')):
+        if '__pycache__' in path.parts or path.suffix == '.pyc':
+            continue
         if path.is_file():
             yield path
 

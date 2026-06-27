@@ -31,13 +31,20 @@ def run_claude_compat(helper: Path, target: Path, *args: str) -> dict[str, objec
 def validate_claude_compat_smoke() -> None:
     helper = ROOT / "template/.agents/orchestra/scripts/claude_compat.py"
     require(helper.exists(), "template/.agents/orchestra/scripts/claude_compat.py が必要です。")
-    py_compile = subprocess.run(
-        [sys.executable, "-m", "py_compile", str(helper)],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+    with tempfile.NamedTemporaryFile() as compiled:
+        py_compile = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import py_compile, sys; py_compile.compile(sys.argv[1], cfile=sys.argv[2], doraise=True)",
+                str(helper),
+                compiled.name,
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
     require(py_compile.returncode == 0, "claude_compat.py は Python として parse できる必要があります: " + py_compile.stderr)
 
     with tempfile.TemporaryDirectory() as tmp:

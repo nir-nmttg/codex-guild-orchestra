@@ -1,0 +1,8 @@
+services:
+  tools:
+    build:
+      context: .
+    image: codex-guild-orchestra-tools:local
+    working_dir: /workspace
+    volumes:
+      - .:/workspace

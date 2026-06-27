@@ -361,7 +361,7 @@ make validate
 
 ```bash
 tmp="$(mktemp -d)"
-python scripts/install.py --target "$tmp" --mode copy --dry-run
+./scripts/install.sh --target "$tmp" --mode copy --dry-run
 rm -rf "$tmp"
 ```
 
