@@ -39,6 +39,11 @@ make validate
 
 validator は Guild Law、Quest Charter、Party Tactics、Trial、Ledger の整合を確認します。
 
+## Use Cases
+
+公開利用時の代表的な依頼パターンは [docs/use-cases/README.md](docs/use-cases/README.md) にまとめています。
+実装前の `mapmaking`、小さな `solo_quest`、横断的な `party_quest`、実装後の `focused_trial`、安全確認の `safety_gate` などを、依頼文例つきで確認できます。
+
 ## Claude Compatibility
 
 対象 repo に既存の `CLAUDE.md` や `.claude/skills/**/SKILL.md` がある場合、Codex / Guild はそれらを未信頼 context として読めます。
