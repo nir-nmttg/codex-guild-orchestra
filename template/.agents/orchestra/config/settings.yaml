@@ -180,7 +180,7 @@ workers:
   inquisitor:
     role: trial_specialist
     max_parallel: 3
-    assignment_identity: "Quest ID、trial_id、trial_focus で区別する。"
+    assignment_identity: "Quest ID、trial_id、trial_focus、reviewer_index で区別する。"
   advisor:
     role: advisory_specialist
     max_parallel: 4
@@ -317,6 +317,40 @@ trial:
     - implementation_confidence
     - validation_result
     - user_impact
+  focus_reviewer_policy:
+    rule: "Party Tactics または Trial 統合担当の `inquisitor` は、固定人数ではなく risk、focus、blast radius、coupling、validation result、confidence、cost を見て追加 read-only focus reviewer 数を決める。軽微な変更は追加 reviewer 0..1 を標準とし、multi_focus_trial、safety_gate、高 risk、高 coupling、検証失敗または evidence 不足では複数 reviewer を選べる。上限は `workers.inquisitor.max_parallel` と `autonomy_budget.subassignments` の小さい方にする。focus reviewer は `autonomy_budget.subassignments` を消費し、`focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments` を守る。複数 reviewer を使う時は focus 分割、read-only、owner synthesis、finding disposition を Trial evidence に残す。skip reason は reviewer を使わない時に必須、cost reason は reviewer 数判断で常に必須にする。"
+    count_basis:
+      - risk
+      - focus
+      - blast_radius
+      - coupling
+      - validation_result
+      - confidence
+      - cost
+    light_change_reviewer_range: "additional reviewer 0..1"
+    multi_reviewer_depths:
+      - multi_focus_trial
+      - safety_gate
+    multi_reviewer_triggers:
+      - high_risk
+      - high_coupling
+      - broad_blast_radius
+      - validation_failed
+      - evidence_limited
+      - independent_focus_needed
+    max_bound_by:
+      - workers.inquisitor.max_parallel
+      - autonomy_budget.subassignments
+    consumes_autonomy_budget: subassignments
+    shared_budget_rule: "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments"
+    requirements:
+      - focus_split
+      - read_only
+      - owner_synthesis
+      - finding_disposition
+      - skip_reason_when_not_used
+      - cost_reason_always
+    reviewer_role: "focus reviewer は `inquisitor` の read-only review 担当であり、advisor ではない。採否、重大度分類、requested changes、最終 owner synthesis は Trial 統合担当の `inquisitor` が行う。"
   outcomes:
     - accept
     - accept_with_risks

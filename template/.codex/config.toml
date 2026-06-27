@@ -23,6 +23,9 @@ exclude = [
 
 [agents]
 max_threads = 12
+# Trial 統合担当の `inquisitor` は cost-aware に read-only focus reviewer 数を選び、
+# 上限は `workers.inquisitor.max_parallel` と `autonomy_budget.subassignments` の小さい方にする。
+# focus reviewer と advisor は同じ `autonomy_budget.subassignments` を消費する。
 # `mapmaking` / `party_quest` / `guild_quest` / `multi_focus_trial` の owner は、
 # `autonomy_budget.subassignments` があれば read-only `advisor` 利用を既定で検討し、使わない理由を残す。
 # `advisor` は terminal worker（終端助言担当）として追加 subagent 起動（追加エージェント起動）を行わず、採否や Ledger 反映も行わない。

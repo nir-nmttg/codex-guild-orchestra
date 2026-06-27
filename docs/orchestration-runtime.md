@@ -82,6 +82,13 @@ advisor は実装分業者ではなく、考慮漏れ、矛盾、未確認リス
 advisor dialogue は confidence-based で、owner confidence が target 未満でも、新しい evidence が増えない、confidence delta が閾値未満、同じ unknown が残る、focus や authority / boundaries が広がる場合は停止します。
 Ledger には advisor assignment、advisor report、owner synthesis の判断根拠だけを残し、raw discussion は残しません。
 
+Party Tactics または Trial 統合担当の `inquisitor` は、固定人数ではなく risk、focus、blast radius、coupling、validation result、confidence、cost を見て read-only focus reviewer 数を決めます。
+軽微な変更は追加 read-only focus reviewer 0..1 を標準とし、`multi_focus_trial`、`safety_gate`、高 risk、高 coupling、検証失敗、evidence 不足では複数 reviewer を選べます。
+reviewer 数は `workers.inquisitor.max_parallel` と `autonomy_budget.subassignments` の小さい方を上限にします。
+focus reviewer は `autonomy_budget.subassignments` を消費し、`focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments` を守ります。
+複数 reviewer を使う時は focus 分割、read-only、owner synthesis、finding disposition を Trial evidence に残します。skip reason は reviewer を使わない時に必須、cost reason は reviewer 数判断で常に必須です。
+focus reviewer は `inquisitor` の read-only review 担当であり、`advisor` ではありません。採否、重大度分類、requested changes、最終 owner synthesis は Trial 統合担当の `inquisitor` が行います。
+
 Root は intake、`target_repo_root` 固定、Guild Law / authority / boundaries の検証、割り当て（assignment）作成、報告（report）集約だけを担当します。
 実装、Trial 実施、品質採否の単独確定、Ledger / dashboard 直接反映は担当しません。
 
@@ -97,6 +104,7 @@ Trial は risk-based です。
 - `safety_gate`
 
 uncertainty、coupling、blast radius、safety risk、confidence、validation result を見て選びます。
+focus reviewer 数も同じ risk 情報と cost を使い、軽微な変更では増やさず、高リスク時だけ複数に分けます。
 
 ## Ledger
 

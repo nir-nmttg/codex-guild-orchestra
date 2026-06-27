@@ -51,6 +51,7 @@ trial:
     multi_focus_trial:
       requires_focus_split: true
       allows_focus_advisors: true
+      allows_focus_reviewers: true
       requires_owner_synthesis: true
       if_focus_is_insufficient: request_changes
     safety_gate:
@@ -59,10 +60,48 @@ trial:
   focus_advisors:
     consideration_required: true
     assignments: []
+    consumes_autonomy_budget: subassignments
+    shared_budget_rule: "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments"
     owner_synthesis_required: true
     terminal_worker_required: true
     skip_reason_required_when_not_used: true
     skip_reason: null
+  focus_reviewers:
+    count_decision_required: true
+    reviewer_count: null
+    max_reviewers_bound_by:
+      - workers.inquisitor.max_parallel
+      - autonomy_budget.subassignments
+    selection_inputs:
+      - risk
+      - focus
+      - blast_radius
+      - coupling
+      - validation_result
+      - confidence
+      - cost
+    light_change_reviewer_range: "additional reviewer 0..1"
+    multi_reviewer_allowed_for:
+      - multi_focus_trial
+      - safety_gate
+      - high_risk
+      - broad_blast_radius
+      - high_coupling
+      - validation_failed
+      - evidence_limited
+      - independent_focus_needed
+    assignments: []
+    consumes_autonomy_budget: subassignments
+    shared_budget_rule: "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments"
+    focus_split_required_when_multiple: true
+    read_only_required: true
+    owner_synthesis_required: true
+    finding_disposition_required: true
+    skip_reason_required_when_not_used: true
+    cost_reason_required: true
+    cost_reason_required_always: true
+    skip_reason: null
+    cost_reason: null
   autonomy_budget:
     subassignments: 1
     extra_file_reads: 0

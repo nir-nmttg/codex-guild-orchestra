@@ -88,6 +88,12 @@ Root は実装、Trial 実施、品質採否の単独確定、Ledger / dashboard
 `advisor` は実装分業者ではなく、考慮漏れ、矛盾、未確認リスクを見つけて成果物の confidence を高めるために使います。
 advisor dialogue は confidence-based で、回数ではなく新しい evidence、blocking unknown の解消、confidence delta で継続可否を判断します。
 進捗が止まる、同じ unknown が残る、focus や authority / boundaries が広がる、人間確認が必要になる場合は、target confidence 未満でも停止します。
+Party Tactics または Trial 統合担当の `inquisitor` は、固定人数ではなく risk、focus、blast radius、coupling、validation result、confidence、cost を見て read-only focus reviewer 数を決めます。
+軽微な変更は追加 read-only focus reviewer 0..1 を標準とし、`multi_focus_trial`、`safety_gate`、高 risk、高 coupling、検証失敗、evidence 不足では複数 reviewer を選べます。
+reviewer 数は `workers.inquisitor.max_parallel` と `autonomy_budget.subassignments` の小さい方を上限にします。
+focus reviewer は `autonomy_budget.subassignments` を消費し、`focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments` を守ります。
+複数 reviewer を使う時は focus 分割、read-only、owner synthesis、finding disposition を Trial evidence に残します。skip reason は reviewer を使わない時に必須、cost reason は reviewer 数判断で常に必須です。
+focus reviewer は `inquisitor` の read-only review 担当であり、`advisor` ではありません。採否、重大度分類、requested changes、最終 owner synthesis は Trial 統合担当の `inquisitor` が行います。
 
 ## Quest Rank
 
@@ -131,6 +137,7 @@ Trial は固定件数ではなく risk-based に決めます。
 - `safety_gate`
 
 uncertainty、coupling、blast radius、safety risk、confidence、validation result を見て深度を選びます。
+必要に応じて focus reviewer 数も cost-aware に選びます。
 
 ## Ledger
 

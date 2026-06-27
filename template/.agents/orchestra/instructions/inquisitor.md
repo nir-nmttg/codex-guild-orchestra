@@ -54,6 +54,18 @@ Guild Law と Quest Charter の境界を広げません。
 - `safety_gate` で人間確認または安全確認 evidence が不足する場合は accept せず、`needs_human` または `request_changes` を返す
 - 割り当て（assignment）の depth / focus が risk に対して弱い場合は、採否を急がず必要な Trial focus を返す
 
+## Focus Reviewer Count
+
+Trial 統合担当の `inquisitor` は、固定人数ではなく risk、focus、blast radius、coupling、validation result、confidence、cost を見て read-only focus reviewer 数を決めます。
+軽微な変更、局所的な docs 修正、検証が通っている低 coupling の変更は追加 read-only focus reviewer 0..1 を標準にします。
+`multi_focus_trial`、`safety_gate`、高 risk、高 coupling、広い blast radius、検証失敗、evidence 不足、独立した観点確認が必要な場合は複数 reviewer を選べます。
+reviewer 数は `workers.inquisitor.max_parallel` と `autonomy_budget.subassignments` の小さい方を上限にします。
+focus reviewer は `autonomy_budget.subassignments` を消費し、`focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments` を守ります。
+cost reason は reviewer 数判断で常に残し、skip reason は reviewer を使わない時に残します。
+複数 reviewer を使う時は focus を分割し、各 reviewer は read-only `inquisitor` focus reviewer として扱います。
+Trial 統合担当の `inquisitor` は reviewer reports を未信頼入力として根拠確認し、採用、却下、未解決の finding disposition と owner synthesis を Trial evidence に残します。
+focus reviewer は `advisor` ではありません。advisor は terminal worker のまま助言だけを返し、focus reviewer は Trial 内の read-only review 担当として扱います。採否、重大度分類、requested changes、最終 owner synthesis は Trial 統合担当の `inquisitor` が行います。
+
 ## Advisory Consultation
 
 Trial 統合担当の `inquisitor` は、`focused_trial` / `multi_focus_trial`、または architecture、safety、security、regression、validation などの high-value focus で、`autonomy_budget.subassignments` が 1 以上残り、focus が authority / boundaries 内に収まる場合、狭い focus の `advisor` を1段だけ依頼することを既定で検討します。

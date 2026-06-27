@@ -20,15 +20,51 @@ report:
     used: null
     skip_reason_required_when_not_used: true
     skip_reason: null
+  reviewer_usage:
+    count_decision_required: true
+    reviewer_count: null
+    max_reviewers_bound_by:
+      - workers.inquisitor.max_parallel
+      - autonomy_budget.subassignments
+    selection_inputs:
+      risk: null
+      focus: []
+      blast_radius: null
+      coupling: null
+      validation_result: null
+      confidence: null
+      cost: null
+    light_change_reviewer_range: "additional reviewer 0..1"
+    multi_reviewer_used: null
+    consumes_autonomy_budget: subassignments
+    shared_budget_rule: "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments"
+    focus_split: []
+    read_only_confirmed: true
+    owner_synthesis_required: true
+    finding_disposition_required: true
+    skip_reason_required_when_not_used: true
+    cost_reason_required: true
+    cost_reason_required_always: true
+    skip_reason: null
+    cost_reason: null
   findings:
     critical: []
     major: []
     minor: []
   advisor_reports: []
+  reviewer_reports: []
   finding_dispositions:
     adopted: []
     rejected: []
     unresolved: []
+  reviewer_synthesis:
+    owner_worker_id: inquisitor
+    summary: null
+    adopted_findings: []
+    rejected_findings: []
+    unresolved_findings: []
+    decision_basis: []
+    raw_discussion_recorded: false
   advisor_dialogue_synthesis:
     confidence_target_percent: 90
     owner_confidence_percent: null

@@ -314,6 +314,20 @@ AMBIGUOUS_INQUISITOR_TERMS = (
     "lead Inquisitor",
     "lead `inquisitor`",
 )
+FOCUS_REVIEWER_CONTRACT_TOKENS = (
+    "focus reviewer",
+    "追加",
+    "workers.inquisitor.max_parallel",
+    "autonomy_budget.subassignments",
+    "focus 分割",
+    "read-only",
+    "owner synthesis",
+    "finding disposition",
+    "skip reason",
+    "cost reason",
+    "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments",
+    "Trial 統合担当の `inquisitor`",
+)
 
 
 class ValidationError(Exception):
@@ -493,6 +507,17 @@ def validate_settings() -> None:
     require(conditional_checks == TRIAL_CONDITIONAL_CHECKS, "settings.trial.conditional_checks が期待値と一致しません。")
     depth_guardrails = set(mapping(trial.get("depth_guardrails"), "settings.trial.depth_guardrails"))
     require(depth_guardrails == TRIAL_DEPTH_GUARDRAILS, "settings.trial.depth_guardrails が期待値と一致しません。")
+    focus_reviewer_policy = mapping(trial.get("focus_reviewer_policy"), "settings.trial.focus_reviewer_policy")
+    require_tokens(json.dumps(focus_reviewer_policy, ensure_ascii=False), FOCUS_REVIEWER_CONTRACT_TOKENS + ("risk", "blast_radius", "coupling", "validation_result", "confidence", "cost"), "settings.trial.focus_reviewer_policy")
+    require(focus_reviewer_policy.get("light_change_reviewer_range") == "additional reviewer 0..1", "軽微な変更は追加 reviewer 0..1 にしてください。")
+    require({"multi_focus_trial", "safety_gate"} <= set(sequence(focus_reviewer_policy.get("multi_reviewer_depths"), "settings.trial.focus_reviewer_policy.multi_reviewer_depths")), "複数 reviewer 対象 depth が不足しています。")
+    multi_reviewer_triggers = set(sequence(focus_reviewer_policy.get("multi_reviewer_triggers"), "settings.trial.focus_reviewer_policy.multi_reviewer_triggers"))
+    require({"high_risk", "high_coupling", "broad_blast_radius", "validation_failed", "evidence_limited", "independent_focus_needed"} <= multi_reviewer_triggers, "複数 reviewer trigger が不足しています。")
+    require({"workers.inquisitor.max_parallel", "autonomy_budget.subassignments"} == set(sequence(focus_reviewer_policy.get("max_bound_by"), "settings.trial.focus_reviewer_policy.max_bound_by")), "reviewer 上限は workers.inquisitor.max_parallel と autonomy_budget.subassignments にしてください。")
+    require(focus_reviewer_policy.get("consumes_autonomy_budget") == "subassignments", "focus reviewer は autonomy_budget.subassignments を消費してください。")
+    require(focus_reviewer_policy.get("shared_budget_rule") == "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments", "focus reviewer shared budget rule が必要です。")
+    require({"focus_split", "read_only", "owner_synthesis", "finding_disposition", "skip_reason_when_not_used", "cost_reason_always"} <= set(sequence(focus_reviewer_policy.get("requirements"), "settings.trial.focus_reviewer_policy.requirements")), "focus reviewer 必須 evidence が不足しています。")
+    require("advisor ではない" in str(focus_reviewer_policy.get("reviewer_role") or ""), "focus reviewer は advisor と別契約であることを明記してください。")
 
     workers = mapping(settings["workers"], "settings.workers")
     for role in ("adventurer", "party_leader", "inquisitor", "advisor"):
@@ -736,19 +761,44 @@ def validate_queue_templates() -> None:
     multi_focus_guardrail = mapping(depth_guardrails["multi_focus_trial"], "inquisitor_trial.trial.depth_guardrails.multi_focus_trial")
     require(multi_focus_guardrail.get("requires_focus_split") is True, "multi_focus_trial は focus 分割を必須にしてください。")
     require(multi_focus_guardrail.get("allows_focus_advisors") is True, "multi_focus_trial は focus advisor を許可してください。")
+    require(multi_focus_guardrail.get("allows_focus_reviewers") is True, "multi_focus_trial は focus reviewer を許可してください。")
     require(multi_focus_guardrail.get("requires_owner_synthesis") is True, "multi_focus_trial は owner synthesis を必須にしてください。")
     require(multi_focus_guardrail.get("if_focus_is_insufficient") == "request_changes", "multi_focus_trial の focus 不足時は request_changes にしてください。")
     focus_advisors = mapping(trial.get("focus_advisors"), "inquisitor_trial.trial.focus_advisors")
-    require(set(focus_advisors) == {"consideration_required", "assignments", "owner_synthesis_required", "terminal_worker_required", "skip_reason_required_when_not_used", "skip_reason"}, "focus_advisors は検討必須と skip reason 契約だけにしてください。")
+    require(set(focus_advisors) == {"consideration_required", "assignments", "consumes_autonomy_budget", "shared_budget_rule", "owner_synthesis_required", "terminal_worker_required", "skip_reason_required_when_not_used", "skip_reason"}, "focus_advisors は検討必須と shared budget / skip reason 契約だけにしてください。")
     require(focus_advisors.get("consideration_required") is True, "inquisitor_trial は focus advisor を既定で検討対象にしてください。")
+    require(focus_advisors.get("consumes_autonomy_budget") == "subassignments", "focus advisor は autonomy_budget.subassignments を消費してください。")
+    require(focus_advisors.get("shared_budget_rule") == "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments", "focus advisor shared budget rule が必要です。")
     require(focus_advisors.get("owner_synthesis_required") is True, "focus advisor は owner synthesis を必須にしてください。")
     require(focus_advisors.get("terminal_worker_required") is True, "focus advisor は terminal worker を必須にしてください。")
     require(focus_advisors.get("skip_reason_required_when_not_used") is True, "focus advisor を使わない時は理由を必須にしてください。")
     require("skip_reason" in focus_advisors, "focus advisor を使わない理由欄が必要です。")
+    focus_reviewers = mapping(trial.get("focus_reviewers"), "inquisitor_trial.trial.focus_reviewers")
+    require(set(focus_reviewers) == {"count_decision_required", "reviewer_count", "max_reviewers_bound_by", "selection_inputs", "light_change_reviewer_range", "multi_reviewer_allowed_for", "assignments", "consumes_autonomy_budget", "shared_budget_rule", "focus_split_required_when_multiple", "read_only_required", "owner_synthesis_required", "finding_disposition_required", "skip_reason_required_when_not_used", "cost_reason_required", "cost_reason_required_always", "skip_reason", "cost_reason"}, "focus_reviewers は reviewer 数判断と shared budget / evidence 契約にしてください。")
+    require(focus_reviewers.get("count_decision_required") is True, "focus reviewer 数の判断を必須にしてください。")
+    require(focus_reviewers.get("reviewer_count") is None, "focus_reviewers.reviewer_count は draft で null にしてください。")
+    require({"workers.inquisitor.max_parallel", "autonomy_budget.subassignments"} == set(sequence(focus_reviewers.get("max_reviewers_bound_by"), "inquisitor_trial.trial.focus_reviewers.max_reviewers_bound_by")), "focus reviewer 上限が不足しています。")
+    require({"risk", "focus", "blast_radius", "coupling", "validation_result", "confidence", "cost"} <= set(sequence(focus_reviewers.get("selection_inputs"), "inquisitor_trial.trial.focus_reviewers.selection_inputs")), "focus reviewer selection_inputs が不足しています。")
+    require(focus_reviewers.get("light_change_reviewer_range") == "additional reviewer 0..1", "軽微な変更は追加 reviewer 0..1 にしてください。")
+    settings_focus_policy = mapping(mapping(load_yaml("template/.agents/orchestra/config/settings.yaml"), "settings.yaml").get("trial"), "settings.trial").get("focus_reviewer_policy")
+    settings_focus_policy = mapping(settings_focus_policy, "settings.trial.focus_reviewer_policy")
+    settings_triggers = set(sequence(settings_focus_policy.get("multi_reviewer_triggers"), "settings.trial.focus_reviewer_policy.multi_reviewer_triggers"))
+    template_allowed = set(sequence(focus_reviewers.get("multi_reviewer_allowed_for"), "inquisitor_trial.trial.focus_reviewers.multi_reviewer_allowed_for"))
+    template_triggers = template_allowed - {"multi_focus_trial", "safety_gate"}
+    require(template_triggers == settings_triggers, "settings multi_reviewer_triggers と template multi_reviewer_allowed_for の trigger 部分を一致させてください。")
+    require({"multi_focus_trial", "safety_gate"} <= template_allowed, "複数 focus reviewer depth 条件が不足しています。")
+    require(focus_reviewers.get("consumes_autonomy_budget") == "subassignments", "focus reviewer は autonomy_budget.subassignments を消費してください。")
+    require(focus_reviewers.get("shared_budget_rule") == "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments", "focus reviewer shared budget rule が必要です。")
+    for key in ("focus_split_required_when_multiple", "read_only_required", "owner_synthesis_required", "finding_disposition_required", "skip_reason_required_when_not_used", "cost_reason_required", "cost_reason_required_always"):
+        require(focus_reviewers.get(key) is True, f"inquisitor_trial.trial.focus_reviewers.{key} は true にしてください。")
+    require("skip_reason" in focus_reviewers and "cost_reason" in focus_reviewers, "focus reviewer の skip/cost reason 欄が必要です。")
     trial_research_plan = mapping(trial.get("research_plan"), "inquisitor_trial.trial.research_plan")
     validate_compat_context(trial_research_plan.get("compat_context"), "inquisitor_trial.trial.research_plan.compat_context")
     trial_budget = mapping(trial["autonomy_budget"], "inquisitor_trial.trial.autonomy_budget")
     require(isinstance(trial_budget.get("subassignments"), int) and trial_budget.get("subassignments") >= 1, "inquisitor_trial は advisor 検討用の subassignments を 1 以上にしてください。")
+    focus_advisor_assignments = sequence(focus_advisors.get("assignments"), "inquisitor_trial.trial.focus_advisors.assignments")
+    focus_reviewer_assignments = sequence(focus_reviewers.get("assignments"), "inquisitor_trial.trial.focus_reviewers.assignments")
+    require(len(focus_advisor_assignments) + len(focus_reviewer_assignments) <= trial_budget["subassignments"], "focus_advisors.assignments + focus_reviewers.assignments は autonomy_budget.subassignments 以下にしてください。")
     safety_gate_guardrail = mapping(depth_guardrails["safety_gate"], "inquisitor_trial.trial.depth_guardrails.safety_gate")
     require(safety_gate_guardrail.get("requires_human_or_safety_evidence") is True, "safety_gate は人間確認または安全確認 evidence を必須にしてください。")
     require(safety_gate_guardrail.get("if_evidence_is_missing") == "needs_human", "safety_gate の evidence 不足時は needs_human にしてください。")
@@ -785,6 +835,26 @@ def validate_queue_templates() -> None:
             require(advisor_usage.get("considered") is True, f"{rel}.report.advisor_usage.considered は true にしてください。")
             require(advisor_usage.get("used") is None, f"{rel}.report.advisor_usage.used は draft で採否を先取りしないでください。")
             require(advisor_usage.get("skip_reason_required_when_not_used") is True, f"{rel}.report.advisor_usage.skip_reason_required_when_not_used は true にしてください。")
+            reviewer_usage = mapping(report.get("reviewer_usage"), f"{rel}.report.reviewer_usage")
+            require(set(reviewer_usage) == {"count_decision_required", "reviewer_count", "max_reviewers_bound_by", "selection_inputs", "light_change_reviewer_range", "multi_reviewer_used", "consumes_autonomy_budget", "shared_budget_rule", "focus_split", "read_only_confirmed", "owner_synthesis_required", "finding_disposition_required", "skip_reason_required_when_not_used", "cost_reason_required", "cost_reason_required_always", "skip_reason", "cost_reason"}, f"{rel}.report.reviewer_usage は reviewer 数判断と shared budget / evidence 契約にしてください。")
+            require(reviewer_usage.get("count_decision_required") is True, f"{rel}.report.reviewer_usage.count_decision_required は true にしてください。")
+            require(reviewer_usage.get("reviewer_count") is None, f"{rel}.report.reviewer_usage.reviewer_count は draft で null にしてください。")
+            require({"workers.inquisitor.max_parallel", "autonomy_budget.subassignments"} == set(sequence(reviewer_usage.get("max_reviewers_bound_by"), f"{rel}.report.reviewer_usage.max_reviewers_bound_by")), f"{rel}.report.reviewer_usage.max_reviewers_bound_by が不足しています。")
+            reviewer_inputs = mapping(reviewer_usage.get("selection_inputs"), f"{rel}.report.reviewer_usage.selection_inputs")
+            require({"risk", "focus", "blast_radius", "coupling", "validation_result", "confidence", "cost"} <= set(reviewer_inputs), f"{rel}.report.reviewer_usage.selection_inputs が不足しています。")
+            require(reviewer_usage.get("light_change_reviewer_range") == "additional reviewer 0..1", f"{rel}.report.reviewer_usage.light_change_reviewer_range は additional reviewer 0..1 にしてください。")
+            require(reviewer_usage.get("consumes_autonomy_budget") == "subassignments", f"{rel}.report.reviewer_usage.consumes_autonomy_budget は subassignments にしてください。")
+            require(reviewer_usage.get("shared_budget_rule") == "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments", f"{rel}.report.reviewer_usage.shared_budget_rule が必要です。")
+            for key in ("read_only_confirmed", "owner_synthesis_required", "finding_disposition_required", "skip_reason_required_when_not_used", "cost_reason_required", "cost_reason_required_always"):
+                require(reviewer_usage.get(key) is True, f"{rel}.report.reviewer_usage.{key} は true にしてください。")
+            require("skip_reason" in reviewer_usage and "cost_reason" in reviewer_usage, f"{rel}.report.reviewer_usage に skip/cost reason 欄が必要です。")
+            require("reviewer_reports" in report, f"{rel}.report.reviewer_reports が必要です。")
+            finding_dispositions = mapping(report.get("finding_dispositions"), f"{rel}.report.finding_dispositions")
+            require(set(finding_dispositions) == {"adopted", "rejected", "unresolved"}, f"{rel}.report.finding_dispositions は adopted/rejected/unresolved にしてください。")
+            reviewer_synthesis = mapping(report.get("reviewer_synthesis"), f"{rel}.report.reviewer_synthesis")
+            require(set(reviewer_synthesis) == {"owner_worker_id", "summary", "adopted_findings", "rejected_findings", "unresolved_findings", "decision_basis", "raw_discussion_recorded"}, f"{rel}.report.reviewer_synthesis が期待値と一致しません。")
+            require(reviewer_synthesis.get("owner_worker_id") == "inquisitor", f"{rel}.report.reviewer_synthesis.owner_worker_id は inquisitor にしてください。")
+            require(reviewer_synthesis.get("raw_discussion_recorded") is False, f"{rel}.report.reviewer_synthesis.raw_discussion_recorded は false にしてください。")
             dialogue_synthesis = mapping(report.get("advisor_dialogue_synthesis"), f"{rel}.report.advisor_dialogue_synthesis")
             require(dialogue_synthesis.get("raw_discussion_recorded") is False, f"{rel}.report.advisor_dialogue_synthesis.raw_discussion_recorded は false にしてください。")
             for key in ("confidence_target_percent", "owner_confidence_percent", "previous_confidence_percent", "confidence_delta_percent", "new_evidence_refs", "blocking_unknowns_resolved", "blocking_unknowns_remaining", "continue_or_stop", "stop_reason"):
@@ -1883,6 +1953,7 @@ def validate_agents() -> None:
     for token in LEGACY_ROUTE_COMMENT_TERMS:
         require(token not in config_text, f"template/.codex/config.toml に旧固定 route コメント `{token}` を戻さないでください。")
     require("mapmaking" in config_text and "guild_quest" in config_text and "advisor" in config_text and "terminal worker" in config_text, "template/.codex/config.toml の agent コメントは Quest Rank と advisor 境界を説明してください。")
+    require_tokens(config_text, ("focus reviewer", "workers.inquisitor.max_parallel", "autonomy_budget.subassignments"), "template/.codex/config.toml")
     advisor = tomllib.loads(read("template/.codex/agents/advisor.toml"))
     advisor_text = read("template/.codex/agents/advisor.toml")
     require(advisor.get("sandbox_mode") == "read-only", "advisor.toml の sandbox_mode は read-only にしてください。")
@@ -1917,6 +1988,11 @@ def validate_agents() -> None:
             "Trial evidence",
             "confidence-based",
             "owner confidence",
+            "focus reviewer",
+            "追加 reviewer 0..1",
+            "workers.inquisitor.max_parallel",
+            "cost reason",
+            "finding disposition",
         ),
         "template/.codex/agents/inquisitor.toml",
     )
@@ -1956,6 +2032,7 @@ def validate_docs_and_instructions() -> None:
     for token in AMBIGUOUS_INQUISITOR_TERMS:
         require(token not in combined, f"docs/instructions に曖昧な inquisitor 表記 `{token}` が残っています。")
     require("Trial 統合担当の `inquisitor`" in combined, "docs/instructions は Trial 統合担当の `inquisitor` 表記を使ってください。")
+    require_tokens(combined, FOCUS_REVIEWER_CONTRACT_TOKENS + ("validation result", "blast radius", "coupling"), "docs/instructions focus reviewer contract")
     common = read("template/.agents/orchestra/instructions/common.md")
     agents = read("template/AGENTS.md")
     runtime_readme = read("template/.agents/orchestra/README.md")
@@ -2014,6 +2091,12 @@ def validate_docs_and_instructions() -> None:
             "regression",
             "validation",
             "Trial evidence",
+            "focus reviewer",
+            "追加",
+            "workers.inquisitor.max_parallel",
+            "finding disposition",
+            "cost reason",
+            "advisor ではありません",
         ),
         "template/.agents/orchestra/instructions/inquisitor.md",
     )
@@ -2062,6 +2145,14 @@ def validate_skills() -> None:
             "呼び出し契約",
             "見送り理由",
             "追加検証観点",
+            "focus reviewer",
+            "追加 reviewer 0..1",
+            "workers.inquisitor.max_parallel",
+            "autonomy_budget.subassignments",
+            "focus 分割",
+            "finding disposition",
+            "skip reason",
+            "cost reason",
         ),
         "template/.agents/skills/branch-implementation-final-review/SKILL.md",
     )
