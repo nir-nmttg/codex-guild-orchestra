@@ -3,6 +3,19 @@
 この runtime は Guild-native です。
 固定の規模別手順分岐ではなく、`Guild Law`、`Quest Charter`、`Party Tactics`、`Trial`、`Ledger` で作業します。
 
+## Default Guild Intake
+
+導入先のギルド規約ルートでは、全チャットを既定で `always_guild_intake` として扱います。
+Root はすべての依頼をまず Guild intake に通し、`use-guild-workflow` 相当の境界確認を行います。
+ただし常時適用するのは intake と安全境界であり、短い説明や単純な質問を不要に full Quest 化しません。
+
+`repositories/<repo>` 配下の作業依頼は、`target_repo_root` を固定できた時だけ Quest Charter、Party Tactics、Trial へ進みます。
+ギルド規約 runtime 自体の変更は対象 repo 作業ではなく orchestration-template workflow として扱い、該当する `orchestra-*` Skill に接続します。
+類似 Skill が複数ある場合、`owner: codex-guild-orchestra` のギルド側 Skill を優先し、先に Quest Charter、authority、boundaries、Trial を揃えます。
+非ギルド Skill、plugin、connector は、Charter の境界を保ったまま必要時だけ接続します。
+人間確認条件は `guild_law.human_confirmation_required_for` が正本です。
+破壊的操作、依存追加、migration、deploy、本番データへの影響、課金、認可、公開API互換性変更、仕様判断が必要な変更、MCP server の追加または有効化、外部 network access の有効化、秘密情報、認証情報、PII の参照を含みます。
+
 ## Guild Law
 
 Guild Law は絶対境界です。

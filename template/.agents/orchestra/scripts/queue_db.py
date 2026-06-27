@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SQLite Ledger helper for the Guild-native runtime."""
+"""Guild-native runtime 向け SQLite Ledger 補助。"""
 
 from __future__ import annotations
 

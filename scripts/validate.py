@@ -42,7 +42,6 @@ REQUIRED_PATHS = [
     "docs/claude-compatibility.md",
     "docs/prompt-recipes.md",
     "docs/localization-management.md",
-    "docs/localization-allowlist.txt",
     "template/AGENTS.md",
     "template/.codex/config.toml",
     "template/.codex/hooks.json",
@@ -55,6 +54,7 @@ REQUIRED_PATHS = [
     "template/.codex/agents/inquisitor.toml",
     "template/.codex/agents/party_leader.toml",
     "template/.agents/orchestra/config/settings.yaml",
+    "template/.agents/orchestra/README.md",
     "template/.agents/orchestra/instructions/common.md",
     "template/.agents/orchestra/instructions/advisor.md",
     "template/.agents/orchestra/instructions/receptionist.md",
@@ -79,6 +79,7 @@ REQUIRED_PATHS = [
     "template/.agents/orchestra/queue/templates/request.yaml",
     "template/.agents/orchestra/queue/templates/command.yaml",
     "template/.agents/skills/repository-design-mapmaking/SKILL.md",
+    "template/.agents/skills/use-guild-workflow/SKILL.md",
     "template/.agents/orchestra/scripts/inbox_write.sh",
     "template/.agents/orchestra/scripts/claude_compat.py",
     "template/.agents/orchestra/scripts/queue_db.py",
@@ -204,6 +205,41 @@ GUILD_TERMS = (
     "Party Tactics",
     "Trial",
     "Ledger",
+)
+DEFAULT_INTAKE_TOKENS = (
+    "Default Guild Intake",
+    "always_guild_intake",
+    "use-guild-workflow",
+    "target_repo_root",
+    "full Quest",
+)
+DEFAULT_INTAKE_CONFIRMATION_TOKENS = (
+    "guild_law.human_confirmation_required_for",
+    "破壊的操作",
+    "依存追加",
+    "migration",
+    "deploy",
+    "本番データ",
+    "課金",
+    "認可",
+    "公開API互換性変更",
+    "仕様判断",
+    "MCP server",
+    "外部 network access",
+    "秘密情報",
+    "認証情報",
+    "PII",
+)
+GUILD_SKILL_PRIORITY_TOKENS = (
+    "類似 Skill",
+    "owner: codex-guild-orchestra",
+    "ギルド側 Skill",
+    "非ギルド Skill",
+    "plugin",
+    "connector",
+    "Quest Charter",
+    "authority",
+    "boundaries",
 )
 LEGACY_PRIMARY_TERMS = (
     "root_session_to_adventurer_with_inquisitor_review",
@@ -372,7 +408,7 @@ def validate_version() -> None:
 def validate_settings() -> None:
     settings = mapping(load_yaml("template/.agents/orchestra/config/settings.yaml"), "settings.yaml")
     require(settings.get("version") == "3.0", "settings.yaml.version は 3.0 にしてください。")
-    for section in ("guild_runtime", "paths", "guild_law", "claude_compat", "quest_charter", "workers", "advisory_consultation", "root_session", "party_tactics", "trial", "ledger", "reporting"):
+    for section in ("guild_runtime", "default_intake_policy", "skill_selection_policy", "paths", "guild_law", "claude_compat", "quest_charter", "workers", "advisory_consultation", "root_session", "party_tactics", "trial", "ledger", "reporting"):
         require(section in settings, f"settings.yaml に {section} が必要です。")
 
     text = read("template/.agents/orchestra/config/settings.yaml")
@@ -386,6 +422,25 @@ def validate_settings() -> None:
     runtime = mapping(settings["guild_runtime"], "settings.guild_runtime")
     ranks = mapping(runtime.get("quest_ranks"), "settings.guild_runtime.quest_ranks")
     require(set(ranks) == QUEST_RANKS, "quest_ranks は mapmaking / errand / solo_quest / party_quest / guild_quest にしてください。")
+
+    default_intake = mapping(settings["default_intake_policy"], "settings.default_intake_policy")
+    require(default_intake.get("mode") == "always_guild_intake", "default_intake_policy.mode は always_guild_intake にしてください。")
+    require(default_intake.get("target_repo_required_for_target_repo_work") is True, "target repo 作業は target_repo_root 固定を必須にしてください。")
+    default_intake_text = json.dumps(default_intake, ensure_ascii=False)
+    require_tokens(
+        default_intake_text,
+        ("Guild intake", "use-guild-workflow", "target_repo_root", "repositories/<repo>", "orchestra-*", "full Quest", "人間確認") + DEFAULT_INTAKE_CONFIRMATION_TOKENS,
+        "settings.default_intake_policy",
+    )
+
+    skill_selection = mapping(settings["skill_selection_policy"], "settings.skill_selection_policy")
+    require(skill_selection.get("similar_skill_priority") == "prefer_guild_owned", "skill_selection_policy.similar_skill_priority は prefer_guild_owned にしてください。")
+    require(skill_selection.get("guild_skill_owner") == "codex-guild-orchestra", "skill_selection_policy.guild_skill_owner は codex-guild-orchestra にしてください。")
+    require_tokens(
+        json.dumps(skill_selection, ensure_ascii=False),
+        GUILD_SKILL_PRIORITY_TOKENS + ("Guild Law", "人間の最新指示", "必須 Skill", "未信頼"),
+        "settings.skill_selection_policy",
+    )
 
     guild_law = mapping(settings["guild_law"], "settings.guild_law")
     immutable = sequence(guild_law.get("immutable"), "settings.guild_law.immutable")
@@ -1903,9 +1958,14 @@ def validate_docs_and_instructions() -> None:
     require("Trial 統合担当の `inquisitor`" in combined, "docs/instructions は Trial 統合担当の `inquisitor` 表記を使ってください。")
     common = read("template/.agents/orchestra/instructions/common.md")
     agents = read("template/AGENTS.md")
+    runtime_readme = read("template/.agents/orchestra/README.md")
     require_tokens(common, ("Root", "target_repo_root", "実装", "Trial", "品質採否", "Ledger"), "template/.agents/orchestra/instructions/common.md")
     require_tokens(agents, ("Root", "target_repo_root", "実装", "Trial", "品質採否", "Ledger"), "template/AGENTS.md")
+    require_tokens(agents, DEFAULT_INTAKE_TOKENS + ("短い説明", "orchestration-template workflow", "人間確認") + DEFAULT_INTAKE_CONFIRMATION_TOKENS + GUILD_SKILL_PRIORITY_TOKENS, "template/AGENTS.md")
+    require_tokens(common, DEFAULT_INTAKE_TOKENS + ("短い説明", "orchestration-template workflow", "人間確認") + DEFAULT_INTAKE_CONFIRMATION_TOKENS + GUILD_SKILL_PRIORITY_TOKENS, "template/.agents/orchestra/instructions/common.md")
+    require_tokens(runtime_readme, DEFAULT_INTAKE_TOKENS + ("短い説明", "人間確認") + DEFAULT_INTAKE_CONFIRMATION_TOKENS[:1] + GUILD_SKILL_PRIORITY_TOKENS[:3], "template/.agents/orchestra/README.md")
     customization = read("docs/customization.md")
+    orchestration_runtime = read("docs/orchestration-runtime.md")
     adventurer = read("template/.agents/orchestra/instructions/adventurer.md")
     adventurer_toml = read("template/.codex/agents/adventurer.toml")
     deployment = read("docs/deployment-patterns.md")
@@ -1919,6 +1979,11 @@ def validate_docs_and_instructions() -> None:
         prompt_recipes,
         ("target_repo_root", "担当者が確認した根拠", "Trial 深度", "v3 schema", "--backup --reset-runtime", "--clean-install"),
         "docs/prompt-recipes.md",
+    )
+    require_tokens(
+        orchestration_runtime,
+        DEFAULT_INTAKE_TOKENS + ("短い説明", "orchestration-template workflow", "人間確認") + DEFAULT_INTAKE_CONFIRMATION_TOKENS + GUILD_SKILL_PRIORITY_TOKENS,
+        "docs/orchestration-runtime.md",
     )
     combined_runtime_text = "\n".join(read(rel) for rel in full_contract_paths + role_paths)
     for token in ("spark", "Scout", "scout"):
@@ -2009,6 +2074,28 @@ def validate_skills() -> None:
         design_mapmaking,
         ("read-only `cartographer`", "tool_unavailable", "target_repo_root", "advisor synthesis", "未信頼入力"),
         "template/.agents/skills/repository-design-mapmaking/SKILL.md",
+    )
+    use_guild_workflow = read("template/.agents/skills/use-guild-workflow/SKILL.md")
+    require_tokens(
+        use_guild_workflow,
+        (
+            "always_guild_intake",
+            "Default Guild Intake",
+            "use-guild-workflow",
+            "target_repo_root",
+            "full Quest",
+            "orchestration-template workflow",
+            "短い回答",
+            "未信頼",
+            "類似 Skill",
+            "owner: codex-guild-orchestra",
+            "非ギルド Skill",
+        ),
+        "template/.agents/skills/use-guild-workflow/SKILL.md",
+    )
+    require(
+        "明示がない通常作業へ、この Skill を無理に適用しない" not in use_guild_workflow,
+        "use-guild-workflow は always_guild_intake と衝突する旧トリガー文言を戻さないでください。",
     )
 
     runtime_readme = read("template/.agents/orchestra/README.md")
