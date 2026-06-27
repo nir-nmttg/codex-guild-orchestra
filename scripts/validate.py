@@ -2056,6 +2056,12 @@ def validate_skills() -> None:
             "直接編集せず",
             "検証観点",
             "保留理由",
+            "適切な共通化余地",
+            "過度な共通化リスク",
+            "同じ責務",
+            "呼び出し契約",
+            "見送り理由",
+            "追加検証観点",
         ),
         "template/.agents/skills/branch-implementation-final-review/SKILL.md",
     )
