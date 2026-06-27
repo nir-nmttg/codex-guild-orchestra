@@ -7,16 +7,7 @@ set -euo pipefail
 STATIC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GUILD_ROOT="$(cd "$STATIC_ROOT/../.." && pwd)"
 RUNTIME_ROOT="${CODEX_GUILD_ORCHESTRA_RUNTIME_ROOT:-$GUILD_ROOT/.orchestra}"
-PYTHON_BIN="${CODEX_GUILD_ORCHESTRA_PYTHON:-}"
-if [ -z "$PYTHON_BIN" ]; then
-  if [ -x "$PWD/.venv/bin/python" ]; then
-    PYTHON_BIN="$PWD/.venv/bin/python"
-  elif [ -x "$GUILD_ROOT/.venv/bin/python" ]; then
-    PYTHON_BIN="$GUILD_ROOT/.venv/bin/python"
-  else
-    PYTHON_BIN="python3"
-  fi
-fi
+DOCKER_PYTHON="$STATIC_ROOT/scripts/docker_python.sh"
 
 if [ "$#" -ne 4 ]; then
   echo "使い方: inbox_write.sh <target_role> <content> <type> <from>" >&2
@@ -33,7 +24,7 @@ if [ "$TARGET" = "$FROM" ]; then
   exit 1
 fi
 
-MESSAGE_JSON="$("$PYTHON_BIN" - "$TARGET" "$CONTENT" "$TYPE" "$FROM" <<'PY'
+MESSAGE_JSON="$("$DOCKER_PYTHON" - "$TARGET" "$CONTENT" "$TYPE" "$FROM" <<'PY'
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -69,7 +60,7 @@ print(json.dumps(payload, ensure_ascii=False, separators=(',', ':')))
 PY
 )"
 
-exec "$PYTHON_BIN" "$STATIC_ROOT/scripts/queue_db.py" \
+exec "$DOCKER_PYTHON" "$STATIC_ROOT/scripts/queue_db.py" \
   --runtime-root "$RUNTIME_ROOT" \
   add-inbox-message \
   "$MESSAGE_JSON"
