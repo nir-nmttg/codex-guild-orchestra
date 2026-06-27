@@ -42,7 +42,6 @@ REQUIRED_PATHS = [
     "docs/claude-compatibility.md",
     "docs/prompt-recipes.md",
     "docs/localization-management.md",
-    "docs/localization-allowlist.txt",
     "template/AGENTS.md",
     "template/.codex/config.toml",
     "template/.codex/hooks.json",

@@ -638,7 +638,7 @@ def skill_command_from_path(path: Path, root: Path) -> tuple[str, str, Path]:
                 return command, "claude_skill", scope_dir
     if path.suffix == ".md" and path.parent.name == "commands" and path.parent.parent.name == ".claude":
         return path.stem, "claude_command", path.parent.parent.parent
-    raise CompatError(f"not a Claude skill or command: {path}")
+    raise CompatError(f"Claude Skill または command ではありません: {path}")
 
 
 def plugin_manifest_present(skill_path: Path) -> bool:
@@ -958,7 +958,7 @@ def scan(root: Path, work_paths: list[Path], settings: dict[str, Any]) -> dict[s
 def resolved_target_root(raw: str) -> Path:
     root = Path(raw).expanduser().resolve()
     if not root.exists() or not root.is_dir():
-        raise CompatError(f"target_repo_root is not a directory: {root}")
+        raise CompatError(f"target_repo_root はディレクトリではありません: {root}")
     return root
 
 
