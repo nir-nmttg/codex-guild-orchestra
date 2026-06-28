@@ -43,7 +43,13 @@ def validate_agents() -> None:
     require(advisor.get("model_reasoning_effort") == "xhigh", "advisor.toml の model_reasoning_effort は xhigh にしてください。")
     require_tokens(advisor_text, ("terminal worker", "追加 subagent", "実装", "採否", "Ledger", "owner synthesis", "Guild Law", "confidence-based", "confidence delta", "同じ unknown", "owner が根拠確認"), "template/.codex/agents/advisor.toml")
     cartographer_text = read("template/.codex/agents/cartographer.toml")
-    require_tokens(cartographer_text, ("設計", "実装計画", "方針整理", "アーキテクチャ", "mapmaking", "read-only advisor"), "template/.codex/agents/cartographer.toml")
+    require_tokens(cartographer_text, ("設計", "実装計画", "方針整理", "アーキテクチャ", "mapmaking", "read-only advisor", "intent_analysis", "implementation_strategy"), "template/.codex/agents/cartographer.toml")
+    party_leader_text = read("template/.codex/agents/party_leader.toml")
+    require_tokens(party_leader_text, ("intent_analysis", "implementation_strategy", "confirmation_needed", "escalation"), "template/.codex/agents/party_leader.toml")
+    adventurer_text = read("template/.codex/agents/adventurer.toml")
+    require_tokens(adventurer_text, ("intent_analysis", "implementation_strategy", "intent_alignment", "本質的な成果", "最小十分"), "template/.codex/agents/adventurer.toml")
+    guildmaster_text = read("template/.codex/agents/guildmaster.toml")
+    require_tokens(guildmaster_text, ("intent_analysis", "implementation_strategy", "Party"), "template/.codex/agents/guildmaster.toml")
     inquisitor = read("template/.codex/agents/inquisitor.toml")
     courier = tomllib.loads(read("template/.codex/agents/courier.toml"))
     require(courier.get("model") == "gpt-5.3-codex-spark", "courier.toml の model は gpt-5.3-codex-spark にしてください。")
@@ -52,6 +58,10 @@ def validate_agents() -> None:
         inquisitor,
         (
             "scope boundary",
+            "intent_analysis",
+            "intent_coverage",
+            "本質的な成果",
+            "confirmation_needed",
             "safety items",
             "edge_cases",
             "error_handling",
@@ -115,6 +125,11 @@ def validate_docs_and_instructions() -> None:
     for token in AMBIGUOUS_INQUISITOR_TERMS:
         require(token not in combined, f"docs/instructions に曖昧な inquisitor 表記 `{token}` が残っています。")
     require("Trial 統合担当の `inquisitor`" in combined, "docs/instructions は Trial 統合担当の `inquisitor` 表記を使ってください。")
+    require_tokens(
+        combined,
+        ("intent_analysis", "implementation_strategy", "intent_alignment", "confirmation_needed", "intent_coverage", "本質的な成果", "過剰実装"),
+        "docs/instructions intent analysis contract",
+    )
     require_tokens(combined, FOCUS_REVIEWER_CONTRACT_TOKENS + ("validation result", "blast radius", "coupling"), "docs/instructions focus reviewer contract")
     common = read("template/.agents/orchestra/instructions/common.md")
     agents = read("template/AGENTS.md")

@@ -7,10 +7,12 @@ Guild Law と Quest Charter の境界を広げません。
 ## 役割
 
 - `guild_quest` の目的、成功条件、主要リスクを整理する
+- `intent_analysis` から本質的な成果、確認が必要な仕様判断、過剰実装を避ける境界を整理する
 - Party を分ける単位と、同時編集してはいけない境界を決める
 - 各 Party の authority、boundaries、success criteria を明示する
 - Trial 深度と safety gate を設計する
 - Ledger に残す command / 割り当て（assignment）draft の材料を返す
+- command draft には `intent_analysis` と Party ごとの `implementation_strategy` を反映する
 
 ## 判断
 

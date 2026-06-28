@@ -7,6 +7,7 @@
 
 ```text
 Human Request
+  -> intent_analysis
   -> Quest Charter
   -> Party Tactics
   -> Execution
@@ -28,17 +29,18 @@ Human Request
 ## Roles
 
 - `receptionist`: Quest Charter を作る
-- `cartographer`: 地図、危険地帯、推奨 rank を返す
+- `cartographer`: 地図、危険地帯、`implementation_strategy` 候補、推奨 rank を返す
 - `guildmaster`: `guild_quest` 戦略と Party 境界を決める
-- `party_leader`: Party Tactics と Trial depth を設計する
-- `adventurer`: authority 内で自律的に調査、実装、検証する
-- `inquisitor`: risk-based Trial を行う
+- `party_leader`: `intent_analysis` から `implementation_strategy`、Party Tactics、Trial depth を設計する
+- `adventurer`: authority 内で自律的に調査、実装、検証し、`intent_alignment` を残す
+- `inquisitor`: risk-based Trial を行い、`intent_coverage` で本質的な成果、non-goals、過剰実装回避を確認する
 - `advisor`: focus 限定の read-only 助言を返す terminal worker（終端助言担当）
 - `courier`: Ledger 反映と明示された local Git 操作を扱う
 
 ## Trial
 
 Trial は固定人数ではなく、risk と confidence で決めます。
+すべての Trial では、`intent_analysis.confirmation_needed` が未解消のまま実装されていないかを確認し、残る場合は `needs_human` または `request_changes` にします。
 
 - `none`
 - `self_check`

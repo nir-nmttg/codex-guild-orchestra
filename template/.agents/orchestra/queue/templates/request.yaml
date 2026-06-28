@@ -13,6 +13,13 @@ requests: []
 #     quest_id: quest_001
 #     rank: party_quest
 #     objective: "目的の要約"
+#     intent_analysis:
+#       request_summary: "依頼文の短い要約"
+#       inferred_intent: "依頼の背景にある推定意図"
+#       essential_outcomes: []
+#       assumptions: []
+#       ambiguities: []
+#       confirmation_needed: []
 #     success_criteria: []
 #     non_goals: []
 #     authority:

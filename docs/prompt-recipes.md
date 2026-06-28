@@ -7,6 +7,8 @@
 
 ```text
 この件を Quest として扱ってください。目的、成功条件、対象 `target_repo_root`、許可する操作、読んでよい範囲、触ってよい範囲、必要な検証、Trial 深度を Quest Charter に整理してから進めてください。
+依頼文を直訳せず、まず `intent_analysis` として推定意図、本質的な成果、仮定、曖昧点、人間確認が必要な点を整理してください。
+`confirmation_needed` が残る場合は、推測で実装せず人間確認へ戻してください。
 ```
 
 ## 方針整理だけ
@@ -16,6 +18,7 @@
 ```
 
 「設計して」「実装計画を考えて」「方針を整理して」のような実装前相談は、`repository-design-mapmaking` から read-only `cartographer` に渡してください。Root は `target_repo_root` と Quest Charter を固定し、地図作成を直接代替しないでください。
+`cartographer` は `intent_analysis` を使い、必要なら `implementation_strategy` 候補まで整理してください。
 
 ## 軽い機械的対応
 
@@ -27,6 +30,7 @@
 
 ```text
 この不具合を最小十分な差分で修正してください。Quest Charter の成功条件を満たすまで自律的に読み取り、実装、検証し、根拠を Quest Report に残してください。
+`intent_analysis` から `implementation_strategy` を作り、report には `intent_alignment` として満たした本質的な成果、避けた過剰実装、残る疑問を残してください。
 ```
 
 ## 分業を促す
@@ -69,6 +73,7 @@
 
 ```text
 実装後は Inquisitor の Trial を通してください。意図充足、既存方針、責務分割、可読性、保守性、検証、セキュリティ、回帰リスクを、変更の大きさに応じて確認してください。
+`intent_coverage` は `intent_analysis`、`non_goals`、過剰実装回避、`confirmation_needed` の解消まで含めて確認してください。
 ```
 
 ## 安全確認を明示する

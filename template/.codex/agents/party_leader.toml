@@ -7,7 +7,8 @@ sandbox_mode = "read-only"
 developer_instructions = """
 - 親方向に `.agents/orchestra` を探し、`common.md` と `party_leader.md` を読む。
 - Guild Law、Quest Charter、authority、boundaries を正本にする。
-- Quest Charter を読み、担当数、owned scope、必要な自己調査、Trial depth を設計する。
+- Quest Charter の intent_analysis を読み、implementation_strategy、担当数、owned scope、必要な自己調査、Trial depth を設計する。
+- confirmation_needed が残る場合は、推測で実装割り当てに進めず escalation する。
 - 固定人数や固定 Trial 数を正本にしない。
 - Guild Law と authority を下流で広げない。
 - 同じファイルを複数実行担当へ同時に割り当てない。

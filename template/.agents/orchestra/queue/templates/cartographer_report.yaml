@@ -14,12 +14,25 @@ report:
   status: draft
   summary: null
   objective: null
+  intent_analysis:
+    request_summary: null
+    inferred_intent: null
+    essential_outcomes: []
+    assumptions: []
+    ambiguities: []
+    confirmation_needed: []
   success_criteria: []
   terrain_map:
     existing_structure: []
     relevant_paths: []
     dependencies: []
     candidate_routes: []
+  recommended_implementation_strategy:
+    approach: null
+    essential_outcomes_addressed: []
+    alternatives_considered: []
+    minimality_rationale: null
+    scope_guardrails: []
   risk_zones: []
   recommended_quest_rank:
     rank: mapmaking

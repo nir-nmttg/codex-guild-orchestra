@@ -87,6 +87,34 @@ TRIAL_REQUIRED_CHECKS = {
     "validation_evidence",
     "regression_risk",
 }
+INTENT_ANALYSIS_KEYS = {
+    "request_summary",
+    "inferred_intent",
+    "essential_outcomes",
+    "assumptions",
+    "ambiguities",
+    "confirmation_needed",
+}
+IMPLEMENTATION_STRATEGY_KEYS = {
+    "approach",
+    "essential_outcomes_addressed",
+    "alternatives_considered",
+    "minimality_rationale",
+    "scope_guardrails",
+}
+INTENT_ALIGNMENT_KEYS = {
+    "matched_outcomes",
+    "deviations",
+    "over_implementation_avoided",
+    "assumptions_validated",
+    "remaining_questions",
+}
+INTENT_COVERAGE_REPORT_KEYS = {
+    "covered_outcomes",
+    "missing_outcomes",
+    "over_implementation_risks",
+    "ambiguity_handling",
+}
 TRIAL_CONDITIONAL_CHECKS = {
     "edge_cases",
     "error_handling",

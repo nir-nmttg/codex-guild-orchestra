@@ -24,6 +24,13 @@ target_repo_root は /path/to/guild-root/repositories/example-app です。
 - 既存の valid / invalid 行の扱いは変えない
 - 関連テストが通る
 
+intent_analysis:
+- inferred_intent: CSV import の利用者が不要な空行で処理全体を失敗させず、既存の行検証ルールは維持したい
+- essential_outcomes:
+  - 空行だけを無害に無視する
+  - valid / invalid 行の既存仕様を変えない
+- confirmation_needed: []
+
 authority:
 - read: 対象 repo 内
 - edit: import 処理、関連テスト、必要な docs のみ
@@ -39,13 +46,15 @@ authority:
 
 1. Root が Quest Charter を作り、目的、成功条件、authority、boundaries を固定します。
 2. `adventurer` が対象範囲を読み、最小十分な差分で実装します。
-3. 変更に見合う検証を実行します。
-4. `self_check` または軽い `peer_review` で、成功条件と回帰リスクを確認します。
-5. 変更点、検証、未検証範囲、残リスクを短く報告します。
+3. `adventurer` が `implementation_strategy` に沿って、空行だけを扱う最小十分な差分を選びます。
+4. 変更に見合う検証を実行します。
+5. `self_check` または軽い `peer_review` で、`intent_coverage`、成功条件、回帰リスクを確認します。
+6. 変更点、`intent_alignment`、検証、未検証範囲、残リスクを短く報告します。
 
 ## 完了条件
 
 - 成功条件を満たす差分がある
+- `intent_analysis` の本質的な成果を満たし、過剰実装を避けた根拠がある
 - 変更理由が既存設計と矛盾しない
 - 実行した検証と未検証範囲が明示されている
 - 人間確認が必要な操作を勝手に進めていない
@@ -54,4 +63,3 @@ authority:
 
 小さな修正でも、影響範囲が広がった時は `party_quest` や `safety_gate` に切り替えます。
 `solo_quest` は一人で抱え込むための指定ではなく、境界が小さい時に過剰な分業を避けるための rank です。
-

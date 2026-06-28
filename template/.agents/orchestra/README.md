@@ -33,22 +33,24 @@ runtime helper はホスト側 Python を直接使いません。
 ## Lifecycle
 
 1. Receptionist が依頼を Quest Charter に整える。
-2. Root が Guild Law と Charter を確認し、Rank、authority、boundaries、Trial depth を明示する。
-3. `mapmaking` は Cartographer が方針だけを返す。実装は行わない。
-4. `errand` は Courier が Quest Charter で明示された Ledger 反映や local Git 操作などの軽量機械作業だけを扱う。
-5. `solo_quest` は Adventurer が実装し、必要な Trial を Inquisitor が行う。
-6. `party_quest` は Party Leader が分解し、複数の割り当て（assignment）と Trial を統合する。
-7. `guild_quest` は Guildmaster が戦略と複数 party の責務境界を整理する。
-8. Courier が許可済みの Ledger / dashboard 反映や明示された local Git 操作を機械的に行う。
+2. Root が依頼文を直訳せず `intent_analysis` に分け、推定意図、本質的な成果、仮定、曖昧点、`confirmation_needed` を明示する。
+3. Root が Guild Law と Charter を確認し、Rank、authority、boundaries、Trial depth を明示する。
+4. `mapmaking` は Cartographer が方針だけを返す。実装は行わない。
+5. `party_leader` または assigned owner が `intent_analysis` から `implementation_strategy` を作る。
+6. `errand` は Courier が Quest Charter で明示された Ledger 反映や local Git 操作などの軽量機械作業だけを扱う。
+7. `solo_quest` は Adventurer が実装し、report に `intent_alignment` を残し、必要な Trial を Inquisitor が行う。
+8. `party_quest` は Party Leader が分解し、複数の割り当て（assignment）と Trial を統合する。
+9. `guild_quest` は Guildmaster が戦略と複数 party の責務境界を整理する。
+10. Courier が許可済みの Ledger / dashboard 反映や明示された local Git 操作を機械的に行う。
 
 ## 役割
 
-- `receptionist`: 受付、Quest Charter draft、rank 判断材料の整理
-- `cartographer`: `mapmaking` 専用の読み取り計画担当
+- `receptionist`: 受付、`intent_analysis`、Quest Charter draft、rank 判断材料の整理
+- `cartographer`: `mapmaking` 専用の読み取り計画担当。`intent_analysis` と `implementation_strategy` 候補を整理する
 - `guildmaster`: `guild_quest` の戦略、party 境界、Command draft
-- `party_leader`: `party_quest` の分解、割り当て（assignment）、Trial、統合 draft
-- `adventurer`: Quest Charter の範囲内で実装と検証を完遂する実行担当
-- `inquisitor`: Trial を担当する品質担当
+- `party_leader`: `party_quest` の分解、`implementation_strategy`、割り当て（assignment）、Trial、統合 draft
+- `adventurer`: Quest Charter の範囲内で実装と検証を完遂し、`intent_alignment` を残す実行担当
+- `inquisitor`: Trial を担当し、`intent_coverage` で本質的な成果、non-goals、過剰実装回避を確認する品質担当
 - `advisor`: focus 限定の read-only 助言担当。terminal worker（終端助言担当）として追加 subagent 起動（追加エージェント起動）、実装、採否、Ledger 反映を行わない
 - `courier`: Ledger 反映と、Root または Quest Charter が明示した local Git 操作だけを扱う軽量実行担当
 

@@ -7,6 +7,7 @@ Guild Law と Quest Charter の境界を広げません。
 ## 役割
 
 - Quest Charter から実行可能な割り当て（assignment）を作る
+- `intent_analysis` の `essential_outcomes` を `implementation_strategy`、owned scope、検証期待、Trial focus へ落とし込む
 - 担当数、分担境界、並列化の可否を決める
 - `adventurer` の owned scope と success criteria を明示する
 - `inquisitor` の Trial focus と depth を明示する
@@ -18,6 +19,7 @@ Guild Law と Quest Charter の境界を広げません。
 
 - `assignment_mode`: `solo / paired / split_by_scope / split_by_risk / guild_parties`
 - `owned_scope`
+- `implementation_strategy`
 - `authority`
 - `boundaries`
 - `research_plan`
@@ -29,6 +31,7 @@ Guild Law と Quest Charter の境界を広げません。
 
 必要なら authority、boundaries、autonomy_budget の範囲内で読み取り調査を自分で行います。
 採用する発見は自分で検証してから割り当て（assignment）に渡します。
+`intent_analysis.assumptions` は根拠確認し、`confirmation_needed` が残る場合は実装割り当てへ進めず escalation します。
 
 ## Advisory Consultation
 

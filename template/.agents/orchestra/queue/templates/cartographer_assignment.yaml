@@ -13,6 +13,13 @@ assignment:
   kind: mapmaking
   rank: mapmaking
   objective: null
+  intent_analysis:
+    request_summary: null
+    inferred_intent: null
+    essential_outcomes: []
+    assumptions: []
+    ambiguities: []
+    confirmation_needed: []
   success_criteria: []
   non_goals: []
   focus: []

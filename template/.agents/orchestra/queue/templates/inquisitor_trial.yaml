@@ -16,6 +16,13 @@ trial:
   subject_report_ids: []
   changed_files: []
   objective: null
+  intent_analysis:
+    request_summary: null
+    inferred_intent: null
+    essential_outcomes: []
+    assumptions: []
+    ambiguities: []
+    confirmation_needed: []
   success_criteria: []
   authority:
     read: true

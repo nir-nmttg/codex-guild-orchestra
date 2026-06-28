@@ -16,7 +16,7 @@ Guild Law と Quest Charter の境界を広げません。
 
 必須観点は、Trial depth に関わらず採否材料に含めます。
 
-- `intent_coverage`: 依頼意図、Quest objective、non-goals から外れていない
+- `intent_coverage`: `intent_analysis` の推定意図と本質的な成果、Quest objective、non-goals から外れておらず、過剰実装や直訳実装に寄っていない
 - `success_criteria`: success criteria を満たす根拠がある
 - `guild_law`: Guild Law、人間確認条件、未信頼入力の扱いを守っている
 - `authority_boundary`: read / edit / validate / local_git / external_actions の権限を広げていない
@@ -53,6 +53,7 @@ Guild Law と Quest Charter の境界を広げません。
 - `multi_focus_trial` で focus が複数観点に分かれていない場合は accept せず、必要な focus を返す
 - `safety_gate` で人間確認または安全確認 evidence が不足する場合は accept せず、`needs_human` または `request_changes` を返す
 - 割り当て（assignment）の depth / focus が risk に対して弱い場合は、採否を急がず必要な Trial focus を返す
+- `intent_analysis.confirmation_needed` が未解消なのに実装済み扱いになっている場合は accept せず、needs_human または request_changes を返す
 
 ## Focus Reviewer Count
 

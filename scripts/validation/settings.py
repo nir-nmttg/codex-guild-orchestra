@@ -18,6 +18,8 @@ from .rules import (
     FOCUS_REVIEWER_CONTRACT_TOKENS,
     GUILD_SKILL_PRIORITY_TOKENS,
     GUILD_TERMS,
+    IMPLEMENTATION_STRATEGY_KEYS,
+    INTENT_ANALYSIS_KEYS,
     LEDGER_TABLES,
     OPERATIONS,
     QUEST_RANKS,
@@ -99,8 +101,16 @@ def validate_settings() -> None:
 
     charter = mapping(settings["quest_charter"], "settings.quest_charter")
     required_fields = set(sequence(charter.get("required_fields"), "settings.quest_charter.required_fields"))
-    for key in ("id", "rank", "objective", "success_criteria", "authority", "boundaries", "autonomy_budget", "party_tactics", "trial_plan", "escalation_triggers", "evidence_required", "status"):
+    for key in ("id", "rank", "intent_analysis", "objective", "success_criteria", "authority", "boundaries", "autonomy_budget", "party_tactics", "trial_plan", "escalation_triggers", "evidence_required", "status"):
         require(key in required_fields, f"Quest Charter required_fields に {key} が必要です。")
+    intent_analysis = mapping(charter.get("intent_analysis"), "settings.quest_charter.intent_analysis")
+    require("直訳せず" in str(intent_analysis.get("rule") or "") and "needs_human" in str(intent_analysis.get("rule") or ""), "intent_analysis.rule は直訳回避と needs_human を明記してください。")
+    require(set(sequence(intent_analysis.get("fields"), "settings.quest_charter.intent_analysis.fields")) == INTENT_ANALYSIS_KEYS, "intent_analysis.fields が期待値と一致しません。")
+    require_tokens(
+        json.dumps(intent_analysis, ensure_ascii=False),
+        ("objective", "success_criteria", "non_goals", "implementation_strategy", "intent_alignment", "intent_coverage", "over-implementation"),
+        "settings.quest_charter.intent_analysis",
+    )
     authority_levels = mapping(charter.get("authority_levels"), "settings.quest_charter.authority_levels")
     require(set(authority_levels) == AUTHORITY_KEYS, "authority_levels は read/edit/validate/local_git/external_actions にしてください。")
     autonomy_fields = set(sequence(charter.get("autonomy_budget_fields"), "settings.quest_charter.autonomy_budget_fields"))
@@ -108,6 +118,9 @@ def validate_settings() -> None:
 
     party_tactics = mapping(settings["party_tactics"], "settings.party_tactics")
     require("scout_policy" not in party_tactics, "settings.party_tactics.scout_policy を戻さないでください。")
+    implementation_strategy = mapping(party_tactics.get("implementation_strategy"), "settings.party_tactics.implementation_strategy")
+    require("直訳実装" in str(implementation_strategy.get("rule") or "") and "過剰実装" in str(implementation_strategy.get("rule") or ""), "implementation_strategy.rule は直訳実装と過剰実装の回避を明記してください。")
+    require(set(sequence(implementation_strategy.get("fields"), "settings.party_tactics.implementation_strategy.fields")) == IMPLEMENTATION_STRATEGY_KEYS, "implementation_strategy.fields が期待値と一致しません。")
     research_policy = mapping(party_tactics.get("research_policy"), "settings.party_tactics.research_policy")
     require("担当" in str(research_policy.get("rule") or "") and "evidence" in str(research_policy.get("rule") or ""), "research_policy.rule は担当自身の根拠確認を明記してください。")
 

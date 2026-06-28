@@ -4,6 +4,7 @@ language: ja
 guild_runtime:
   doctrine: "Guild Law で安全境界を固定し、Quest Charter で目的と権限を渡し、Party Tactics と Trial は担当が裁量で設計する。"
   lifecycle:
+    - intent_analysis
     - quest_charter
     - party_tactics
     - execution
@@ -130,6 +131,7 @@ quest_charter:
   required_fields:
     - id
     - rank
+    - intent_analysis
     - objective
     - success_criteria
     - non_goals
@@ -150,12 +152,26 @@ quest_charter:
     validate: "許可された検証コマンド、手動確認、追加検証を実行できる。"
     local_git: "Root が明示した場合だけ local Git 操作を実行できる。"
     external_actions: "外部送信、購入、公開、deploy などは明示許可と人間確認が必要。"
+  intent_analysis:
+    rule: "人間の依頼文を直訳せず、request_summary、inferred_intent、essential_outcomes、assumptions、ambiguities、confirmation_needed に分けて、Quest objective / success_criteria / non_goals の根拠にする。confirmation_needed が残る場合、仕様判断を推測で実装せず needs_human へ戻す。"
+    fields:
+      - request_summary
+      - inferred_intent
+      - essential_outcomes
+      - assumptions
+      - ambiguities
+      - confirmation_needed
+    downstream_usage:
+      - "party_leader は intent_analysis から implementation_strategy と owned scope を作る。"
+      - "adventurer は implementation_strategy に沿って実装し、report に intent_alignment を残す。"
+      - "Trial 統合担当の `inquisitor` は intent_coverage を intent_analysis、non_goals、over-implementation 回避まで含めて確認する。"
   autonomy_budget_fields:
     - subassignments
     - extra_file_reads
     - validation_iterations
     - timebox_minutes
   escalation_triggers:
+    - "intent_analysis.confirmation_needed が空でない、または inferred_intent / essential_outcomes を根拠付きで説明できない。"
     - "Guild Law に触れる、または触れる可能性がある。"
     - "authority / boundaries が曖昧。"
     - "autonomy_budget を超える必要がある。"
@@ -256,6 +272,7 @@ root_session:
   role: intake_and_aggregation_owner
   owns:
     - "intake と Quest Charter の初期整理"
+    - "人間の依頼文から intent_analysis を作り、objective / success_criteria / non_goals の根拠を明示すること"
     - "Root が明示する target_repo_root の固定"
     - "Guild Law、authority、boundaries の検証"
     - "割り当て（assignment） / Trial assignment の作成と取り次ぎ"
@@ -268,7 +285,15 @@ root_session:
   rule: "Root は Quest の受付、境界固定、権限確認、割り当て、集約だけを担当する。実装は assigned owner（割り当てられた担当）、Trial は inquisitor、Ledger 反映は courier が担う。Root は採否を抱えず、必要な Trial evidence を集約して人間へ報告する。"
 
 party_tactics:
-  rule: "Party Leader または Charter で明示された assigned owner が、rank、risk、confidence、検証結果から担当数、自己調査の範囲、Trial 深度を設計する。Root は Guild Law / authority / boundaries の確認と集約に限定し、実装や品質採否を抱えない。固定人数や固定 Trial 数を正本にしない。"
+  rule: "Party Leader または Charter で明示された assigned owner が、intent_analysis、rank、risk、confidence、検証結果から implementation_strategy、担当数、自己調査の範囲、Trial 深度を設計する。Root は Guild Law / authority / boundaries の確認と集約に限定し、実装や品質採否を抱えない。固定人数や固定 Trial 数を正本にしない。"
+  implementation_strategy:
+    rule: "implementation_strategy は intent_analysis の essential_outcomes を実装上の approach、owned scope、検証、Trial focus へ落とし込むための軽い契約であり、直訳実装や過剰実装を避ける根拠にする。"
+    fields:
+      - approach
+      - essential_outcomes_addressed
+      - alternatives_considered
+      - minimality_rationale
+      - scope_guardrails
   assignment_modes:
     - solo
     - paired

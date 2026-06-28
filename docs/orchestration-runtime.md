@@ -10,6 +10,8 @@ Root はすべての依頼をまず Guild intake に通し、`use-guild-workflow
 ただし常時適用するのは intake と安全境界であり、短い説明や単純な質問を不要に full Quest 化しません。
 
 `repositories/<repo>` 配下の作業依頼は、`target_repo_root` を固定できた時だけ Quest Charter、Party Tactics、Trial へ進みます。
+Root は対象 repo 作業で人間の依頼文を直訳せず、まず `intent_analysis` として依頼要約、推定意図、本質的な成果、仮定、曖昧点、`confirmation_needed` を整理します。
+`confirmation_needed` が残る場合は、仕様判断を推測で実装せず人間確認へ戻します。
 ギルド規約 runtime 自体の変更は対象 repo 作業ではなく orchestration-template workflow として扱い、該当する `orchestra-*` Skill に接続します。
 類似 Skill が複数ある場合、`owner: codex-guild-orchestra` のギルド側 Skill を優先し、先に Quest Charter、authority、boundaries、Trial を揃えます。
 非ギルド Skill、plugin、connector は、Charter の境界を保ったまま必要時だけ接続します。
@@ -37,6 +39,7 @@ Guild Law は絶対境界です。
 Quest Charter は作業契約です。
 
 - `objective`
+- `intent_analysis`
 - `success_criteria`
 - `authority`
 - `boundaries`
@@ -48,6 +51,8 @@ Quest Charter は作業契約です。
 - `evidence_required`
 
 担当は Charter の範囲内で自律的に調査、実装、検証できます。
+`party_leader` または assigned owner は `intent_analysis` から `implementation_strategy` を作り、実装担当は report に `intent_alignment` を残します。
+Trial 統合担当の `inquisitor` は `intent_coverage` を `intent_analysis`、`non_goals`、過剰実装回避まで含めて確認します。
 範囲を広げる必要がある時は escalation します。
 
 ## Quest Rank
