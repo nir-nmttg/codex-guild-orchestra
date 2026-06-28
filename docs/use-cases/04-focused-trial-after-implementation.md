@@ -17,10 +17,11 @@
 target_repo_root は /path/to/guild-root/repositories/example-app です。
 
 focus:
-- 依頼目的を満たしているか
+- `intent_analysis` の本質的な成果を満たし、`intent_alignment` が根拠付きか
 - 責務分割が既存設計に合っているか
 - テスト不足や回帰リスクがないか
 - 過度な共通化や重複がないか
+- `confirmation_needed` が未解消のまま実装されていないか
 
 やってよいこと:
 - read-only review
@@ -36,13 +37,15 @@ focus:
 
 1. Root が read-only の Trial として境界を固定します。
 2. `inquisitor` が差分、関連コード、テスト観点を確認します。
-3. 必要に応じて focus reviewer を追加します。
-4. findings を Critical / Major / Minor などの重要度で整理します。
-5. 追加 Quest が必要か、完了扱いでよいかを判断します。
+3. `intent_coverage` として推定意図、本質的な成果、non-goals、過剰実装回避を確認します。
+4. 必要に応じて focus reviewer を追加します。
+5. findings を Critical / Major / Minor などの重要度で整理します。
+6. 追加 Quest が必要か、完了扱いでよいかを判断します。
 
 ## 完了条件
 
 - 重大な破綻や未検証リスクが明示されている
+- `intent_coverage` が `intent_analysis`、`non_goals`、過剰実装回避まで見ている
 - 指摘ごとに根拠ファイルや判断理由がある
 - 修正が必要な場合は、次の最小 Quest に分けられる
 - 問題がなければ、残る risk と test gap が説明されている
@@ -51,4 +54,3 @@ focus:
 
 Trial は採点ではなく、完了判断のための evidence を増やす工程です。
 read-only review の依頼では、勝手に修正や git 操作へ進みません。
-

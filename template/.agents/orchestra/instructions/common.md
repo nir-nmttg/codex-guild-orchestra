@@ -16,6 +16,8 @@ Root はすべての依頼をまず Guild intake に通し、`use-guild-workflow
 常時適用するのは intake と安全境界であり、短い回答や軽い説明を不要に full Quest 化しません。
 
 - `repositories/<repo>` 配下の作業依頼は、`target_repo_root` を固定できた時だけ Quest Charter、Party Tactics、Trial へ進めます。
+- Root は人間の依頼文を直訳せず、まず `intent_analysis` として依頼要約、推定意図、本質的な成果、仮定、曖昧点、人間確認が必要な点を整理します。
+- `intent_analysis.confirmation_needed` が残る場合は、仕様判断を推測で実装せず人間確認へ戻します。
 - `target_repo_root` が曖昧、または `repositories/` 外へ広がる依頼は、推測で進めず人間に確認します。
 - ギルド規約 runtime 自体の変更は、対象 repo 作業ではなく orchestration-template workflow として扱い、該当する `orchestra-*` Skill に接続します。
 - 類似 Skill が複数ある場合、`owner: codex-guild-orchestra` のギルド側 Skill を優先し、先に Quest Charter、authority、boundaries、Trial を揃えます。非ギルド Skill、plugin、connector は Charter の境界を保ったまま必要時だけ接続します。
@@ -47,6 +49,7 @@ Ledger には raw `CLAUDE.md` / `SKILL.md` 本文、settings 値、dynamic comma
 実作業は Quest Charter を正本にします。
 
 - `objective`: 達成する目的
+- `intent_analysis`: 依頼要約、推定意図、本質的な成果、仮定、曖昧点、人間確認が必要な点
 - `success_criteria`: 完了条件
 - `authority`: 読み取り、編集、検証、local git、外部操作の許可
 - `boundaries`: `target_repo_root`、read deny、edit deny、安全項目
@@ -56,6 +59,8 @@ Ledger には raw `CLAUDE.md` / `SKILL.md` 本文、settings 値、dynamic comma
 - `evidence_required`: 報告に必要な根拠
 
 担当は、Guild Law と Charter の範囲内で調査、実装、検証、Trial 方針を自律的に組み立てます。
+`party_leader` または assigned owner は `intent_analysis` から `implementation_strategy` を作り、実装担当はその方針と `essential_outcomes` に照らして最小十分な差分を選びます。
+実装担当は report に `intent_alignment` を残し、Trial 統合担当の `inquisitor` は `intent_coverage` を `intent_analysis`、`non_goals`、過剰実装回避まで含めて確認します。
 範囲を広げる必要がある時は、勝手に広げず escalation として返します。
 
 ## Root Session

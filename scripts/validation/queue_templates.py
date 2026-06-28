@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from .core import load_yaml, mapping, read, require, sequence
 from .rules import (
+    IMPLEMENTATION_STRATEGY_KEYS,
+    INTENT_ALIGNMENT_KEYS,
+    INTENT_ANALYSIS_KEYS,
+    INTENT_COVERAGE_REPORT_KEYS,
     TRIAL_CONDITIONAL_CHECKS,
     TRIAL_DEPTH_GUARDRAILS,
     TRIAL_REQUIRED_CHECKS,
@@ -46,8 +50,12 @@ def validate_queue_templates() -> None:
             require(token not in text, f"{rel} に表記揺れ `{token}` が残っています。")
 
     assignment = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/adventurer_assignment.yaml"), "adventurer_assignment").get("assignment"), "adventurer_assignment.assignment")
-    for key in ("id", "quest_id", "rank", "objective", "success_criteria", "authority", "boundaries", "autonomy_budget", "research_plan", "validation_expectations", "trial_expectations", "escalation_triggers", "evidence_required", "status"):
+    for key in ("id", "quest_id", "rank", "objective", "intent_analysis", "success_criteria", "implementation_strategy", "authority", "boundaries", "autonomy_budget", "research_plan", "validation_expectations", "trial_expectations", "escalation_triggers", "evidence_required", "status"):
         require(key in assignment, f"adventurer_assignment.assignment.{key} が必要です。")
+    assignment_intent = mapping(assignment.get("intent_analysis"), "adventurer_assignment.assignment.intent_analysis")
+    require(set(assignment_intent) == INTENT_ANALYSIS_KEYS, "adventurer_assignment.assignment.intent_analysis が期待値と一致しません。")
+    assignment_strategy = mapping(assignment.get("implementation_strategy"), "adventurer_assignment.assignment.implementation_strategy")
+    require(set(assignment_strategy) == IMPLEMENTATION_STRATEGY_KEYS, "adventurer_assignment.assignment.implementation_strategy が期待値と一致しません。")
     validate_authority(assignment["authority"], "adventurer_assignment.assignment.authority")
     validate_boundaries(assignment["boundaries"], "adventurer_assignment.assignment.boundaries")
     validate_autonomy_budget(assignment["autonomy_budget"], "adventurer_assignment.assignment.autonomy_budget")
@@ -55,8 +63,10 @@ def validate_queue_templates() -> None:
     validate_compat_context(assignment_known_context.get("compat_context"), "adventurer_assignment.assignment.known_context.compat_context")
 
     cartographer_assignment = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/cartographer_assignment.yaml"), "cartographer_assignment").get("assignment"), "cartographer_assignment.assignment")
-    for key in ("id", "quest_id", "worker_id", "role", "kind", "rank", "objective", "success_criteria", "non_goals", "focus", "authority", "boundaries", "known_context", "autonomy_budget", "research_plan", "advisor_consultation", "output_requirements", "escalation_triggers", "evidence_required", "status"):
+    for key in ("id", "quest_id", "worker_id", "role", "kind", "rank", "objective", "intent_analysis", "success_criteria", "non_goals", "focus", "authority", "boundaries", "known_context", "autonomy_budget", "research_plan", "advisor_consultation", "output_requirements", "escalation_triggers", "evidence_required", "status"):
         require(key in cartographer_assignment, f"cartographer_assignment.assignment.{key} が必要です。")
+    cartographer_intent = mapping(cartographer_assignment.get("intent_analysis"), "cartographer_assignment.assignment.intent_analysis")
+    require(set(cartographer_intent) == INTENT_ANALYSIS_KEYS, "cartographer_assignment.assignment.intent_analysis が期待値と一致しません。")
     require(cartographer_assignment["worker_id"] == "cartographer", "cartographer_assignment.assignment.worker_id は cartographer にしてください。")
     require(cartographer_assignment["kind"] == "mapmaking", "cartographer_assignment.assignment.kind は mapmaking にしてください。")
     require(cartographer_assignment["rank"] == "mapmaking", "cartographer_assignment.assignment.rank は mapmaking にしてください。")
@@ -101,8 +111,10 @@ def validate_queue_templates() -> None:
     validate_compat_context(advisor_known_context.get("compat_context"), "advisor_assignment.assignment.known_context.compat_context")
 
     trial = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/inquisitor_trial.yaml"), "inquisitor_trial").get("trial"), "inquisitor_trial.trial")
-    for key in ("id", "quest_id", "depth", "focus", "authority", "boundaries", "trial_checks", "depth_guardrails", "autonomy_budget", "research_plan", "decision_options", "evidence_required", "status"):
+    for key in ("id", "quest_id", "depth", "focus", "objective", "intent_analysis", "success_criteria", "authority", "boundaries", "trial_checks", "depth_guardrails", "autonomy_budget", "research_plan", "decision_options", "evidence_required", "status"):
         require(key in trial, f"inquisitor_trial.trial.{key} が必要です。")
+    trial_intent = mapping(trial.get("intent_analysis"), "inquisitor_trial.trial.intent_analysis")
+    require(set(trial_intent) == INTENT_ANALYSIS_KEYS, "inquisitor_trial.trial.intent_analysis が期待値と一致しません。")
     validate_authority(trial["authority"], "inquisitor_trial.trial.authority")
     validate_boundaries(trial["boundaries"], "inquisitor_trial.trial.boundaries")
     validate_autonomy_budget(trial["autonomy_budget"], "inquisitor_trial.trial.autonomy_budget")
@@ -157,8 +169,12 @@ def validate_queue_templates() -> None:
     require(safety_gate_guardrail.get("if_evidence_is_missing") == "needs_human", "safety_gate の evidence 不足時は needs_human にしてください。")
 
     cartographer_report = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/cartographer_report.yaml"), "cartographer_report").get("report"), "cartographer_report.report")
-    for key in ("id", "quest_id", "assignment_id", "worker_id", "target_repo_root", "status", "summary", "objective", "success_criteria", "terrain_map", "risk_zones", "recommended_quest_rank", "recommended_party_tactics", "recommended_trial", "advisor_usage", "advisor_synthesis", "unknowns", "research_evidence", "confidence", "risks", "evidence_refs"):
+    for key in ("id", "quest_id", "assignment_id", "worker_id", "target_repo_root", "status", "summary", "objective", "intent_analysis", "success_criteria", "terrain_map", "recommended_implementation_strategy", "risk_zones", "recommended_quest_rank", "recommended_party_tactics", "recommended_trial", "advisor_usage", "advisor_synthesis", "unknowns", "research_evidence", "confidence", "risks", "evidence_refs"):
         require(key in cartographer_report, f"cartographer_report.report.{key} が必要です。")
+    cartographer_report_intent = mapping(cartographer_report.get("intent_analysis"), "cartographer_report.report.intent_analysis")
+    require(set(cartographer_report_intent) == INTENT_ANALYSIS_KEYS, "cartographer_report.report.intent_analysis が期待値と一致しません。")
+    cartographer_strategy = mapping(cartographer_report.get("recommended_implementation_strategy"), "cartographer_report.report.recommended_implementation_strategy")
+    require(set(cartographer_strategy) == IMPLEMENTATION_STRATEGY_KEYS, "cartographer_report.report.recommended_implementation_strategy が期待値と一致しません。")
     require(cartographer_report["worker_id"] == "cartographer", "cartographer_report.report.worker_id は cartographer にしてください。")
     terrain_map = mapping(cartographer_report["terrain_map"], "cartographer_report.report.terrain_map")
     require(set(terrain_map) == {"existing_structure", "relevant_paths", "dependencies", "candidate_routes"}, "cartographer_report.report.terrain_map が期待値と一致しません。")
@@ -178,9 +194,14 @@ def validate_queue_templates() -> None:
         report = mapping(mapping(load_yaml(rel), rel).get("report"), f"{rel}.report")
         for key in ("id", "quest_id", "worker_id", "status", "summary", "validation_evidence", "research_evidence", "confidence", "risks", "evidence_refs"):
             require(key in report, f"{rel}.report.{key} が必要です。")
+        if rel.endswith("adventurer_report.yaml"):
+            intent_alignment = mapping(report.get("intent_alignment"), f"{rel}.report.intent_alignment")
+            require(set(intent_alignment) == INTENT_ALIGNMENT_KEYS, f"{rel}.report.intent_alignment が期待値と一致しません。")
         report_research = mapping(report.get("research_evidence"), f"{rel}.report.research_evidence")
         validate_compat_context(report_research.get("compat_context"), f"{rel}.report.research_evidence.compat_context")
         if rel.endswith("inquisitor_report.yaml"):
+            intent_coverage = mapping(report.get("intent_coverage"), f"{rel}.report.intent_coverage")
+            require(set(intent_coverage) == INTENT_COVERAGE_REPORT_KEYS, f"{rel}.report.intent_coverage が期待値と一致しません。")
             advisor_usage = mapping(report.get("advisor_usage"), f"{rel}.report.advisor_usage")
             require(set(advisor_usage) == {"considered", "used", "skip_reason_required_when_not_used", "skip_reason"}, f"{rel}.report.advisor_usage は検討結果と skip reason 契約だけにしてください。")
             for key in ("considered", "used", "skip_reason_required_when_not_used", "skip_reason"):

@@ -51,6 +51,11 @@ report:
     critical: []
     major: []
     minor: []
+  intent_coverage:
+    covered_outcomes: []
+    missing_outcomes: []
+    over_implementation_risks: []
+    ambiguity_handling: []
   advisor_reports: []
   reviewer_reports: []
   finding_dispositions:

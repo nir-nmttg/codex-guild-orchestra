@@ -13,8 +13,21 @@ commands: []
 #     quest_id: quest_001
 #     rank: guild_quest
 #     objective: "`guild_quest` の目的"
+#     intent_analysis:
+#       request_summary: "依頼文の短い要約"
+#       inferred_intent: "依頼の背景にある推定意図"
+#       essential_outcomes: []
+#       assumptions: []
+#       ambiguities: []
+#       confirmation_needed: []
 #     strategy:
 #       summary: "Party 分割と安全方針"
+#       implementation_strategy:
+#         approach: null
+#         essential_outcomes_addressed: []
+#         alternatives_considered: []
+#         minimality_rationale: null
+#         scope_guardrails: []
 #       main_risks: []
 #       advisory_plan:
 #         consideration_required: true

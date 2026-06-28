@@ -12,7 +12,20 @@ assignment:
   role: autonomous_senior_ic
   rank: null
   objective: null
+  intent_analysis:
+    request_summary: null
+    inferred_intent: null
+    essential_outcomes: []
+    assumptions: []
+    ambiguities: []
+    confirmation_needed: []
   success_criteria: []
+  implementation_strategy:
+    approach: null
+    essential_outcomes_addressed: []
+    alternatives_considered: []
+    minimality_rationale: null
+    scope_guardrails: []
   owned_scope:
     read: []
     edit: []
