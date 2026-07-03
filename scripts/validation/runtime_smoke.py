@@ -197,6 +197,11 @@ def validate_queue_db_smoke() -> None:
         invalid_recipient = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(invalid_recipient_message))
         require(invalid_recipient.returncode != 0 and "recipient" in invalid_recipient.stderr, "queue_db.py は courier 宛ではない memory candidate を拒否してください。")
 
+        invalid_sender_message = _memory_candidate_message("msg_invalid_memory_candidate_sender")
+        invalid_sender_message["sender"] = "adventurer"
+        invalid_sender = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(invalid_sender_message))
+        require(invalid_sender.returncode != 0 and "sender" in invalid_sender.stderr, "queue_db.py は courier sender ではない memory candidate を拒否してください。")
+
         invalid_trusted_message = _memory_candidate_message("msg_invalid_memory_candidate_trusted")
         invalid_trusted_message["trusted"] = True
         invalid_trusted = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(invalid_trusted_message))
@@ -220,7 +225,7 @@ def validate_queue_db_smoke() -> None:
         invalid_memory_event = {
             "event_id": "evt_invalid_memory_candidate_safety",
             "timestamp": "2026-01-02T03:04:07+00:00",
-            "actor": "validator",
+            "actor": "courier",
             "event_type": "inbox_message_added",
             "entity": {"type": "message", "id": "msg_invalid_memory_candidate_safety"},
             "operation": "append",
@@ -231,6 +236,30 @@ def validate_queue_db_smoke() -> None:
         }
         invalid_memory_event_result = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_memory_event))
         require(invalid_memory_event_result.returncode != 0 and "memory_candidate_gate" in invalid_memory_event_result.stderr, "queue_db.py record-event は memory_candidate の safety_metadata 不足を拒否してください。")
+
+        invalid_memory_actor_event = {
+            "event_id": "evt_invalid_memory_candidate_actor",
+            "timestamp": "2026-01-02T03:04:08+00:00",
+            "actor": "adventurer",
+            "event_type": "inbox_message_added",
+            "entity": {"type": "message", "id": "msg_invalid_memory_candidate_actor"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["message"], "decision_rationale": "memory_candidate actor 境界検証", "evidence_refs": []},
+            "payload": _memory_candidate_message("msg_invalid_memory_candidate_actor"),
+            "event_safety": {
+                "safety_items": [
+                    "memory_candidate_for_courier_review",
+                    "explicit_memory_persistence_authority",
+                    "sanitized_summary_only",
+                    "prevention_artifact_required",
+                    "ledger_disposition_recorded",
+                ],
+                "human_confirmation_required": [],
+            },
+        }
+        invalid_memory_actor = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_memory_actor_event))
+        require(invalid_memory_actor.returncode != 0 and "actor" in invalid_memory_actor.stderr, "queue_db.py record-event は courier actor ではない memory candidate を拒否してください。")
 
         database = runtime_root / "queue" / "state.sqlite"
         with sqlite3.connect(database) as connection:
@@ -270,6 +299,8 @@ def validate_queue_db_smoke() -> None:
 
         bad_audit_recipient = _memory_candidate_message("msg_bad_audit_memory_candidate_recipient")
         bad_audit_recipient["recipient"] = "adventurer"
+        bad_audit_sender = _memory_candidate_message("msg_bad_audit_memory_candidate_sender")
+        bad_audit_sender["sender"] = "adventurer"
         bad_audit_trusted = _memory_candidate_message("msg_bad_audit_memory_candidate_trusted")
         bad_audit_trusted["trusted"] = True
         bad_audit_alias_payload = _memory_candidate_message("msg_bad_audit_memory_candidate_alias")["payload"]
@@ -286,6 +317,7 @@ def validate_queue_db_smoke() -> None:
         }
         for bad_scope_payload, expected_token in (
             (bad_audit_recipient, "recipient"),
+            (bad_audit_sender, "sender"),
             (bad_audit_trusted, "trusted"),
             (bad_audit_alias, "memory_candidate_for_courier_review"),
         ):
@@ -308,6 +340,16 @@ def validate_queue_db_smoke() -> None:
             with sqlite3.connect(database) as connection:
                 connection.execute("DELETE FROM inbox_messages WHERE message_id = ?", (bad_scope_payload["id"],))
                 connection.commit()
+
+        with sqlite3.connect(database) as connection:
+            connection.execute("UPDATE events SET actor = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'", ("adventurer",))
+            connection.commit()
+        bad_actor_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        bad_actor_output = bad_actor_audit.stdout + bad_actor_audit.stderr
+        require(bad_actor_audit.returncode != 0 and "actor" in bad_actor_output, "queue_audit.py は courier actor ではない memory candidate event を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute("UPDATE events SET actor = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'", ("courier",))
+            connection.commit()
 
         malformed_audit_payload = _memory_candidate_message("msg_malformed_audit_memory_candidate")
         malformed_audit_payload.pop("payload")
