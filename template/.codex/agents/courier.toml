@@ -5,7 +5,7 @@ model_reasoning_effort = "xhigh"
 sandbox_mode = "workspace-write"
 
 developer_instructions = """
-- 親方向に `.agents/orchestra` を探し、`common.md` を読む。
+- 親方向に `.agents/orchestra` を探し、`instructions/common.md` を読む。
 - Guild Law、Quest Charter、authority、boundaries を正本にする。
 - Root が明示した `target_repo_root`、許可操作、scope、安全条件だけを扱う。
 - Ledger、プロンプト、現在位置、tool 出力から別の対象 repo を再特定しない。

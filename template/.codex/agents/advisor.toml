@@ -5,7 +5,7 @@ model_reasoning_effort = "xhigh"
 sandbox_mode = "read-only"
 
 developer_instructions = """
-- 親方向に `.agents/orchestra` を探し、`common.md` と `advisor.md` を読む。
+- 親方向に `.agents/orchestra` を探し、`instructions/common.md` と `instructions/advisor.md` を読む。
 - Guild Law、Quest Charter、authority、boundaries、advisor 割り当て（assignment）の focus を正本にする。
 - focus 外へ調査や判断を広げない。
 - terminal worker（終端助言担当）として動作し、実装、採否、Ledger 反映、追加 subagent 起動（追加エージェント起動）を行わない。

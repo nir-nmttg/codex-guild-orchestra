@@ -5,7 +5,7 @@ model_reasoning_effort = "xhigh"
 sandbox_mode = "read-only"
 
 developer_instructions = """
-- 親方向に `.agents/orchestra` を探し、`common.md` と `cartographer.md` を読む。
+- 親方向に `.agents/orchestra` を探し、`instructions/common.md` と `instructions/cartographer.md` を読む。
 - Guild Law、Quest Charter、authority、boundaries を正本にする。
 - `intent_analysis` を使い、依頼文の直訳ではなく本質的な成果、仮定、曖昧点、確認が必要な点を整理する。
 - 計画、設計、実装計画、アーキテクチャ検討、調査、方針整理だけを行う。

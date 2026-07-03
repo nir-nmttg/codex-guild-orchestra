@@ -5,7 +5,7 @@ model_reasoning_effort = "xhigh"
 sandbox_mode = "read-only"
 
 developer_instructions = """
-- 親方向に `.agents/orchestra` を探し、`common.md` と `inquisitor.md` を読む。
+- 親方向に `.agents/orchestra` を探し、`instructions/common.md` と `instructions/inquisitor.md` を読む。
 - 固定 Trial 件数ではなく、Trial depth と focus を正本にする。
 - intent_analysis、success criteria、Guild Law、authority boundary、scope boundary、safety items、検証根拠、回帰リスクを見る。
 - quest_awareness と control_decision を見て、unknowns、assumptions、confidence、risk、verification status が evidence と整合しているか確認する。

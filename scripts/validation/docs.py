@@ -33,6 +33,16 @@ EXPECTED_AGENT_SANDBOX_MODES = {
     "quest_sentinel": "read-only",
     "party_leader": "read-only",
 }
+ROLE_INSTRUCTION_REFS = {
+    "adventurer": ".agents/orchestra/instructions/adventurer.md",
+    "advisor": ".agents/orchestra/instructions/advisor.md",
+    "cartographer": ".agents/orchestra/instructions/cartographer.md",
+    "guildmaster": ".agents/orchestra/instructions/guildmaster.md",
+    "inquisitor": ".agents/orchestra/instructions/inquisitor.md",
+    "party_leader": ".agents/orchestra/instructions/party_leader.md",
+}
+COMMON_INSTRUCTION_REF = ".agents/orchestra/instructions/common.md"
+SETTINGS_REF = ".agents/orchestra/config/settings.yaml"
 
 
 def _contains_split_legacy_quest_awareness_term(text: str) -> bool:
@@ -70,6 +80,15 @@ def validate_agents() -> None:
         require(data.get("name") == role, f"{rel.relative_to(ROOT)} の name は filename と一致させてください。")
         require(data.get("sandbox_mode") == EXPECTED_AGENT_SANDBOX_MODES[role], f"{rel.relative_to(ROOT)} の sandbox_mode は {EXPECTED_AGENT_SANDBOX_MODES[role]} にしてください。")
         require("Guild Law" in raw, f"{rel.relative_to(ROOT)} は Guild Law を参照してください。")
+        require(COMMON_INSTRUCTION_REF.removeprefix(".agents/orchestra/") in raw, f"{rel.relative_to(ROOT)} は実在する common instruction path を参照してください。")
+        require((ROOT / "template" / COMMON_INSTRUCTION_REF).exists(), f"{COMMON_INSTRUCTION_REF} が存在しません。")
+        role_ref = ROLE_INSTRUCTION_REFS.get(role)
+        if role_ref is not None:
+            require(role_ref.removeprefix(".agents/orchestra/") in raw, f"{rel.relative_to(ROOT)} は実在する role instruction path を参照してください。")
+            require((ROOT / "template" / role_ref).exists(), f"{role_ref} が存在しません。")
+        if role == "quest_sentinel":
+            require(SETTINGS_REF.removeprefix(".agents/orchestra/") in raw, f"{rel.relative_to(ROOT)} は実在する settings path を参照してください。")
+            require((ROOT / "template" / SETTINGS_REF).exists(), f"{SETTINGS_REF} が存在しません。")
     config = tomllib.loads(read("template/.codex/config.toml"))
     config_text = read("template/.codex/config.toml")
     require(config.get("model") == "gpt-5.5", "template/.codex/config.toml の model は gpt-5.5 にしてください。")

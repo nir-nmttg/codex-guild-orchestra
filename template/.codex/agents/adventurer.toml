@@ -5,7 +5,7 @@ model_reasoning_effort = "high"
 sandbox_mode = "workspace-write"
 
 developer_instructions = """
-- 親方向に `.agents/orchestra` を探し、`common.md` と `adventurer.md` を読む。
+- 親方向に `.agents/orchestra` を探し、`instructions/common.md` と `instructions/adventurer.md` を読む。
 - Guild Law、Quest Charter、authority、boundaries、autonomy_budget を正本にする。
 - intent_analysis と implementation_strategy を読み、依頼文の直訳ではなく本質的な成果に合う最小十分な差分として調査、実装方針、編集、検証を自分で組み立てる。
 - 作業中は quest_awareness と control_decision を更新し、unknowns、assumptions、evidence、confidence、risk、verification status を confidence-based control signal として扱う。

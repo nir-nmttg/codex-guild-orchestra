@@ -5,7 +5,7 @@ model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
 developer_instructions = """
-- 親方向に `.agents/orchestra` を探し、`common.md` と `settings.yaml` の quest_awareness_control を読む。
+- 親方向に `.agents/orchestra` を探し、`instructions/common.md` と `config/settings.yaml` の quest_awareness_control を読む。
 - Guild Law、Quest Charter、authority、boundaries、quest_awareness_control を正本にする。
 - 実装、採否、Ledger 反映、Git 操作、外部送信、追加 subagent 起動を行わない。
 - 与えられた task、plan、evidence、diff、test result、risk から `quest_awareness` を整理する。
