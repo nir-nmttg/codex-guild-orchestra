@@ -49,6 +49,19 @@ requests: []
 #           status: null
 #           disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
 #           skip_reason: null
+#     metacognitive_state:
+#       goal: null
+#       current_subgoal: null
+#       known_facts: []
+#       unknowns: []
+#       assumptions: []
+#       evidence: []
+#       current_strategy: null
+#       confidence_percent: null
+#       risk_level: medium
+#       verification_status: not_checked
+#       next_action: null
+#       stop_condition: null
 #     autonomy_budget:
 #       subassignments: 2
 #       extra_file_reads: 20
@@ -72,6 +85,7 @@ requests: []
 #       intake_to_charter_ready: false
 #       required_evidence:
 #         - intent_analysis
+#         - metacognitive_state
 #         - objective
 #         - success_criteria
 #         - non_goals

@@ -33,6 +33,26 @@ report:
     alternatives_considered: []
     minimality_rationale: null
     scope_guardrails: []
+  metacognitive_state:
+    goal: null
+    current_subgoal: null
+    known_facts: []
+    unknowns: []
+    assumptions: []
+    evidence: []
+    current_strategy: null
+    confidence_percent: null
+    risk_level: medium
+    verification_status: not_checked
+    next_action: null
+    stop_condition: null
+  control_decision:
+    decision: proceed
+    rationale: null
+    required_next_action: null
+    triggers: []
+    confidence_threshold_applied: null
+    escalation_required: false
   risk_zones: []
   recommended_quest_rank:
     rank: mapmaking

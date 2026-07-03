@@ -23,6 +23,26 @@ assignment:
   success_criteria: []
   non_goals: []
   focus: []
+  metacognitive_state:
+    goal: null
+    current_subgoal: null
+    known_facts: []
+    unknowns: []
+    assumptions: []
+    evidence: []
+    current_strategy: mapmaking
+    confidence_percent: null
+    risk_level: medium
+    verification_status: not_checked
+    next_action: null
+    stop_condition: null
+  control_decision:
+    decision: gather_more_evidence
+    rationale: null
+    required_next_action: null
+    triggers: []
+    confidence_threshold_applied: null
+    escalation_required: false
   authority:
     read: true
     edit: false

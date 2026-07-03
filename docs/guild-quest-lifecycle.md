@@ -8,6 +8,8 @@
 ```text
 Human Request
   -> intent_analysis
+  -> metacognitive_state
+  -> control_decision
   -> Quest Charter
   -> Party Tactics
   -> Execution
@@ -35,7 +37,15 @@ Human Request
 - `adventurer`: authority 内で自律的に調査、実装、検証し、`intent_alignment` を残す
 - `inquisitor`: risk-based Trial を行い、`intent_coverage` で本質的な成果、non-goals、過剰実装回避を確認する
 - `advisor`: focus 限定の read-only 助言を返す terminal worker（終端助言担当）
+- `metacognitive_controller`: 作業中の confidence、unknowns、assumptions、verification status を監視し、次アクションを推薦する read-only 制御監視担当
 - `courier`: Ledger 反映と明示された local Git 操作を扱う
+
+## Metacognitive Control
+
+非 trivial な Quest では、担当は `metacognitive_state` と `control_decision` を更新します。
+confidence は evidence に基づく control signal であり、75% 未満では finalize せず、50% 未満では speculative editing を止めます。
+unknown が correctness を塞ぐ時は調査へ戻り、failed check は first failure を説明して同じ check を再実行します。
+scope drift、安全領域、矛盾 evidence は plan revision または needs_human の trigger です。
 
 ## Trial
 

@@ -56,6 +56,26 @@ report:
     missing_outcomes: []
     over_implementation_risks: []
     ambiguity_handling: []
+  metacognitive_state:
+    goal: null
+    current_subgoal: null
+    known_facts: []
+    unknowns: []
+    assumptions: []
+    evidence: []
+    current_strategy: null
+    confidence_percent: null
+    risk_level: medium
+    verification_status: partially_checked
+    next_action: null
+    stop_condition: null
+  control_decision:
+    decision: proceed
+    rationale: null
+    required_next_action: null
+    triggers: []
+    confidence_threshold_applied: null
+    escalation_required: false
   advisor_reports: []
   reviewer_reports: []
   finding_dispositions:
@@ -87,6 +107,8 @@ report:
       - decision
       - findings
       - intent_coverage
+      - metacognitive_state
+      - control_decision
       - validation_evidence
       - advisor_dialogue_synthesis
       - reviewer_synthesis

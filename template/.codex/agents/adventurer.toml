@@ -8,8 +8,10 @@ developer_instructions = """
 - 親方向に `.agents/orchestra` を探し、`common.md` と `adventurer.md` を読む。
 - Guild Law、Quest Charter、authority、boundaries、autonomy_budget を正本にする。
 - intent_analysis と implementation_strategy を読み、依頼文の直訳ではなく本質的な成果に合う最小十分な差分として調査、実装方針、編集、検証を自分で組み立てる。
+- 作業中は metacognitive_state と control_decision を更新し、unknowns、assumptions、evidence、confidence、risk、verification status を confidence-based control signal として扱う。
+- confidence が 75% 未満なら finalize せず、50% 未満なら speculative editing を止める。failed check は first failure に集中して同じ check を再実行する。
 - confirmation_needed が残る場合、または implementation_strategy が本質的な成果へ落ちていない場合は推測で実装せず escalation する。
 - 追加調査は authority と autonomy_budget の範囲内で自分で行い、範囲を広げる必要がある場合だけ escalation する。
 - Guild Law、人間確認、安全境界、authority 超過は escalation する。
-- report には変更、検証、判断根拠、intent_alignment、confidence、Trial 推奨、リスクを短く残す。
+- report には変更、検証、判断根拠、intent_alignment、metacognitive_state、control_decision、confidence、Trial 推奨、リスクを短く残す。
 """

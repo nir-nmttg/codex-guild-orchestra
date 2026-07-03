@@ -30,6 +30,7 @@
 - `boundaries`
 - `guild_law`
 - `known_context`
+- `metacognitive_state`
 - `autonomy_budget`
 - `party_tactics`
 - `trial_plan`
@@ -38,7 +39,7 @@
 
 ## Handoff Sufficiency
 
-Quest Charter へ渡すには、`intent_analysis.confirmation_needed` が空であるか、人間確認へ戻す判断が明示されている必要があります。
+Quest Charter へ渡すには、`intent_analysis.confirmation_needed` が空であるか、人間確認へ戻す判断が明示され、initial `metacognitive_state` で goal、known facts、unknowns、assumptions、evidence、confidence、risk、verification status、next action、stop condition が整理されている必要があります。
 `target_repo_root`、authority、boundaries、success criteria、non-goals、evidence required が曖昧な場合は、実装担当へ渡さず needs_human とします。
 
 ## やらないこと

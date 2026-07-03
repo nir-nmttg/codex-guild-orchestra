@@ -44,6 +44,7 @@ Quest Charter は作業契約です。
 - `authority`
 - `boundaries`
 - `known_context`
+- `metacognitive_state`
 - `autonomy_budget`
 - `party_tactics`
 - `trial_plan`
@@ -54,6 +55,16 @@ Quest Charter は作業契約です。
 `party_leader` または assigned owner は `intent_analysis` から `implementation_strategy` を作り、実装担当は report に `intent_alignment` を残します。
 Trial 統合担当の `inquisitor` は `intent_coverage` を `intent_analysis`、`non_goals`、過剰実装回避まで含めて確認します。
 範囲を広げる必要がある時は escalation します。
+
+Handoff では、intake -> Quest Charter に `intent_analysis` と `metacognitive_state`、owner -> Trial に `metacognitive_state` と `control_decision`、Trial -> Ledger / final に `metacognitive_state`、`control_decision`、`validation_evidence` を含めます。
+
+## Metacognitive Control
+
+メタ認知は自己意識ではなく、作業中の monitoring、evaluation、control です。
+非 trivial な Quest では `metacognitive_state` と `control_decision` を維持し、known facts、unknowns、assumptions、evidence、confidence、risk、verification status を更新します。
+confidence が 75% 未満なら finalize せず、50% 未満なら speculative editing を止め、`revise_plan` として task contract と missing evidence を再構成します。人間確認条件に触れる時だけ user approval へ戻します。
+failed check は first failure に集中し、1つの focused fix の後に同じ check を再実行します。
+scope drift、security-sensitive 変更、矛盾 evidence は plan revision、security review、または user approval の trigger です。
 
 ## Quest Rank
 
