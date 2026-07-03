@@ -219,7 +219,7 @@ def validate_docs_and_instructions() -> None:
     quest_awareness_doc = read("docs/quest-awareness-runtime.md")
     require_tokens(
         quest_awareness_doc,
-        ("Guild-native runtime", "正本は常に", "メタ認知", "自己意識ではなく", "作業中の監視、評価、制御", "制御領域", "intent_analysis", "quest_awareness", "control_decision", "implementation_strategy", "intent_coverage", "confidence-based control signal", "quest_sentinel", "invoke_security_review", "Trial 統合担当の `inquisitor`", "safety_gate", "stop_for_user_approval", "認知ミス補正", "read-only reference", "Ledger", "courier", "作らないもの"),
+        ("Guild-native runtime", "正本は常に", "Quest Awareness", "自己意識ではなく", "作業中の監視、評価、制御", "制御領域", "intent_analysis", "quest_awareness", "control_decision", "implementation_strategy", "intent_coverage", "confidence-based control signal", "quest_sentinel", "invoke_security_review", "Trial 統合担当の `inquisitor`", "safety_gate", "stop_for_user_approval", "認知ミス補正", "read-only reference", "Ledger", "courier", "作らないもの"),
         "docs/quest-awareness-runtime.md",
     )
     agent_memory = read("docs/agent-memory.md")

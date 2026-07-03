@@ -219,7 +219,7 @@ quest_charter:
     - "検証不能、再現不能、または confidence が low のまま完了判断が必要。"
 
 quest_awareness_control:
-  rule: "メタ認知は自己意識ではなく、作業中の monitoring、evaluation、control として扱う。非 trivial Quest では quest_awareness と control_decision を維持し、known facts / unknowns / assumptions / evidence / confidence / risk / verification status に応じて調査、計画変更、subagent 起動、検証、停止判断を選ぶ。"
+  rule: "Quest Awareness は自己意識ではなく、作業中の monitoring、evaluation、control として扱う。非 trivial Quest では quest_awareness と control_decision を維持し、known facts / unknowns / assumptions / evidence / confidence / risk / verification status に応じて調査、計画変更、subagent 起動、検証、停止判断を選ぶ。"
   state_fields:
     - goal
     - current_subgoal

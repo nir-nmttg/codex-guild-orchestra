@@ -1,8 +1,8 @@
 # Quest Awareness runtime
 
-この文書は、運用メタ認知を `codex-guild-orchestra` の Guild-native runtime である Quest Awareness として扱うための補助文書です。
+この文書は、作業中の監視、評価、制御を `codex-guild-orchestra` の Guild-native runtime である Quest Awareness として扱うための補助文書です。
 正本は常に `Guild Law`、`Quest Charter`、`Party Tactics`、`Trial`、`Ledger` です。
-ここでの Quest Awareness は自己意識ではなく、作業中の監視、評価、制御としてのメタ認知です。
+ここでの Quest Awareness は自己意識ではなく、作業中の監視、評価、制御です。
 
 ## 正本の鎖
 

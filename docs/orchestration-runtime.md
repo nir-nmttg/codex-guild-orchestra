@@ -60,7 +60,7 @@ Handoff では、intake -> Quest Charter に `intent_analysis` と `quest_awaren
 
 ## Quest Awareness
 
-メタ認知は自己意識ではなく、作業中の monitoring、evaluation、control です。
+Quest Awareness は自己意識ではなく、作業中の monitoring、evaluation、control です。
 非 trivial な Quest では `quest_awareness` と `control_decision` を維持し、known facts、unknowns、assumptions、evidence、confidence、risk、verification status を更新します。
 confidence が 75% 未満なら finalize せず、50% 未満なら speculative editing を止め、`revise_plan` として task contract と missing evidence を再構成します。人間確認条件に触れる時だけ user approval へ戻します。
 failed check は first failure に集中し、1つの focused fix の後に同じ check を再実行します。

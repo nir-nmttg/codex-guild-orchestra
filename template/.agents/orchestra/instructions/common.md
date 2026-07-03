@@ -78,7 +78,7 @@ Ledger には raw `CLAUDE.md` / `SKILL.md` 本文、settings 値、dynamic comma
 
 ## Quest Awareness
 
-メタ認知は自己意識ではなく、作業中の監視、評価、制御です。
+Quest Awareness は自己意識ではなく、作業中の監視、評価、制御です。
 非 trivial な Quest では `quest_awareness` と `control_decision` を維持します。
 large refactor、bug fix、security-sensitive work、release work、migration work、complex UI work、long-running goal では、必要に応じて `.agents/orchestra/docs/agent-memory.md` の cognitive failure patterns と prevention artifact を確認します。
 

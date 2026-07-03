@@ -97,7 +97,7 @@ Root は実装、Trial 実施、品質採否の単独確定、Ledger / dashboard
 
 ## Quest Awareness
 
-この runtime のメタ認知は自己意識ではなく、Quest 実行中の監視、評価、制御です。
+この runtime の Quest Awareness は自己意識ではなく、Quest 実行中の監視、評価、制御です。
 非 trivial な Quest では、担当は `quest_awareness` と `control_decision` を維持し、confidence-based control signal として次の行動を選びます。
 
 `quest_awareness` は goal、current_subgoal、known_facts、unknowns、assumptions、evidence、current_strategy、confidence_percent、risk_level、verification_status、next_action、stop_condition を持ちます。

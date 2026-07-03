@@ -392,6 +392,7 @@ ACTIVE_PROSE_PATHS = (
     "template/.agents/orchestra/logs/daily/README.md",
 )
 ACTIVE_PROSE_DRIFT_TERMS = (
+    "メタ認" "知",
     "固定 route",
     "規模別 route",
     "軽量 assignment",
