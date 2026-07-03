@@ -29,13 +29,13 @@ intent_analysis
 | 制御領域 | Guild-native runtime の対応 |
 | --- | --- |
 | model policy | `template/.codex/config.toml` と `.codex/agents/*.toml` |
-| persistent instruction | `template/AGENTS.md`、`settings.yaml`、role instructions |
+| persistent instruction | `template/AGENTS.md`、`settings.yaml`、役割指示 |
 | goal / contract | `intent_analysis` と `Quest Charter` |
 | subagent layer | `cartographer`、`party_leader`、`adventurer`、`inquisitor`、`advisor`、`quest_sentinel`、`courier` |
 | skill layer | `template/.agents/skills/*` |
 | verification layer | `validation_evidence`、`make validate`、golden Quest |
 | eval layer | 静的 fixture と validator。live model 判定は正本にしない |
-| memory layer | source docs の `docs/agent-memory.md` と installed runtime の `.agents/orchestra/docs/agent-memory.md` にある認知ミス補正、`Ledger` の構造化 evidence / decision / risk |
+| memory layer | source docs の `docs/agent-memory.md` と installed runtime の `.agents/orchestra/docs/agent-memory.md` にある認知ミス補正。通常 Quest では read-only reference とし、永続化は sanitized memory candidate を `Ledger` / `courier` 経由で扱う |
 | permission / security | `Guild Law`、State Change Guard、sandbox / approval 設定 |
 | review / governance | risk-based `Trial`、focus reviewer、owner synthesis |
 
@@ -63,6 +63,7 @@ intent_analysis
 `control_decision` は confidence-based control signal です。
 選択肢は `proceed`、`gather_more_evidence`、`revise_plan`、`run_tests`、`invoke_quest_sentinel`、`invoke_security_review`、`stop_for_user_approval` です。
 confidence が 75% 未満なら finalize せず追加 evidence や検証へ戻し、50% 未満なら `revise_plan` として speculative editing を止めて task contract を再構成します。`stop_for_user_approval` は人間確認条件に触れる時だけ使います。
+`invoke_security_review` は新しい worker を作る指示ではありません。既存 authority 内で Trial 統合担当の `inquisitor` に security focus の `safety_gate` または focused Trial を戻す判断です。秘密情報参照、外部 network、MCP、deploy など人間確認条件に触れる場合は `stop_for_user_approval` にします。
 
 ## Handoff 十分条件
 

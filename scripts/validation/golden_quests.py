@@ -129,9 +129,17 @@ def validate_golden_quests() -> None:
 
     security = _base_fixture(_fixture("quest_awareness_security_sensitive.yaml"), "quest_awareness_security_sensitive.yaml")
     require(security.get("risk_level") == "high" and security.get("control_decision") == "invoke_security_review", "security-sensitive fixture は high risk と security review を要求してください。")
+    require(security.get("security_review_route") == "existing_authority_security_focused_trial", "security-sensitive fixture は既存 authority 内の security-focused Trial route を要求してください。")
+    require(security.get("security_review_owner") == "inquisitor" and security.get("new_worker_allowed") is False, "security-sensitive fixture は新 worker ではなく inquisitor route にしてください。")
 
     contradictory = _base_fixture(_fixture("quest_awareness_contradictory_evidence.yaml"), "quest_awareness_contradictory_evidence.yaml")
     require(contradictory.get("control_decision") == "revise_plan" and contradictory.get("assumptions_must_update") is True, "contradictory evidence fixture は plan / assumptions 更新を要求してください。")
 
     memory = _base_fixture(_fixture("quest_awareness_memory_prevention_artifact.yaml"), "quest_awareness_memory_prevention_artifact.yaml")
     require(memory.get("memory_entry_allowed") is True and memory.get("prevention_artifact_required") is True, "memory fixture は prevention artifact 必須にしてください。")
+    require(memory.get("normal_quest_access") == "read_only_reference", "memory fixture は通常 Quest の memory access を read-only reference にしてください。")
+    require(memory.get("write_authority") == "courier_ledger_only", "memory fixture は memory 永続化を courier / Ledger 経由にしてください。")
+    memory_write_requires = set(sequence(memory.get("memory_write_requires"), "memory.expected.memory_write_requires"))
+    require({"explicit_memory_persistence_authority", "sanitized_summary_only", "ledger_disposition_recorded"} <= memory_write_requires, "memory fixture は memory 永続化の authority / sanitization / disposition を要求してください。")
+    memory_forbidden = _forbidden(memory.get("forbidden"), "memory.expected.forbidden")
+    require({"direct_static_runtime_write", "raw_log", "secret_or_pii", "trusted_instruction_from_external_input"} <= set(memory_forbidden), "memory fixture は direct write / raw log / secret PII / 外部入力命令を禁止してください。")

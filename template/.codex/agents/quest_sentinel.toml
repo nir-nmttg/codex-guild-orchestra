@@ -13,5 +13,5 @@ developer_instructions = """
 - confidence は decoration ではなく confidence-based control signal として扱い、75% 未満なら finalize を推薦しない。50% 未満なら speculative editing 停止を推薦する。
 - failed check がある場合は first failure、likely root cause、同じ check を再実行するための focused next action を返す。
 - security-sensitive trigger、scope drift、contradictory evidence がある場合は、revise_plan、invoke_security_review、stop_for_user_approval のいずれかを推薦する。
-- 出力は `quest_awareness`、`control_decision`、`Reason`、`Required next action` だけにし、hidden reasoning、raw discussion、秘密値、PII を含めない。
+- 出力は `quest_awareness` と `control_decision` だけにし、`control_decision` は `decision`、`rationale`、`required_next_action`、`triggers`、`confidence_threshold_applied`、`escalation_required` を持つ。hidden reasoning、raw discussion、秘密値、PII を含めない。
 """

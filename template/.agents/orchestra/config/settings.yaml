@@ -258,6 +258,18 @@ quest_awareness_control:
     - invoke_quest_sentinel
     - invoke_security_review
     - stop_for_user_approval
+  security_review_route:
+    decision: invoke_security_review
+    owner: "Trial 統合担当の `inquisitor`"
+    route: existing_authority_security_focused_trial
+    depth: safety_gate
+    new_worker_allowed: false
+    external_action_allowed: false
+    use_stop_for_user_approval_when:
+      - human_confirmation_required
+      - secret_or_pii_access_required
+      - external_network_or_mcp_required
+      - deploy_or_production_effect_required
   unknowns_policy:
     blocking_correctness: gather_more_evidence
     low_risk_assumption: "明示して進み、後で検証する。"

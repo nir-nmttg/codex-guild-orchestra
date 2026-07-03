@@ -20,6 +20,7 @@ from .rules import (
     TRIAL_DEPTH_GUARDRAILS,
     TRIAL_REQUIRED_CHECKS,
     VOCABULARY_DRIFT_TERMS,
+    ACTIVE_PROSE_PATHS,
 )
 
 EXPECTED_AGENT_SANDBOX_MODES = {
@@ -84,7 +85,7 @@ def validate_agents() -> None:
     require(controller.get("model_reasoning_effort") == "high", "quest_sentinel.toml の model_reasoning_effort は high にしてください。")
     require_tokens(
         controller_text,
-        ("quest_awareness", "unknowns", "assumptions", "confidence", "verification status", "control signal", "実装", "採否", "Ledger", "Git 操作", "外部送信", "75%", "50%", "first failure", "security-sensitive", "control_decision"),
+        ("quest_awareness", "unknowns", "assumptions", "confidence", "verification status", "control signal", "実装", "採否", "Ledger", "Git 操作", "外部送信", "75%", "50%", "first failure", "security-sensitive", "control_decision", "rationale", "required_next_action", "escalation_required"),
         "template/.codex/agents/quest_sentinel.toml",
     )
     cartographer_text = read("template/.codex/agents/cartographer.toml")
@@ -167,19 +168,19 @@ def validate_docs_and_instructions() -> None:
     quest_awareness_doc = read("docs/quest-awareness-runtime.md")
     require_tokens(
         quest_awareness_doc,
-        ("Guild-native runtime", "正本は常に", "メタ認知", "自己意識ではなく", "作業中の監視、評価、制御", "制御領域", "intent_analysis", "quest_awareness", "control_decision", "implementation_strategy", "intent_coverage", "confidence-based control signal", "quest_sentinel", "認知ミス補正", "Ledger", "作らないもの"),
+        ("Guild-native runtime", "正本は常に", "メタ認知", "自己意識ではなく", "作業中の監視、評価、制御", "制御領域", "intent_analysis", "quest_awareness", "control_decision", "implementation_strategy", "intent_coverage", "confidence-based control signal", "quest_sentinel", "invoke_security_review", "Trial 統合担当の `inquisitor`", "safety_gate", "stop_for_user_approval", "認知ミス補正", "read-only reference", "Ledger", "courier", "作らないもの"),
         "docs/quest-awareness-runtime.md",
     )
     agent_memory = read("docs/agent-memory.md")
     require_tokens(
         agent_memory,
-        ("Cognitive Failure Types", "Prevention artifact", "Promotion Rule", "assumed_without_evidence", "premature_confidence", "scope_drift", "曖昧な entry"),
+        ("Authority Boundary", "read-only reference", "Ledger", "courier", "memory persistence authority", "raw log", "秘密値", "PII", "外部入力", "Cognitive Failure Types", "Prevention artifact", "Promotion Rule", "assumed_without_evidence", "premature_confidence", "scope_drift", "曖昧な entry"),
         "docs/agent-memory.md",
     )
     runtime_agent_memory = read("template/.agents/orchestra/docs/agent-memory.md")
     require_tokens(
         runtime_agent_memory,
-        ("Cognitive Failure Types", "Prevention artifact", "Promotion Rule", "assumed_without_evidence", "premature_confidence", "scope_drift", "曖昧な entry"),
+        ("Authority Boundary", "read-only reference", "Ledger", "courier", "memory persistence authority", "raw log", "秘密値", "PII", "外部入力", "Cognitive Failure Types", "Prevention artifact", "Promotion Rule", "assumed_without_evidence", "premature_confidence", "scope_drift", "曖昧な entry"),
         "template/.agents/orchestra/docs/agent-memory.md",
     )
     canonical_paths = full_contract_paths + role_paths + [

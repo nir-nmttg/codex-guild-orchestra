@@ -346,6 +346,7 @@ VOCABULARY_DRIFT_TERMS = (
 ACTIVE_PROSE_PATHS = (
     "README.md",
     "docs/agent-deployment.md",
+    "docs/agent-memory.md",
     "docs/customization.md",
     "docs/deployment-patterns.md",
     "docs/claude-compatibility.md",
@@ -353,6 +354,7 @@ ACTIVE_PROSE_PATHS = (
     "docs/localization-management.md",
     "docs/orchestration-runtime.md",
     "docs/prompt-recipes.md",
+    "docs/quest-awareness-runtime.md",
     "scripts/install.py",
     "template/AGENTS.md",
     "template/.codex/config.toml",
@@ -367,6 +369,7 @@ ACTIVE_PROSE_PATHS = (
     "template/.agents/orchestra/README.md",
     "template/.agents/orchestra/config/settings.yaml",
     "template/.agents/orchestra/dashboard.md",
+    "template/.agents/orchestra/docs/agent-memory.md",
     "template/.agents/orchestra/queue/README.md",
     "template/.agents/orchestra/instructions/adventurer.md",
     "template/.agents/orchestra/instructions/advisor.md",

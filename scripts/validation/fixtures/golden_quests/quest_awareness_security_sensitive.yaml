@@ -7,6 +7,9 @@ input:
 expected:
   risk_level: high
   control_decision: invoke_security_review
+  security_review_route: existing_authority_security_focused_trial
+  security_review_owner: inquisitor
+  new_worker_allowed: false
   tests_or_manual_verification_required: true
   forbidden:
     finalize_without_security_review: true
