@@ -206,26 +206,29 @@ def validate_docs_and_instructions() -> None:
         "template/.agents/orchestra/queue/templates/inquisitor_report.yaml",
         "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
     ]
-    metaphor_scan_paths = sorted(set(canonical_paths + [
-        "docs/agent-deployment.md",
-        "docs/agent-memory.md",
-        "docs/quest-awareness-runtime.md",
-        "scripts/validation/docs.py",
-        "template/.agents/skills/quest-awareness-loop/SKILL.md",
-        "template/.agents/orchestra/README.md",
-        "template/.agents/orchestra/docs/agent-memory.md",
-        "template/.codex/agents/quest_sentinel.toml",
-        "template/.codex/config.toml",
-    ]))
-    for rel in metaphor_scan_paths:
-        text = read(rel)
-        for token in ("Fa" + "ble", "fa" + "ble", "fa" + "ble-style-task-loop", "メタ認" + "識"):
-            require(token not in text, f"{rel} に比喩依存または旧語彙を入れないでください。")
     golden_quest_fixture_paths = [
         str(path.relative_to(ROOT))
         for path in (ROOT / "scripts/validation/fixtures/golden_quests").glob("*.yaml")
     ]
-    legacy_quest_awareness_scan_paths = sorted(set(metaphor_scan_paths + [
+    template_skill_paths = [
+        str(path.relative_to(ROOT))
+        for path in (ROOT / "template/.agents/skills").glob("*/SKILL.md")
+    ]
+    legacy_guard_allowlist_paths = {
+        "scripts/install.py",
+        "scripts/validation/docs.py",
+        "scripts/validation/golden_quests.py",
+        "scripts/validation/install_smoke.py",
+        "scripts/validation/runtime_smoke.py",
+        "template/.agents/orchestra/scripts/queue_db.py",
+        "template/.agents/orchestra/scripts/queue_audit.py",
+    }
+    active_legacy_scan_paths = sorted(set(ACTIVE_PROSE_PATHS + tuple(template_skill_paths) + tuple(golden_quest_fixture_paths)))
+    for rel in active_legacy_scan_paths:
+        text = read(rel)
+        for token in ("Fa" + "ble", "fa" + "ble", "fa" + "ble-style-task-loop", "メタ認" + "識"):
+            require(token not in text, f"{rel} に比喩依存または旧語彙を入れないでください。")
+    legacy_quest_awareness_scan_paths = sorted(set(active_legacy_scan_paths + [
         "scripts/install.py",
         "scripts/validation/docs.py",
         "scripts/validation/golden_quests.py",
@@ -244,12 +247,11 @@ def validate_docs_and_instructions() -> None:
             "invoke_" "meta" "cognitive_controller",
         ):
             require(token not in text, f"{rel} に旧 quest_awareness 命名 `{token}` を直書きしないでください。")
-    legacy_awareness_phrase_scan_paths = sorted(set(ACTIVE_PROSE_PATHS + tuple(golden_quest_fixture_paths)))
-    for rel in legacy_awareness_phrase_scan_paths:
+    for rel in active_legacy_scan_paths:
         text = read(rel).casefold()
         for token in ("meta-" "recognition", "meta " "recognition", "meta_" "recognition"):
             require(token not in text, f"{rel} に旧英語表記 `{token}` を入れないでください。")
-    split_legacy_scan_paths = sorted(set(metaphor_scan_paths + golden_quest_fixture_paths) - {"scripts/validation/docs.py"})
+    split_legacy_scan_paths = sorted(set(active_legacy_scan_paths) - legacy_guard_allowlist_paths)
     for rel in split_legacy_scan_paths:
         require(
             not _contains_split_legacy_quest_awareness_term(read(rel)),

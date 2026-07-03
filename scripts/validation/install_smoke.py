@@ -18,6 +18,46 @@ READ_ONLY_AGENT_ROLES = (
     "quest_sentinel",
     "party_leader",
 )
+EXPECTED_AGENT_FILES = {
+    "adventurer.toml",
+    "advisor.toml",
+    "cartographer.toml",
+    "courier.toml",
+    "guildmaster.toml",
+    "inquisitor.toml",
+    "party_leader.toml",
+    "quest_sentinel.toml",
+}
+EXPECTED_SKILL_DIRS = {
+    "branch-implementation-final-review",
+    "browser-research-readonly",
+    "git-branch-from-session",
+    "git-rename-unpushed-branch-from-diff",
+    "git-split-commits-from-diff",
+    "github-pull-request-from-branch",
+    "github-safe-push-from-branch",
+    "implementation-behavior-verification",
+    "open-subrepo-in-vscode",
+    "orchestra-instruction-contract-review",
+    "orchestra-runtime-security-audit",
+    "orchestra-validation-review",
+    "pull-request-description-from-branch",
+    "quest-awareness-loop",
+    "repository-design-mapmaking",
+    "use-guild-workflow",
+}
+INSTALLED_OLD_TERM_TOKENS = (
+    "Fa" "ble",
+    "fa" "ble",
+    "meta" "cognitive",
+    "Meta" "cognitive",
+    "META" "COGNITIVE",
+    "meta-" "recognition",
+    "meta " "recognition",
+    "meta_" "recognition",
+    "メタ認" "識",
+    "cognitive_" "failure_memory",
+)
 
 
 def _run_install(*args: object) -> subprocess.CompletedProcess[str]:
@@ -29,6 +69,32 @@ def _run_install(*args: object) -> subprocess.CompletedProcess[str]:
         stderr=subprocess.PIPE,
         check=False,
     )
+
+
+def _installed_text_paths(target: Path) -> list[Path]:
+    text_suffixes = {".json", ".md", ".py", ".sh", ".sql", ".toml", ".txt", ".yaml", ".yml"}
+    return sorted(
+        path
+        for path in target.rglob("*")
+        if path.is_file() and (path.name == "AGENTS.md" or path.suffix in text_suffixes)
+    )
+
+
+def _assert_installed_surface(target: Path) -> None:
+    require((target / "AGENTS.md").exists(), "install.py は AGENTS.md を生成してください。")
+    require((target / ".codex/config.toml").exists(), "install.py は .codex/config.toml を導入してください。")
+    agent_dir = target / ".codex/agents"
+    actual_agents = {path.name for path in agent_dir.glob("*.toml")}
+    require(actual_agents == EXPECTED_AGENT_FILES, ".codex/agents の導入 file set が期待値と一致しません: " + ", ".join(sorted(actual_agents)))
+    skill_dir = target / ".agents/skills"
+    actual_skills = {path.name for path in skill_dir.iterdir() if path.is_dir()}
+    require(actual_skills == EXPECTED_SKILL_DIRS, ".agents/skills の導入 directory set が期待値と一致しません: " + ", ".join(sorted(actual_skills)))
+    require((skill_dir / "quest-awareness-loop/SKILL.md").exists(), "install.py は quest-awareness-loop skill を導入してください。")
+    require((target / ".agents/orchestra/docs/agent-memory.md").exists(), "install.py は agent-memory runtime artifact を導入してください。")
+    for path in _installed_text_paths(target):
+        text = path.read_text(encoding="utf-8")
+        for token in INSTALLED_OLD_TERM_TOKENS:
+            require(token not in text, f"install.py の導入結果に旧語彙 `{token}` が残っています: {path.relative_to(target)}")
 
 
 def validate_install_upgrade_smoke() -> None:
@@ -60,7 +126,7 @@ def validate_install_upgrade_smoke() -> None:
 
         installed = _run_install("--target", target, "--mode", "copy")
         require(installed.returncode == 0, "install.py の通常 install smoke が失敗しました: " + installed.stderr)
-        require((target / ".agents/orchestra/docs/agent-memory.md").exists(), "install.py は agent-memory runtime artifact を導入してください。")
+        _assert_installed_surface(target)
         remaining = [str(path.relative_to(target)) for path in legacy_paths if path.exists()]
         require(not remaining, "install.py は削除済み旧 template を prune してください: " + ", ".join(remaining))
 
