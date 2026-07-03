@@ -111,6 +111,41 @@ LEGACY_RUNTIME_JSON_KEYS = {
 RETIRED_AGENT_VALUES = {'spark', 'scout'}
 REPOSITORIES_REL_PATH = Path('repositories')
 ORCHESTRA_SKILL_OWNER = 'codex-guild-orchestra'
+TRUSTED_SOURCE_TOP_LEVELS = {'AGENTS.md', '.agents', '.codex'}
+UNTRUSTED_SOURCE_PATH_TOKENS = {
+    '.aws',
+    '.env',
+    '.git',
+    '.kube',
+    '.mcp',
+    '.netrc',
+    '.npmrc',
+    '.orchestra',
+    '.pypirc',
+    '.ssh',
+    'backup',
+    'backups',
+    'auth',
+    'credential',
+    'credentials',
+    'id_dsa',
+    'id_ecdsa',
+    'id_ecdsa_sk',
+    'id_ed25519',
+    'id_ed25519_sk',
+    'id_rsa',
+    'key',
+    'mcp',
+    'oauth',
+    'password',
+    'pem',
+    'repositories',
+    'secret',
+    'secrets',
+    'state.sqlite',
+    'token',
+    'tokens',
+}
 REMOVED_TEMPLATE_REL_PATHS = [
     Path('.codex/agents/spark.toml'),
     Path('.agents/orchestra/queue/templates/adventurer_task.yaml'),
@@ -152,6 +187,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--source', default=str(DEFAULT_SOURCE), help='コピー元の template ディレクトリ。')
     parser.add_argument('--mode', default='copy', choices=['copy'], help='導入モード。現在は copy のみ。')
     parser.add_argument('--dry-run', action='store_true', help='変更を加えず、予定だけ表示します。')
+    parser.add_argument('--allow-non-default-source', action='store_true', help='既定以外の source template を明示的に許可します。信頼済み検証用途だけで使います。')
     parser.add_argument('--clean-install', action='store_true', help='ギルド規約ルートの導入済みランタイムを片付けてから再導入します。repositories/ 配下の repo は移動も削除もしません。')
     parser.add_argument('--backup', action='store_true', help='導入前に既存導入物を退避します。')
     parser.add_argument('--allow-reset-runtime-without-backup', action='store_true', help='非推奨の逃げ道です。動的状態をバックアップなしで初期化する時だけ指定します。')
@@ -709,7 +745,26 @@ def load_worker_roles(source_root: Path) -> dict[str, dict[str, int]]:
 
 def validate_codex_agent_preflight(source_root: Path) -> None:
     config_path = source_root / '.codex' / 'config.toml'
+    config_text = config_path.read_text(encoding='utf-8')
     config = read_toml_document(config_path)
+    required_config_values = {
+        'sandbox_mode': 'read-only',
+        'approval_policy': 'on-request',
+        'approvals_reviewer': 'auto_review',
+        'web_search': 'cached',
+        'allow_login_shell': False,
+    }
+    for key, expected in required_config_values.items():
+        if config.get(key) != expected:
+            raise SystemExit(f'template/.codex/config.toml の {key} は {expected} にしてください。')
+    sandbox_workspace_write = config.get('sandbox_workspace_write')
+    if not isinstance(sandbox_workspace_write, dict) or sandbox_workspace_write.get('network_access') is not False:
+        raise SystemExit('template/.codex/config.toml の sandbox_workspace_write.network_access は false にしてください。')
+    for token in ('"*secret*"', '"*token*"', '"*credential*"', '"*password*"', '"*key*"', '"*auth*"'):
+        if token not in config_text:
+            raise SystemExit('template/.codex/config.toml の shell_environment_policy.exclude に secret deny glob が不足しています。')
+    if 'mcp_servers' in config or '[mcp' in config_text.casefold():
+        raise SystemExit('template/.codex/config.toml に MCP server 設定を含めないでください。')
     agents_config = config.get('agents')
     if not isinstance(agents_config, dict):
         raise SystemExit('template/.codex/config.toml の [agents] が必要です。')
@@ -736,6 +791,21 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
 def preflight_source_template(source_root: Path) -> None:
     load_worker_roles(source_root)
     validate_codex_agent_preflight(source_root)
+
+
+def validate_source_tree_trust(source_root: Path, allow_non_default_source: bool) -> None:
+    if source_root != DEFAULT_SOURCE.resolve() and not allow_non_default_source:
+        raise SystemExit('既定以外の `--source` は明示許可が必要です。信頼済み template の場合だけ `--allow-non-default-source` を併用してください。')
+    for path in source_root.rglob('*'):
+        rel = path.relative_to(source_root)
+        if path.is_symlink():
+            raise SystemExit(f'source template に symlink は使えません: {rel}')
+        if rel.parts and rel.parts[0] not in TRUSTED_SOURCE_TOP_LEVELS:
+            raise SystemExit(f'source template に許可外の top-level path が含まれています: {rel}')
+        parts = {part.casefold() for part in rel.parts}
+        risky = sorted(token for token in UNTRUSTED_SOURCE_PATH_TOKENS if token in parts or any(token in part for part in parts))
+        if risky:
+            raise SystemExit(f'source template に秘密情報または外部 tool 連携を疑う path が含まれています: {rel} ({", ".join(risky)})')
 
 
 def ensure_repositories_root(target_root: Path, dry_run: bool) -> None:
@@ -782,6 +852,7 @@ def main() -> int:
         raise SystemExit(f'コピー元が見つかりません: {source_root}')
 
     validate_target(target_root)
+    validate_source_tree_trust(source_root, args.allow_non_default_source)
     preflight_source_template(source_root)
     validate_existing_runtime_schema(target_root, args.reset_runtime, args.clean_install)
     if args.reset_runtime and not args.clean_install and not args.backup and not args.dry_run and not args.allow_reset_runtime_without_backup:
@@ -790,7 +861,7 @@ def main() -> int:
     ensure_repositories_root(target_root, args.dry_run)
 
     if source_root != DEFAULT_SOURCE.resolve():
-        log('注意: 既定以外の `--source` を使っています。信頼済み template だけを指定してください。')
+        log('注意: 既定以外の `--source` を明示許可付きで使っています。信頼済み template だけを指定してください。')
 
     log('注意: この導入はギルド規約ルートの `.agents/orchestra/`、`.codex/`、`.orchestra/` を作成または更新し、`repositories/` を用意します。Codex の protected path 上で実行する場合は承認が必要になることがあります。')
     if not args.no_git_exclude:

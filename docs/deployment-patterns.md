@@ -37,6 +37,9 @@ default `workspace-write` でも `.git/`、`.agents/`、`.codex/` は protected 
 - 必要なら `.git/info/exclude` へ導入物を追加
 - 静的ルールは `.agents/orchestra/` に、動的状態は `.orchestra/` に配置
 
+配布元リポジトリの `scripts/validation/fixtures/` は validator 用の静的データであり、導入先にはコピーしません。
+導入対象は `template/` を正本とし、検証 fixture を動的状態として扱いません。
+
 標準配置は次です。
 
 ```text
@@ -69,6 +72,9 @@ default `workspace-write` でも `.git/`、`.agents/`、`.codex/` は protected 
 
 `sync.sh` は Docker 内で `install.py --backup` を実行する薄い wrapper です。
 既存導入を残しながら更新したい時の補助です。通常はクリーンインストールを基準に考え、差分同期が必要な運用だけで使います。
+
+既定以外の source template を直接指定する場合は、信頼済み検証用途に限り `--allow-non-default-source` を併用します。
+source tree に symlink、秘密情報らしい path、MCP などの外部 tool 連携 path が含まれる場合、installer は拒否します。
 
 ## `AGENTS.md` の扱い
 
