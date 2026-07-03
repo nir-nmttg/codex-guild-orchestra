@@ -264,6 +264,8 @@ def memory_candidate_envelope(value: dict[str, Any]) -> tuple[str, dict[str, Any
 def validate_memory_candidate_message_scope(value: dict[str, Any], label: str, errors: list[str]) -> None:
     if value.get("type") != MEMORY_CANDIDATE_MESSAGE_TYPE:
         errors.append(f"{label}.type: memory candidate は exact type `{MEMORY_CANDIDATE_MESSAGE_TYPE}` の courier review 専用 envelope として記録してください。")
+    if value.get("sender") != "courier":
+        errors.append(f"{label}.sender: memory candidate は courier sender で記録してください。")
     if value.get("recipient") != "courier":
         errors.append(f"{label}.recipient: memory candidate は courier 宛にしてください。")
     if value.get("trusted") is not False:
@@ -304,9 +306,11 @@ def validate_memory_candidate_envelope(value: dict[str, Any], label: str, errors
             errors.append(f"{envelope_label}{json_path[1:]}: memory candidate に forbidden 内容 `{key}` を含めないでください。")
 
 
-def validate_memory_candidate_event_safety(value: dict[str, Any], safety: dict[str, Any], label: str, errors: list[str]) -> None:
+def validate_memory_candidate_event_safety(value: dict[str, Any], safety: dict[str, Any], label: str, errors: list[str], actor: Any | None = None) -> None:
     if memory_candidate_envelope(value) is None:
         return
+    if actor != "courier":
+        errors.append(f"{label}.actor: memory candidate event は courier actor で記録してください。")
     safety_items = safety.get("safety_items")
     if not isinstance(safety_items, list):
         errors.append(f"{label}.safety_items: list が必要です。")
@@ -407,6 +411,12 @@ def expected_assignment_parent_id(payload: dict[str, Any], label: str, errors: l
     kind = payload.get("kind")
     if (worker_id == "advisor" or kind == "advisory_consultation") and not (owner_assignment_id or parent_id):
         errors.append(f"{label}: advisor assignment は owner_assignment_id または parent_id が必要です。")
+    if worker_id == "quest_sentinel" or kind == "quest_awareness_control_monitor":
+        if not (owner_assignment_id or parent_id):
+            errors.append(f"{label}: quest_sentinel assignment は owner_assignment_id または parent_id が必要です。")
+        control_trigger = payload.get("control_trigger")
+        if not isinstance(control_trigger, str) or not control_trigger:
+            errors.append(f"{label}.control_trigger: quest_sentinel assignment には空でない control_trigger が必要です。")
     quest_id = payload.get("quest_id")
     if quest_id is not None and (not isinstance(quest_id, str) or not quest_id):
         errors.append(f"{label}.quest_id: null または空でない文字列にしてください。")
@@ -526,7 +536,7 @@ def audit_events(connection: sqlite3.Connection, errors: list[str]) -> None:
                     errors.append(f"{label}.event_safety_json.{key}: list にしてください。")
             payload = parse_json(row["payload_json"], f"{label}.payload_json", errors)
             if isinstance(payload, dict):
-                validate_memory_candidate_event_safety(payload, safety, f"{label}.event_safety_json", errors)
+                validate_memory_candidate_event_safety(payload, safety, f"{label}.event_safety_json", errors, row["actor"])
 
 
 def audit_rank_and_trial_values(connection: sqlite3.Connection, errors: list[str]) -> None:
