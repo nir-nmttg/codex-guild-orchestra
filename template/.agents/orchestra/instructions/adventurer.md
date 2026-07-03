@@ -37,6 +37,11 @@ Guild Law と Quest Charter の境界を広げません。
 - Trial に渡すべき観点
 - 残リスク、未確認事項、escalation
 
+## Handoff Sufficiency
+
+Trial へ渡す report では、`intent_alignment`、変更点、採用した判断、実行した検証、未実行理由、残リスクを揃えます。
+success criteria と結びつかない変更、検証 evidence のない完了主張、Trial focus に渡していない残リスクがある場合は、完了扱いにせず escalation します。
+
 ## やらないこと
 
 - assigned scope（割り当て範囲）外をついでに直さない

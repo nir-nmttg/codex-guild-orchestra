@@ -68,6 +68,17 @@ requests: []
 #     trial_plan:
 #       depth: focused_trial
 #       focus: []
+#     handoff_sufficiency:
+#       intake_to_charter_ready: false
+#       required_evidence:
+#         - intent_analysis
+#         - objective
+#         - success_criteria
+#         - non_goals
+#         - authority
+#         - boundaries
+#         - evidence_required
+#       missing: []
 #     escalation_triggers: []
 #     evidence_required: []
 #     ledger:

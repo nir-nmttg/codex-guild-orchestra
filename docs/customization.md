@@ -14,6 +14,7 @@ Guild-native runtime の中心は `template/.agents/orchestra/config/settings.ya
 - `workers`: 担当ロールと並列上限（設定キーは互換性のため英語）
 - `advisory_consultation`: 設計担当と Trial 統合担当の `inquisitor` が既定で検討する read-only advisor の境界
 - `claude_compat`: 対象 repo 内の Claude artifacts を未信頼 context として読む時の境界
+- `handoff_sufficiency`: intake、owner、Trial、Ledger / final へ渡す時に必要な最低 evidence
 
 ## 変えてよいもの
 
@@ -22,6 +23,7 @@ Guild-native runtime の中心は `template/.agents/orchestra/config/settings.ya
 - Trial の focus
 - report に求める evidence
 - `intent_analysis`、`implementation_strategy`、`intent_alignment` の表現
+- handoff に必要な evidence の説明
 - 役割指示の表現
 - Claude 互換 context の説明、対応する安全な metadata、disposition の表現
 

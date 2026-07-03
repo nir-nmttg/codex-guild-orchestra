@@ -215,6 +215,67 @@ quest_charter:
     - "success_criteria と既存方針が衝突する。"
     - "検証不能、再現不能、または confidence が low のまま完了判断が必要。"
 
+handoff_sufficiency:
+  rule: "各 handoff は、下流担当が推測で authority、boundaries、目的、検証、残リスクを補わずに判断できるだけの structured evidence が揃う時だけ進める。足りない場合は needs_human、request_changes、または escalation として返す。"
+  stages:
+    intake_to_charter:
+      owner: receptionist
+      required:
+        - intent_analysis
+        - objective
+        - success_criteria
+        - non_goals
+        - authority
+        - boundaries
+        - evidence_required
+      stop_when:
+        - "confirmation_needed が残る"
+        - "target_repo_root が固定できない"
+        - "人間確認条件に触れる"
+    charter_to_owner:
+      owner: party_leader
+      required:
+        - objective
+        - intent_analysis
+        - implementation_strategy
+        - owned_scope
+        - authority
+        - boundaries
+        - autonomy_budget
+        - trial_expectations
+      stop_when:
+        - "owned_scope が曖昧"
+        - "implementation_strategy が本質的成果へ落ちていない"
+        - "authority または boundaries が広がる"
+    owner_to_trial:
+      owner: adventurer
+      required:
+        - changed_files
+        - decisions_made
+        - intent_alignment
+        - validation_evidence
+        - research_evidence
+        - risks
+      stop_when:
+        - "validation_evidence または未実行理由がない"
+        - "intent_alignment が success_criteria と結びつかない"
+        - "残リスクが Trial focus に渡されていない"
+    trial_to_ledger_final:
+      owner: inquisitor
+      required:
+        - decision
+        - findings
+        - intent_coverage
+        - validation_evidence
+        - advisor_dialogue_synthesis
+        - reviewer_synthesis
+        - finding_dispositions
+        - risks
+      stop_when:
+        - "Critical または未解決 Major が残る"
+        - "finding disposition がない"
+        - "raw discussion や秘密値を Ledger に残す必要がある"
+
 workers:
   receptionist:
     role: quest_charter_author

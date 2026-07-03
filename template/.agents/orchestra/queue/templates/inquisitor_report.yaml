@@ -81,6 +81,18 @@ report:
     continue_or_stop: null
     stop_reason: null
     raw_discussion_recorded: false
+  handoff_sufficiency:
+    trial_to_ledger_final_ready: false
+    required_evidence:
+      - decision
+      - findings
+      - intent_coverage
+      - validation_evidence
+      - advisor_dialogue_synthesis
+      - reviewer_synthesis
+      - finding_dispositions
+      - risks
+    missing: []
   validation_evidence:
     commands: []
     manual_checks: []

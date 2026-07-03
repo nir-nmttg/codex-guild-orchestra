@@ -25,6 +25,16 @@ report:
     commands: []
     manual_checks: []
     not_run: []
+  handoff_sufficiency:
+    owner_to_trial_ready: false
+    required_evidence:
+      - changed_files
+      - decisions_made
+      - intent_alignment
+      - validation_evidence
+      - research_evidence
+      - risks
+    missing: []
   research_evidence:
     files_read: []
     verified_findings: []

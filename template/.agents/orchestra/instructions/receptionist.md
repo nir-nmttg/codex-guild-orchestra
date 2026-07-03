@@ -36,6 +36,11 @@
 - `escalation_triggers`
 - `evidence_required`
 
+## Handoff Sufficiency
+
+Quest Charter へ渡すには、`intent_analysis.confirmation_needed` が空であるか、人間確認へ戻す判断が明示されている必要があります。
+`target_repo_root`、authority、boundaries、success criteria、non-goals、evidence required が曖昧な場合は、実装担当へ渡さず needs_human とします。
+
 ## やらないこと
 
 - `confirmation_needed` が残る依頼を、推測で実装可能な成功条件に変換しない
