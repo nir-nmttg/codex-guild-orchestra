@@ -149,6 +149,18 @@ def validate_install_upgrade_smoke() -> None:
     missing_runtime_doc = run_with_mutated_source("missing runtime memory doc", lambda source: (source / ".agents/orchestra/docs/agent-memory.md").unlink())
     require("agent-memory.md" in (missing_runtime_doc.stdout + missing_runtime_doc.stderr), "install.py の runtime docs 不足拒否 message は agent-memory.md を示してください。")
 
+    missing_queue_schema = run_with_mutated_source("missing queue schema", lambda source: (source / ".agents/orchestra/scripts/queue_schema.sql").unlink())
+    require("queue_schema.sql" in (missing_queue_schema.stdout + missing_queue_schema.stderr), "install.py の queue schema 不足拒否 message は queue_schema.sql を示してください。")
+
+    missing_stop_hook = run_with_mutated_source("missing stop hook", lambda source: (source / ".codex/hooks/stop_quality_gate.sh").unlink())
+    require("stop_quality_gate.sh" in (missing_stop_hook.stdout + missing_stop_hook.stderr), "install.py の hook 不足拒否 message は stop_quality_gate.sh を示してください。")
+
+    missing_queue_template = run_with_mutated_source("missing queue template", lambda source: (source / ".agents/orchestra/queue/templates/inquisitor_trial.yaml").unlink())
+    require("inquisitor_trial.yaml" in (missing_queue_template.stdout + missing_queue_template.stderr), "install.py の queue template 不足拒否 message は inquisitor_trial.yaml を示してください。")
+
+    missing_inbox_script = run_with_mutated_source("missing inbox helper", lambda source: (source / ".agents/orchestra/scripts/inbox_write.sh").unlink())
+    require("inbox_write.sh" in (missing_inbox_script.stdout + missing_inbox_script.stderr), "install.py の inbox helper 不足拒否 message は inbox_write.sh を示してください。")
+
     for role in READ_ONLY_AGENT_ROLES:
         def make_role_writable(source: Path, role: str = role) -> None:
             path = source / ".codex" / "agents" / f"{role}.toml"

@@ -159,13 +159,47 @@ EXPECTED_ORCHESTRA_SKILL_DIRS = {
 SOURCE_REQUIRED_REL_PATHS = (
     Path('AGENTS.md'),
     Path('.codex/config.toml'),
+    Path('.codex/hooks.json'),
+    Path('.codex/hooks/stop_quality_gate.py'),
+    Path('.codex/hooks/stop_quality_gate.sh'),
     Path('.agents/orchestra/README.md'),
     Path('.agents/orchestra/config/settings.yaml'),
+    Path('.agents/orchestra/docker/.dockerignore'),
+    Path('.agents/orchestra/docker/Dockerfile'),
+    Path('.agents/orchestra/docker/requirements.txt'),
     Path('.agents/orchestra/docs/agent-memory.md'),
+    Path('.agents/orchestra/instructions/adventurer.md'),
+    Path('.agents/orchestra/instructions/advisor.md'),
+    Path('.agents/orchestra/instructions/cartographer.md'),
     Path('.agents/orchestra/instructions/common.md'),
+    Path('.agents/orchestra/instructions/guildmaster.md'),
+    Path('.agents/orchestra/instructions/inquisitor.md'),
+    Path('.agents/orchestra/instructions/party_leader.md'),
+    Path('.agents/orchestra/instructions/receptionist.md'),
+    Path('.agents/orchestra/instructions/session_recovery.md'),
+    Path('.agents/orchestra/logs/daily/README.md'),
+    Path('.agents/orchestra/queue/README.md'),
+    Path('.agents/orchestra/queue/templates/adventurer_assignment.yaml'),
+    Path('.agents/orchestra/queue/templates/adventurer_inbox.yaml'),
+    Path('.agents/orchestra/queue/templates/adventurer_report.yaml'),
+    Path('.agents/orchestra/queue/templates/advisor_assignment.yaml'),
+    Path('.agents/orchestra/queue/templates/advisor_report.yaml'),
+    Path('.agents/orchestra/queue/templates/cartographer_assignment.yaml'),
+    Path('.agents/orchestra/queue/templates/cartographer_report.yaml'),
+    Path('.agents/orchestra/queue/templates/command.yaml'),
+    Path('.agents/orchestra/queue/templates/inquisitor_report.yaml'),
+    Path('.agents/orchestra/queue/templates/inquisitor_trial.yaml'),
+    Path('.agents/orchestra/queue/templates/request.yaml'),
+    Path('.agents/orchestra/queue/templates/role_inbox.yaml'),
+    Path('.agents/orchestra/scripts/claude_compat.py'),
+    Path('.agents/orchestra/scripts/docker_python.sh'),
+    Path('.agents/orchestra/scripts/inbox_write.sh'),
     Path('.agents/orchestra/scripts/queue_db.py'),
     Path('.agents/orchestra/scripts/queue_audit.py'),
-) + tuple(Path('.agents/skills') / skill / 'SKILL.md' for skill in sorted(EXPECTED_ORCHESTRA_SKILL_DIRS))
+    Path('.agents/orchestra/scripts/queue_schema.sql'),
+)
+SOURCE_REQUIRED_REL_PATHS += tuple(Path('.codex/agents') / f'{role}.toml' for role in sorted(EXPECTED_AGENT_SANDBOX_MODES))
+SOURCE_REQUIRED_REL_PATHS += tuple(Path('.agents/skills') / skill / 'SKILL.md' for skill in sorted(EXPECTED_ORCHESTRA_SKILL_DIRS))
 REPOSITORIES_REL_PATH = Path('repositories')
 ORCHESTRA_SKILL_OWNER = 'codex-guild-orchestra'
 TRUSTED_SOURCE_TOP_LEVELS = {'AGENTS.md', '.agents', '.codex'}
