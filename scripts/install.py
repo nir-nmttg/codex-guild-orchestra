@@ -138,6 +138,34 @@ EXPECTED_AGENT_SANDBOX_MODES = {
     'quest_sentinel': 'read-only',
     'party_leader': 'read-only',
 }
+EXPECTED_ORCHESTRA_SKILL_DIRS = {
+    'branch-implementation-final-review',
+    'browser-research-readonly',
+    'git-branch-from-session',
+    'git-rename-unpushed-branch-from-diff',
+    'git-split-commits-from-diff',
+    'github-pull-request-from-branch',
+    'github-safe-push-from-branch',
+    'implementation-behavior-verification',
+    'open-subrepo-in-vscode',
+    'orchestra-instruction-contract-review',
+    'orchestra-runtime-security-audit',
+    'orchestra-validation-review',
+    'pull-request-description-from-branch',
+    'quest-awareness-loop',
+    'repository-design-mapmaking',
+    'use-guild-workflow',
+}
+SOURCE_REQUIRED_REL_PATHS = (
+    Path('AGENTS.md'),
+    Path('.codex/config.toml'),
+    Path('.agents/orchestra/README.md'),
+    Path('.agents/orchestra/config/settings.yaml'),
+    Path('.agents/orchestra/docs/agent-memory.md'),
+    Path('.agents/orchestra/instructions/common.md'),
+    Path('.agents/orchestra/scripts/queue_db.py'),
+    Path('.agents/orchestra/scripts/queue_audit.py'),
+) + tuple(Path('.agents/skills') / skill / 'SKILL.md' for skill in sorted(EXPECTED_ORCHESTRA_SKILL_DIRS))
 REPOSITORIES_REL_PATH = Path('repositories')
 ORCHESTRA_SKILL_OWNER = 'codex-guild-orchestra'
 TRUSTED_SOURCE_TOP_LEVELS = {'AGENTS.md', '.agents', '.codex'}
@@ -870,7 +898,26 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
         )
 
 
+def validate_source_file_set_preflight(source_root: Path) -> None:
+    missing = sorted(str(rel) for rel in SOURCE_REQUIRED_REL_PATHS if not (source_root / rel).is_file())
+    if missing:
+        raise SystemExit('source template に必須 file が不足しています: ' + ', '.join(missing))
+
+    skills_root = source_root / '.agents' / 'skills'
+    actual_skills = {path.name for path in skills_root.iterdir() if path.is_dir()} if skills_root.is_dir() else set()
+    if actual_skills != EXPECTED_ORCHESTRA_SKILL_DIRS:
+        missing_skills = sorted(EXPECTED_ORCHESTRA_SKILL_DIRS - actual_skills)
+        unexpected_skills = sorted(actual_skills - EXPECTED_ORCHESTRA_SKILL_DIRS)
+        details = []
+        if missing_skills:
+            details.append('missing: ' + ', '.join(missing_skills))
+        if unexpected_skills:
+            details.append('unexpected: ' + ', '.join(unexpected_skills))
+        raise SystemExit('source template の .agents/skills directory set が期待値と一致しません: ' + '; '.join(details))
+
+
 def preflight_source_template(source_root: Path) -> None:
+    validate_source_file_set_preflight(source_root)
     load_worker_roles(source_root)
     validate_codex_agent_preflight(source_root)
 
