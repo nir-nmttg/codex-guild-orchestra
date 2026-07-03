@@ -100,6 +100,7 @@ MEMORY_CANDIDATE_SAFETY_ITEMS = (
     "prevention_artifact_required",
     "ledger_disposition_recorded",
 )
+MEMORY_CANDIDATE_MARKER_KEYS = (MEMORY_CANDIDATE_MESSAGE_TYPE, "memory_candidate")
 REQUIRED_COLUMNS = {
     "queue_metadata": {"key", "value", "updated_at"},
     "events": {
@@ -192,10 +193,6 @@ def schema_path() -> Path:
 
 def json_dumps(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-def json_loads(value: str) -> Any:
-    return json.loads(value)
 
 
 def connect_write(runtime_root: Path) -> sqlite3.Connection:
@@ -362,24 +359,41 @@ def iter_values(value: Any, path: str = "$") -> list[tuple[str, Any]]:
     return findings
 
 
+def memory_candidate_marker_path(value: Any, path: str) -> str | None:
+    if isinstance(value, dict):
+        if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
+            return f"{path}.type"
+        for key, item in value.items():
+            child_path = f"{path}.{key}"
+            if key in MEMORY_CANDIDATE_MARKER_KEYS:
+                return child_path
+            nested = memory_candidate_marker_path(item, child_path)
+            if nested is not None:
+                return nested
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            nested = memory_candidate_marker_path(item, f"{path}[{index}]")
+            if nested is not None:
+                return nested
+    return None
+
+
 def memory_candidate_envelope(payload: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
     if payload.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
         body = require_mapping(payload.get("payload"), "message.payload")
+        marker_path = memory_candidate_marker_path(body, "message.payload")
+        if marker_path is not None:
+            raise SystemExit(
+                "memory candidate は message.type を "
+                f"{MEMORY_CANDIDATE_MESSAGE_TYPE} にした courier review 専用 envelope として記録してください: {marker_path}"
+            )
         return ("message.payload", body)
-    body = payload.get("payload")
-    if not isinstance(body, dict):
-        body = {}
-    for key in (MEMORY_CANDIDATE_MESSAGE_TYPE, "memory_candidate"):
-        if key in body:
-            raise SystemExit(
-                "memory candidate は message.type を "
-                f"{MEMORY_CANDIDATE_MESSAGE_TYPE} にした courier review 専用 envelope として記録してください: message.payload.{key}"
-            )
-        if key in payload:
-            raise SystemExit(
-                "memory candidate は message.type を "
-                f"{MEMORY_CANDIDATE_MESSAGE_TYPE} にした courier review 専用 envelope として記録してください: message.{key}"
-            )
+    marker_path = memory_candidate_marker_path(payload, "message")
+    if marker_path is not None:
+        raise SystemExit(
+            "memory candidate は message.type を "
+            f"{MEMORY_CANDIDATE_MESSAGE_TYPE} にした courier review 専用 envelope として記録してください: {marker_path}"
+        )
     return None
 
 
@@ -400,7 +414,10 @@ def validate_memory_candidate_envelope(envelope: dict[str, Any], label: str) -> 
     if envelope.get("sanitized_summary_only") is not True:
         raise SystemExit(f"{label}.sanitized_summary_only は true にしてください。")
     require_string(envelope.get("sanitized_summary"), f"{label}.sanitized_summary")
-    require_mapping(envelope.get("prevention_artifact"), f"{label}.prevention_artifact")
+    artifact = require_mapping(envelope.get("prevention_artifact"), f"{label}.prevention_artifact")
+    require_string(artifact.get("kind"), f"{label}.prevention_artifact.kind")
+    if not any(isinstance(artifact.get(key), str) and artifact.get(key) for key in ("ref", "description")):
+        raise SystemExit(f"{label}.prevention_artifact.ref または {label}.prevention_artifact.description が必要です。")
     require_string(envelope.get("ledger_disposition"), f"{label}.ledger_disposition")
     forbidden = require_mapping(envelope.get("forbidden"), f"{label}.forbidden")
     missing_markers = sorted(MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS - set(forbidden))

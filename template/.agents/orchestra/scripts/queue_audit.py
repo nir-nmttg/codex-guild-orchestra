@@ -78,6 +78,7 @@ MEMORY_CANDIDATE_SAFETY_ITEMS = (
     "prevention_artifact_required",
     "ledger_disposition_recorded",
 )
+MEMORY_CANDIDATE_MARKER_KEYS = (MEMORY_CANDIDATE_MESSAGE_TYPE, "memory_candidate")
 
 QUEST_RANKS = {"mapmaking", "errand", "solo_quest", "party_quest", "guild_quest"}
 TRIAL_DEPTHS = {"none", "self_check", "peer_review", "focused_trial", "multi_focus_trial", "safety_gate"}
@@ -244,25 +245,46 @@ def iter_keys(value: Any, path: str = "$") -> list[tuple[str, str]]:
     return findings
 
 
+def memory_candidate_marker_path(value: Any, path: str) -> str | None:
+    if isinstance(value, dict):
+        if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
+            return f"{path}.type"
+        for key, item in value.items():
+            child_path = f"{path}.{key}"
+            if key in MEMORY_CANDIDATE_MARKER_KEYS:
+                return child_path
+            nested = memory_candidate_marker_path(item, child_path)
+            if nested is not None:
+                return nested
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            nested = memory_candidate_marker_path(item, f"{path}[{index}]")
+            if nested is not None:
+                return nested
+    return None
+
+
 def memory_candidate_envelope(value: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
     payload = value.get("payload")
     if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE and not isinstance(payload, dict):
         return ("$.payload", {})
-    if not isinstance(payload, dict):
-        payload = {}
     if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
+        marker_path = memory_candidate_marker_path(payload, "$.payload")
+        if marker_path is not None:
+            return (marker_path, {})
         return ("$.payload", payload)
-    for key in (MEMORY_CANDIDATE_MESSAGE_TYPE, "memory_candidate"):
-        if key in payload:
-            candidate = payload.get(key)
-            if not isinstance(candidate, dict):
-                return (f"$.payload.{key}", {})
-            return (f"$.payload.{key}", candidate)
-        if key in value:
-            candidate = value.get(key)
-            if not isinstance(candidate, dict):
-                return (f"$.{key}", {})
-            return (f"$.{key}", candidate)
+    marker_path = memory_candidate_marker_path(value, "$")
+    if marker_path is not None:
+        candidate: Any = value
+        for part in marker_path.removeprefix("$.").split("."):
+            if isinstance(candidate, dict):
+                candidate = candidate.get(part)
+            else:
+                candidate = None
+                break
+        if not isinstance(candidate, dict):
+            candidate = {}
+        return (marker_path, candidate)
     return None
 
 
@@ -290,8 +312,14 @@ def validate_memory_candidate_envelope(value: dict[str, Any], label: str, errors
         errors.append(f"{envelope_label}.sanitized_summary_only: true が必要です。")
     if not isinstance(envelope.get("sanitized_summary"), str) or not envelope.get("sanitized_summary"):
         errors.append(f"{envelope_label}.sanitized_summary: 空でない文字列が必要です。")
-    if not isinstance(envelope.get("prevention_artifact"), dict):
+    artifact = envelope.get("prevention_artifact")
+    if not isinstance(artifact, dict):
         errors.append(f"{envelope_label}.prevention_artifact: JSON object が必要です。")
+        artifact = {}
+    if not isinstance(artifact.get("kind"), str) or not artifact.get("kind"):
+        errors.append(f"{envelope_label}.prevention_artifact.kind: 空でない文字列が必要です。")
+    if not any(isinstance(artifact.get(key), str) and artifact.get(key) for key in ("ref", "description")):
+        errors.append(f"{envelope_label}.prevention_artifact.ref_or_description: ref または description が必要です。")
     if not isinstance(envelope.get("ledger_disposition"), str) or not envelope.get("ledger_disposition"):
         errors.append(f"{envelope_label}.ledger_disposition: 空でない文字列が必要です。")
     forbidden = envelope.get("forbidden")

@@ -192,6 +192,13 @@ def validate_queue_db_smoke() -> None:
         invalid_memory = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(invalid_memory_message))
         require(invalid_memory.returncode != 0 and "explicit_memory_persistence_authority" in invalid_memory.stderr, "queue_db.py は authority 不足の memory candidate を拒否してください。")
 
+        empty_artifact_message = _memory_candidate_message("msg_invalid_memory_candidate_empty_artifact")
+        empty_artifact_payload = empty_artifact_message["payload"]
+        require(isinstance(empty_artifact_payload, dict), "empty artifact memory candidate payload は dict にしてください。")
+        empty_artifact_payload["prevention_artifact"] = {}
+        empty_artifact = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(empty_artifact_message))
+        require(empty_artifact.returncode != 0 and "prevention_artifact" in empty_artifact.stderr, "queue_db.py は空の prevention_artifact を拒否してください。")
+
         invalid_recipient_message = _memory_candidate_message("msg_invalid_memory_candidate_recipient")
         invalid_recipient_message["recipient"] = "adventurer"
         invalid_recipient = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(invalid_recipient_message))
@@ -284,6 +291,30 @@ def validate_queue_db_smoke() -> None:
         }
         invalid_memory_non_message = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_memory_non_message_event))
         require(invalid_memory_non_message.returncode != 0 and "message" in invalid_memory_non_message.stderr, "queue_db.py record-event は non-message entity の memory candidate payload を拒否してください。")
+
+        invalid_nested_memory_event = {
+            "event_id": "evt_invalid_nested_memory_candidate",
+            "timestamp": "2026-01-02T03:04:10+00:00",
+            "actor": "courier",
+            "event_type": "quest_updated",
+            "entity": {"type": "quest", "id": "quest_smoke"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["quest"], "decision_rationale": "nested memory_candidate 境界検証", "evidence_refs": []},
+            "payload": {"quest": {"id": "quest_smoke", "memory_candidate": _memory_candidate_message("msg_invalid_nested_memory_candidate")["payload"]}},
+            "event_safety": {
+                "safety_items": [
+                    "memory_candidate_for_courier_review",
+                    "explicit_memory_persistence_authority",
+                    "sanitized_summary_only",
+                    "prevention_artifact_required",
+                    "ledger_disposition_recorded",
+                ],
+                "human_confirmation_required": [],
+            },
+        }
+        invalid_nested_memory = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_nested_memory_event))
+        require(invalid_nested_memory.returncode != 0 and "memory_candidate_for_courier_review" in invalid_nested_memory.stderr, "queue_db.py record-event は nested memory_candidate payload を拒否してください。")
 
         database = runtime_root / "queue" / "state.sqlite"
         with sqlite3.connect(database) as connection:
@@ -378,6 +409,27 @@ def validate_queue_db_smoke() -> None:
         with sqlite3.connect(database) as connection:
             connection.execute(
                 "UPDATE events SET event_type = ?, entity_type = ?, entity_id = ?, payload_json = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'",
+                (
+                    "quest_updated",
+                    "quest",
+                    "quest_smoke",
+                    json.dumps({"quest": {"id": "quest_smoke", "memory_candidate": _memory_candidate_message("msg_bad_audit_nested_memory_candidate")["payload"]}}),
+                ),
+            )
+            connection.commit()
+        bad_nested_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        bad_nested_output = bad_nested_audit.stdout + bad_nested_audit.stderr
+        require(bad_nested_audit.returncode != 0 and "memory_candidate_for_courier_review" in bad_nested_output, "queue_audit.py は nested memory_candidate event を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE events SET event_type = ?, entity_type = ?, entity_id = ?, payload_json = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'",
+                ("inbox_message_added", "message", "msg_memory_candidate_smoke", json.dumps(memory_message)),
+            )
+            connection.commit()
+
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE events SET event_type = ?, entity_type = ?, entity_id = ?, payload_json = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'",
                 ("quest_updated", "quest", "quest_smoke", json.dumps(_memory_candidate_message("msg_bad_audit_memory_candidate_non_message"))),
             )
             connection.commit()
@@ -389,6 +441,30 @@ def validate_queue_db_smoke() -> None:
                 "UPDATE events SET event_type = ?, entity_type = ?, entity_id = ?, payload_json = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'",
                 ("inbox_message_added", "message", "msg_memory_candidate_smoke", json.dumps(memory_message)),
             )
+            connection.commit()
+
+        bad_empty_artifact_payload = _memory_candidate_message("msg_bad_audit_empty_artifact")
+        bad_empty_body = bad_empty_artifact_payload["payload"]
+        require(isinstance(bad_empty_body, dict), "bad audit empty artifact payload は dict にしてください。")
+        bad_empty_body["prevention_artifact"] = {}
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "INSERT INTO inbox_messages(message_id, recipient, workflow_id, status, payload_json, created_at) VALUES(?, ?, ?, ?, ?, ?)",
+                (
+                    bad_empty_artifact_payload["id"],
+                    bad_empty_artifact_payload["recipient"],
+                    bad_empty_artifact_payload["workflow_id"],
+                    bad_empty_artifact_payload["status"],
+                    json.dumps(bad_empty_artifact_payload),
+                    bad_empty_artifact_payload["created_at"],
+                ),
+            )
+            connection.commit()
+        bad_empty_artifact_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        bad_empty_artifact_output = bad_empty_artifact_audit.stdout + bad_empty_artifact_audit.stderr
+        require(bad_empty_artifact_audit.returncode != 0 and "prevention_artifact" in bad_empty_artifact_output, "queue_audit.py は空の prevention_artifact を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute("DELETE FROM inbox_messages WHERE message_id = ?", (bad_empty_artifact_payload["id"],))
             connection.commit()
 
         malformed_audit_payload = _memory_candidate_message("msg_malformed_audit_memory_candidate")
