@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import shutil
 import sqlite3
 import subprocess
@@ -64,6 +65,17 @@ INSTALLED_OLD_TERM_TOKENS = (
     "メタ認" "識",
     "cognitive_" "failure_memory",
 )
+
+
+def _load_installer_module() -> object:
+    spec = importlib.util.spec_from_file_location("codex_guild_orchestra_installer", ROOT / "scripts/install.py")
+    require(spec is not None and spec.loader is not None, "install.py helper を読み込めません。")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+INSTALLER = _load_installer_module()
 
 
 def _run_install(*args: object) -> subprocess.CompletedProcess[str]:
@@ -157,6 +169,88 @@ def _assert_git_exclude_block_idempotent(target: Path, expect_update_position: b
         )
 
 
+def _assert_token_order(text: str, tokens: tuple[str, ...], label: str) -> None:
+    cursor = -1
+    for token in tokens:
+        index = text.find(token, cursor + 1)
+        require(index != -1, f"{label} に `{token}` が見つかりません。")
+        require(index > cursor, f"{label} の `{token}` の順序が不正です。")
+        cursor = index
+
+
+def _assert_managed_block_helper_matrix() -> None:
+    block = f"{AGENTS_START}\n新しい管理ブロック\n{AGENTS_END}\n"
+    cases = (
+        (
+            "空ファイル",
+            "",
+            ("新しい管理ブロック",),
+            (),
+        ),
+        (
+            "通常テキストのみ",
+            "before\n",
+            ("before", "新しい管理ブロック"),
+            ("before",),
+        ),
+        (
+            "孤立 start のみ",
+            f"before\n{AGENTS_START}\norphan body\n",
+            ("before", "orphan body", "新しい管理ブロック"),
+            ("before", "orphan body"),
+        ),
+        (
+            "孤立 end のみ",
+            f"{AGENTS_END}\nbefore\nafter\n",
+            ("before", "after", "新しい管理ブロック"),
+            ("before", "after"),
+        ),
+        (
+            "単一 complete block",
+            f"before\n{AGENTS_START}\nold managed\n{AGENTS_END}\nafter\n",
+            ("before", "新しい管理ブロック", "after"),
+            ("before", "after"),
+        ),
+        (
+            "中間テキスト付き重複 complete block",
+            f"before\n{AGENTS_START}\nold managed 1\n{AGENTS_END}\nbetween\n{AGENTS_START}\nold managed 2\n{AGENTS_END}\nafter\n",
+            ("before", "新しい管理ブロック", "between", "after"),
+            ("before", "between", "after"),
+        ),
+        (
+            "隣接 complete block",
+            f"before\n{AGENTS_START}\nold managed 1\n{AGENTS_END}\n{AGENTS_START}\nold managed 2\n{AGENTS_END}\nafter\n",
+            ("before", "新しい管理ブロック", "after"),
+            ("before", "after"),
+        ),
+        (
+            "入れ子 duplicate marker",
+            f"before\n{AGENTS_START}\n{AGENTS_START}\nold nested\n{AGENTS_END}\n{AGENTS_END}\nafter\n",
+            ("before", "新しい管理ブロック", "after"),
+            ("before", "after"),
+        ),
+        (
+            "先頭孤立 end と末尾孤立 start",
+            f"{AGENTS_END}\nbefore\n{AGENTS_START}\nold managed\n{AGENTS_END}\nafter\n{AGENTS_START}\n",
+            ("before", "新しい管理ブロック", "after"),
+            ("before", "after"),
+        ),
+    )
+    for label, text, replace_tokens, prune_tokens in cases:
+        replaced = INSTALLER.replace_or_append_block(text, block, AGENTS_START, AGENTS_END)
+        require(replaced.count(AGENTS_START) == 1 and replaced.count(AGENTS_END) == 1, f"{label}: replace は marker を 1 組にしてください。")
+        require("old managed" not in replaced and "old nested" not in replaced, f"{label}: replace は古い管理ブロック本文を残さないでください。")
+        _assert_token_order(replaced, replace_tokens, f"{label}: replace")
+
+        pruned = INSTALLER.remove_block(text, AGENTS_START, AGENTS_END)
+        require(AGENTS_START not in pruned and AGENTS_END not in pruned, f"{label}: prune は marker を残さないでください。")
+        require("old managed" not in pruned and "old nested" not in pruned, f"{label}: prune は古い管理ブロック本文を残さないでください。")
+        if prune_tokens:
+            _assert_token_order(pruned, prune_tokens, f"{label}: prune")
+        else:
+            require(pruned == "", f"{label}: prune 後は空にしてください。")
+
+
 def _write_duplicate_agents(target: Path) -> None:
     target.mkdir(parents=True, exist_ok=True)
     (target / "AGENTS.md").write_text(
@@ -199,6 +293,8 @@ def _write_duplicate_git_exclude(target: Path) -> None:
 
 
 def validate_install_upgrade_smoke() -> None:
+    _assert_managed_block_helper_matrix()
+
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"
         dry_run = _run_install("--target", target, "--mode", "copy", "--dry-run")
