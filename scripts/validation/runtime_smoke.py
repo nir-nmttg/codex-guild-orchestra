@@ -110,6 +110,7 @@ def validate_queue_db_smoke() -> None:
     inbox_script = ROOT / "template/.agents/orchestra/scripts/inbox_write.sh"
     docker_runner = ROOT / "template/.agents/orchestra/scripts/docker_python.sh"
     stop_hook_shell = ROOT / "template/.codex/hooks/stop_quality_gate.sh"
+    require("quest_sentinel" in read("template/.agents/orchestra/scripts/inbox_write.sh"), "inbox_write.sh は quest_sentinel を送受信 role として許可してください。")
     for executable_path in (script, audit_script, inbox_script, docker_runner, stop_hook_shell):
         require(executable_path.stat().st_mode & 0o111, f"{executable_path.relative_to(ROOT)} の executable bit を維持してください。")
     for shell_path in (inbox_script, docker_runner, stop_hook_shell):
