@@ -238,6 +238,30 @@ DEFAULT_INTAKE_CONFIRMATION_TOKENS = (
     "認証情報",
     "PII",
 )
+STATE_CHANGE_GUARD_TOKENS = (
+    "local Git 書き込み",
+    "外部送信",
+    "Web 状態更新",
+    "PR ready",
+    "明示指示",
+    "人間の再確認",
+)
+STATE_CHANGE_GUARD_OPERATION_TOKENS = (
+    "git add",
+    "git commit",
+    "branch 作成",
+    "branch rename",
+    "tag",
+    "stash",
+    "reset",
+    "clean",
+    "push",
+    "PR 作成 / 更新",
+    "Issue / comment / Slack / Linear",
+    "ブラウザ送信",
+    "保存、削除、公開、承認、設定変更",
+    "deploy",
+)
 GUILD_SKILL_PRIORITY_TOKENS = (
     "類似 Skill",
     "owner: codex-guild-orchestra",

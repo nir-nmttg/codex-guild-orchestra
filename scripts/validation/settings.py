@@ -31,6 +31,8 @@ from .rules import (
     TRIAL_REQUIRED_CHECKS,
     LEGACY_PRIMARY_TERMS,
     AMBIGUOUS_INQUISITOR_TERMS,
+    STATE_CHANGE_GUARD_OPERATION_TOKENS,
+    STATE_CHANGE_GUARD_TOKENS,
 )
 from .schema_helpers import validate_dialogue_policy, validate_percent
 
@@ -61,6 +63,7 @@ def validate_settings() -> None:
         ("Guild intake", "use-guild-workflow", "target_repo_root", "repositories/<repo>", "orchestra-*", "full Quest", "人間確認") + DEFAULT_INTAKE_CONFIRMATION_TOKENS,
         "settings.default_intake_policy",
     )
+    require_tokens(default_intake_text, ("state_change_guard",) + STATE_CHANGE_GUARD_TOKENS, "settings.default_intake_policy state change guard")
 
     skill_selection = mapping(settings["skill_selection_policy"], "settings.skill_selection_policy")
     require(skill_selection.get("similar_skill_priority") == "prefer_guild_owned", "skill_selection_policy.similar_skill_priority は prefer_guild_owned にしてください。")
@@ -75,6 +78,8 @@ def validate_settings() -> None:
     immutable = sequence(guild_law.get("immutable"), "settings.guild_law.immutable")
     require(immutable, "settings.guild_law.immutable は空にできません。")
     require("human_confirmation_required_for" in guild_law, "settings.guild_law.human_confirmation_required_for が必要です。")
+    require("state_change_guard" in guild_law, "settings.guild_law.state_change_guard が必要です。")
+    require_tokens(json.dumps(guild_law, ensure_ascii=False), ("state_change_guard",) + STATE_CHANGE_GUARD_TOKENS + STATE_CHANGE_GUARD_OPERATION_TOKENS + ("push", "PR 作成 / 更新"), "settings.guild_law.state_change_guard")
 
     claude_compat = mapping(settings["claude_compat"], "settings.claude_compat")
     claude_rule = str(claude_compat.get("rule") or "")
@@ -113,6 +118,7 @@ def validate_settings() -> None:
     )
     authority_levels = mapping(charter.get("authority_levels"), "settings.quest_charter.authority_levels")
     require(set(authority_levels) == AUTHORITY_KEYS, "authority_levels は read/edit/validate/local_git/external_actions にしてください。")
+    require_tokens(json.dumps(authority_levels, ensure_ascii=False), ("state_change_guard", "local Git 書き込み", "Web 状態更新", "人間の再確認"), "settings.quest_charter.authority_levels state change guard")
     autonomy_fields = set(sequence(charter.get("autonomy_budget_fields"), "settings.quest_charter.autonomy_budget_fields"))
     require(autonomy_fields == AUTONOMY_KEYS, "autonomy_budget_fields が期待値と一致しません。")
 

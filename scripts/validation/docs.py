@@ -12,6 +12,8 @@ from .rules import (
     GUILD_TERMS,
     LEGACY_PRIMARY_TERMS,
     LEGACY_ROUTE_COMMENT_TERMS,
+    STATE_CHANGE_GUARD_OPERATION_TOKENS,
+    STATE_CHANGE_GUARD_TOKENS,
     TRIAL_CONDITIONAL_CHECKS,
     TRIAL_DEPTH_GUARDRAILS,
     TRIAL_REQUIRED_CHECKS,
@@ -52,8 +54,10 @@ def validate_agents() -> None:
     require_tokens(guildmaster_text, ("intent_analysis", "implementation_strategy", "Party"), "template/.codex/agents/guildmaster.toml")
     inquisitor = read("template/.codex/agents/inquisitor.toml")
     courier = tomllib.loads(read("template/.codex/agents/courier.toml"))
+    courier_text = read("template/.codex/agents/courier.toml")
     require(courier.get("model") == "gpt-5.3-codex-spark", "courier.toml の model は gpt-5.3-codex-spark にしてください。")
     require(courier.get("model_reasoning_effort") == "xhigh", "courier.toml の model_reasoning_effort は xhigh にしてください。")
+    require_tokens(courier_text, STATE_CHANGE_GUARD_TOKENS + ("branch/commit",), "template/.codex/agents/courier.toml")
     require_tokens(
         inquisitor,
         (
@@ -138,7 +142,12 @@ def validate_docs_and_instructions() -> None:
     require_tokens(agents, ("Root", "target_repo_root", "実装", "Trial", "品質採否", "Ledger"), "template/AGENTS.md")
     require_tokens(agents, DEFAULT_INTAKE_TOKENS + ("短い説明", "orchestration-template workflow", "人間確認") + DEFAULT_INTAKE_CONFIRMATION_TOKENS + GUILD_SKILL_PRIORITY_TOKENS, "template/AGENTS.md")
     require_tokens(common, DEFAULT_INTAKE_TOKENS + ("短い説明", "orchestration-template workflow", "人間確認") + DEFAULT_INTAKE_CONFIRMATION_TOKENS + GUILD_SKILL_PRIORITY_TOKENS, "template/.agents/orchestra/instructions/common.md")
+    require_tokens(agents, ("State Change Guard",) + STATE_CHANGE_GUARD_TOKENS, "template/AGENTS.md state change guard")
+    require_tokens(common, ("State Change Guard",) + STATE_CHANGE_GUARD_TOKENS, "template/.agents/orchestra/instructions/common.md state change guard")
+    require_tokens(agents, STATE_CHANGE_GUARD_OPERATION_TOKENS, "template/AGENTS.md state change guarded operations")
+    require_tokens(common, STATE_CHANGE_GUARD_OPERATION_TOKENS, "template/.agents/orchestra/instructions/common.md state change guarded operations")
     require_tokens(runtime_readme, DEFAULT_INTAKE_TOKENS + ("短い説明", "人間確認") + DEFAULT_INTAKE_CONFIRMATION_TOKENS[:1] + GUILD_SKILL_PRIORITY_TOKENS[:3], "template/.agents/orchestra/README.md")
+    require_tokens(runtime_readme, STATE_CHANGE_GUARD_TOKENS, "template/.agents/orchestra/README.md state change guard")
     customization = read("docs/customization.md")
     orchestration_runtime = read("docs/orchestration-runtime.md")
     adventurer = read("template/.agents/orchestra/instructions/adventurer.md")
@@ -288,6 +297,7 @@ def validate_skills() -> None:
         ),
         "template/.agents/skills/use-guild-workflow/SKILL.md",
     )
+    require_tokens(use_guild_workflow, ("State Change Guard",) + STATE_CHANGE_GUARD_TOKENS, "template/.agents/skills/use-guild-workflow/SKILL.md state change guard")
     require(
         "明示がない通常作業へ、この Skill を無理に適用しない" not in use_guild_workflow,
         "use-guild-workflow は always_guild_intake と衝突する旧トリガー文言を戻さないでください。",
@@ -298,6 +308,16 @@ def validate_skills() -> None:
         "Ledger 反映と、Root または Quest Charter が明示した local Git 操作だけ" in runtime_readme,
         "template/.agents/orchestra/README.md の courier 説明は Ledger と明示 local Git 操作に限定してください。",
     )
+    skill_state_change_targets = {
+        "template/.agents/skills/git-split-commits-from-diff/SKILL.md": ("stage / commit", "PR ready"),
+        "template/.agents/skills/git-branch-from-session/SKILL.md": ("branch 作成", "PR ready"),
+        "template/.agents/skills/git-rename-unpushed-branch-from-diff/SKILL.md": ("branch rename", "PR ready"),
+        "template/.agents/skills/github-safe-push-from-branch/SKILL.md": ("push", "人間確認"),
+        "template/.agents/skills/github-pull-request-from-branch/SKILL.md": ("push / PR 作成", "人間確認"),
+        "template/.agents/skills/browser-research-readonly/SKILL.md": ("ブラウザ送信", "状態更新"),
+    }
+    for rel, tokens in skill_state_change_targets.items():
+        require_tokens(read(rel), tokens + ("明示指示", "Quest Charter", "tool / MCP / Web 出力"), f"{rel} state change guard")
 
 
 def validate_stop_hook() -> None:
