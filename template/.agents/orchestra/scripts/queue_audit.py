@@ -249,7 +249,7 @@ def memory_candidate_envelope(value: dict[str, Any]) -> tuple[str, dict[str, Any
     if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE and not isinstance(payload, dict):
         return ("$.payload", {})
     if not isinstance(payload, dict):
-        return None
+        payload = {}
     if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
         return ("$.payload", payload)
     for key in (MEMORY_CANDIDATE_MESSAGE_TYPE, "memory_candidate"):
@@ -258,6 +258,11 @@ def memory_candidate_envelope(value: dict[str, Any]) -> tuple[str, dict[str, Any
             if not isinstance(candidate, dict):
                 return (f"$.payload.{key}", {})
             return (f"$.payload.{key}", candidate)
+        if key in value:
+            candidate = value.get(key)
+            if not isinstance(candidate, dict):
+                return (f"$.{key}", {})
+            return (f"$.{key}", candidate)
     return None
 
 
@@ -536,6 +541,8 @@ def audit_events(connection: sqlite3.Connection, errors: list[str]) -> None:
                     errors.append(f"{label}.event_safety_json.{key}: list にしてください。")
             payload = parse_json(row["payload_json"], f"{label}.payload_json", errors)
             if isinstance(payload, dict):
+                if memory_candidate_envelope(payload) is not None and entity_type != "message":
+                    errors.append(f"{label}.entity_type: memory candidate event は message entity で記録してください。")
                 validate_memory_candidate_event_safety(payload, safety, f"{label}.event_safety_json", errors, row["actor"])
 
 

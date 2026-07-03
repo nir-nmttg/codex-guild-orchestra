@@ -363,14 +363,22 @@ def iter_values(value: Any, path: str = "$") -> list[tuple[str, Any]]:
 
 
 def memory_candidate_envelope(payload: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
-    body = require_mapping(payload.get("payload"), "message.payload")
     if payload.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
+        body = require_mapping(payload.get("payload"), "message.payload")
         return ("message.payload", body)
+    body = payload.get("payload")
+    if not isinstance(body, dict):
+        body = {}
     for key in (MEMORY_CANDIDATE_MESSAGE_TYPE, "memory_candidate"):
         if key in body:
             raise SystemExit(
                 "memory candidate は message.type を "
                 f"{MEMORY_CANDIDATE_MESSAGE_TYPE} にした courier review 専用 envelope として記録してください: message.payload.{key}"
+            )
+        if key in payload:
+            raise SystemExit(
+                "memory candidate は message.type を "
+                f"{MEMORY_CANDIDATE_MESSAGE_TYPE} にした courier review 専用 envelope として記録してください: message.{key}"
             )
     return None
 
@@ -496,7 +504,9 @@ def validate_event_input(event: dict[str, Any]) -> None:
         expected = ", ".join(sorted(expected_entity_types))
         raise SystemExit(f"event.entity.type は {event_type} では {expected} にしてください: {entity_type}")
     payload = payload_body(event)
-    if entity_type == "message":
+    if memory_candidate_envelope(payload) is not None:
+        if entity_type != "message":
+            raise SystemExit("memory candidate event の event.entity.type は message にしてください。")
         validate_memory_candidate_event_safety(payload, event["event_safety"], event.get("actor"))
     validate_target_repo_roots(event, "event")
     validate_no_legacy_runtime_shape(event, "event")
