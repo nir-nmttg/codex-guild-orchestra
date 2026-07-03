@@ -375,11 +375,15 @@ def memory_candidate_envelope(payload: dict[str, Any]) -> tuple[str, dict[str, A
     return None
 
 
-def validate_memory_candidate_message_scope(payload: dict[str, Any]) -> None:
+def validate_memory_candidate_message_scope(payload: dict[str, Any], actor: Any | None = None) -> None:
+    if payload.get("sender") != "courier":
+        raise SystemExit("memory candidate の message.sender は courier にしてください。")
     if payload.get("recipient") != "courier":
         raise SystemExit("memory candidate の message.recipient は courier にしてください。")
     if payload.get("trusted") is not False:
         raise SystemExit("memory candidate の message.trusted は false にしてください。")
+    if actor is not None and actor != "courier":
+        raise SystemExit("memory candidate の event.actor は courier にしてください。")
 
 
 def validate_memory_candidate_envelope(envelope: dict[str, Any], label: str) -> None:
@@ -404,10 +408,10 @@ def validate_memory_candidate_envelope(envelope: dict[str, Any], label: str) -> 
             raise SystemExit(f"{label}{json_path[1:]}: memory candidate に forbidden 内容 `{key}` を含めないでください。")
 
 
-def validate_memory_candidate_event_safety(payload: dict[str, Any], event_safety: Any) -> None:
+def validate_memory_candidate_event_safety(payload: dict[str, Any], event_safety: Any, actor: Any | None = None) -> None:
     if memory_candidate_envelope(payload) is None:
         return
-    validate_memory_candidate_message_scope(payload)
+    validate_memory_candidate_message_scope(payload, actor)
     safety = require_mapping(event_safety, "event.event_safety")
     safety_items = safety.get("safety_items")
     if not isinstance(safety_items, list):
@@ -493,7 +497,7 @@ def validate_event_input(event: dict[str, Any]) -> None:
         raise SystemExit(f"event.entity.type は {event_type} では {expected} にしてください: {entity_type}")
     payload = payload_body(event)
     if entity_type == "message":
-        validate_memory_candidate_event_safety(payload, event["event_safety"])
+        validate_memory_candidate_event_safety(payload, event["event_safety"], event.get("actor"))
     validate_target_repo_roots(event, "event")
     validate_no_legacy_runtime_shape(event, "event")
 
@@ -548,6 +552,10 @@ def assignment_parent_id(payload: dict[str, Any]) -> str | None:
     kind = payload.get("kind")
     if (worker_id == "advisor" or kind == "advisory_consultation") and not (owner_assignment_id or parent_id):
         raise SystemExit("advisor assignment は owner_assignment_id または parent_id が必要です。")
+    if worker_id == "quest_sentinel" or kind == "quest_awareness_control_monitor":
+        if not (owner_assignment_id or parent_id):
+            raise SystemExit("quest_sentinel assignment は owner_assignment_id または parent_id が必要です。")
+        require_string(payload.get("control_trigger"), "assignment.control_trigger")
     return owner_assignment_id or parent_id or require_string_or_null(payload.get("quest_id"), "assignment.quest_id")
 
 
