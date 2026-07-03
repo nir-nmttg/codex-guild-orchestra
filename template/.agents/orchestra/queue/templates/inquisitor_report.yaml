@@ -56,7 +56,7 @@ report:
     missing_outcomes: []
     over_implementation_risks: []
     ambiguity_handling: []
-  metacognitive_state:
+  quest_awareness:
     goal: null
     current_subgoal: null
     known_facts: []
@@ -107,7 +107,7 @@ report:
       - decision
       - findings
       - intent_coverage
-      - metacognitive_state
+      - quest_awareness
       - control_decision
       - validation_evidence
       - advisor_dialogue_synthesis

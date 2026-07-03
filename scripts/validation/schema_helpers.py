@@ -9,7 +9,7 @@ from .rules import (
     AUTONOMY_KEYS,
     CONTROL_DECISION_KEYS,
     CONTROL_DECISIONS,
-    METACOGNITIVE_STATE_KEYS,
+    QUEST_AWARENESS_KEYS,
     STRUCTURED_DATA_USAGE_FIELDS,
 )
 
@@ -45,9 +45,9 @@ def validate_autonomy_budget(value: object, label: str) -> None:
     require(budget["timebox_minutes"] is None or isinstance(budget["timebox_minutes"], int), f"{label}.timebox_minutes は null または整数にしてください。")
 
 
-def validate_metacognitive_state(value: object, label: str) -> None:
+def validate_quest_awareness(value: object, label: str) -> None:
     state = mapping(value, label)
-    require(set(state) == METACOGNITIVE_STATE_KEYS, f"{label} は metacognitive_state key と一致させてください。")
+    require(set(state) == QUEST_AWARENESS_KEYS, f"{label} は quest_awareness key と一致させてください。")
     for key in ("known_facts", "unknowns", "assumptions", "evidence"):
         sequence(state[key], f"{label}.{key}")
     require(state.get("risk_level") in {"low", "medium", "high", None}, f"{label}.risk_level は low / medium / high / null にしてください。")

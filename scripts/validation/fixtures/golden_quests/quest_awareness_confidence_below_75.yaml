@@ -1,4 +1,4 @@
-id: metacognitive_confidence_below_75
+id: quest_awareness_confidence_below_75
 summary: "confidence が 75% 未満なら finalize せず、追加 evidence または controller 検討へ戻す。"
 input:
   confidence_percent: 70

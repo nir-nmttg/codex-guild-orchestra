@@ -116,7 +116,7 @@ EXPECTED_AGENT_SANDBOX_MODES = {
     'courier': 'workspace-write',
     'guildmaster': 'read-only',
     'inquisitor': 'read-only',
-    'metacognitive_controller': 'read-only',
+    'quest_sentinel': 'read-only',
     'party_leader': 'read-only',
 }
 REPOSITORIES_REL_PATH = Path('repositories')
@@ -171,8 +171,8 @@ ADVISOR_DEVELOPER_INSTRUCTION_TOKENS = (
     'confidence delta',
     'owner が根拠確認',
 )
-METACOGNITIVE_CONTROLLER_DEVELOPER_INSTRUCTION_TOKENS = (
-    'metacognitive_state',
+QUEST_AWARENESS_CONTROLLER_DEVELOPER_INSTRUCTION_TOKENS = (
+    'quest_awareness',
     'control_decision',
     'confidence',
     'unknowns',
@@ -753,7 +753,7 @@ def load_worker_roles(source_root: Path) -> dict[str, dict[str, int]]:
         'party_leader': 1,
         'inquisitor': 1,
         'advisor': 1,
-        'metacognitive_controller': 1,
+        'quest_sentinel': 1,
     }
 
     result: dict[str, dict[str, int]] = {}
@@ -832,19 +832,19 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
             + ', '.join(missing_tokens)
         )
 
-    controller_path = source_root / '.codex' / 'agents' / 'metacognitive_controller.toml'
+    controller_path = source_root / '.codex' / 'agents' / 'quest_sentinel.toml'
     controller = read_toml_document(controller_path)
     if controller.get('sandbox_mode') != 'read-only':
-        raise SystemExit('template/.codex/agents/metacognitive_controller.toml の sandbox_mode は read-only にしてください。')
+        raise SystemExit('template/.codex/agents/quest_sentinel.toml の sandbox_mode は read-only にしてください。')
     if controller.get('model_reasoning_effort') != 'high':
-        raise SystemExit('template/.codex/agents/metacognitive_controller.toml の model_reasoning_effort は high にしてください。')
+        raise SystemExit('template/.codex/agents/quest_sentinel.toml の model_reasoning_effort は high にしてください。')
     controller_instructions = controller.get('developer_instructions')
     if not isinstance(controller_instructions, str):
-        raise SystemExit('template/.codex/agents/metacognitive_controller.toml の developer_instructions が必要です。')
-    controller_missing = [token for token in METACOGNITIVE_CONTROLLER_DEVELOPER_INSTRUCTION_TOKENS if token not in controller_instructions]
+        raise SystemExit('template/.codex/agents/quest_sentinel.toml の developer_instructions が必要です。')
+    controller_missing = [token for token in QUEST_AWARENESS_CONTROLLER_DEVELOPER_INSTRUCTION_TOKENS if token not in controller_instructions]
     if controller_missing:
         raise SystemExit(
-            'template/.codex/agents/metacognitive_controller.toml の developer_instructions に metacognitive controller 契約が不足しています: '
+            'template/.codex/agents/quest_sentinel.toml の developer_instructions に quest_sentinel 契約が不足しています: '
             + ', '.join(controller_missing)
         )
 

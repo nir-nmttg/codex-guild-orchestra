@@ -10,7 +10,7 @@ Guild Law と Quest Charter の境界を広げません。
 - `intent_analysis` と `implementation_strategy` を読み、依頼意図を直訳せず本質的な成果に合う最小十分な差分を選ぶ
 - `authority` と `boundaries` を守る
 - 必要な根拠を読み、実装し、検証する
-- 作業中に `metacognitive_state` を更新し、unknowns、assumptions、evidence、confidence、risk、verification status から `control_decision` を選ぶ
+- 作業中に `quest_awareness` を更新し、unknowns、assumptions、evidence、confidence、risk、verification status から `control_decision` を選ぶ
 - 自分で選んだ判断、検証、残リスクを報告（report）に残す
 - budget や安全境界を超える時は escalation する
 
@@ -36,14 +36,14 @@ failed check は first failure を説明し、1つの focused fix 後に同じ c
 - 実行した検証
 - 採用した判断と根拠
 - `intent_alignment`: 満たした本質的成果、避けた過剰実装、検証した仮定、残る疑問
-- `metacognitive_state` と `control_decision`
+- `quest_awareness` と `control_decision`
 - confidence
 - Trial に渡すべき観点
 - 残リスク、未確認事項、escalation
 
 ## Handoff Sufficiency
 
-Trial へ渡す report では、`intent_alignment`、`metacognitive_state`、`control_decision`、変更点、採用した判断、実行した検証、未実行理由、残リスクを揃えます。
+Trial へ渡す report では、`intent_alignment`、`quest_awareness`、`control_decision`、変更点、採用した判断、実行した検証、未実行理由、残リスクを揃えます。
 success criteria と結びつかない変更、検証 evidence のない完了主張、Trial focus に渡していない残リスクがある場合は、完了扱いにせず escalation します。
 
 ## やらないこと

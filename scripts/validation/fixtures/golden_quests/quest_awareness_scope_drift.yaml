@@ -1,4 +1,4 @@
-id: metacognitive_scope_drift
+id: quest_awareness_scope_drift
 summary: "scope drift が起きたら pause し、新 scope が original goal に必要か確認する。"
 input:
   original_scope:

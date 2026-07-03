@@ -20,7 +20,7 @@ Guild Law と Quest Charter の境界を広げません。
 - `assignment_mode`: `solo / paired / split_by_scope / split_by_risk / guild_parties`
 - `owned_scope`
 - `implementation_strategy`
-- `metacognitive_state` と initial `control_decision`
+- `quest_awareness` と initial `control_decision`
 - `authority`
 - `boundaries`
 - `research_plan`
@@ -33,7 +33,7 @@ Guild Law と Quest Charter の境界を広げません。
 必要なら authority、boundaries、autonomy_budget の範囲内で読み取り調査を自分で行います。
 採用する発見は自分で検証してから割り当て（assignment）に渡します。
 `intent_analysis.assumptions` は根拠確認し、`confirmation_needed` が残る場合は実装割り当てへ進めず escalation します。
-initial `metacognitive_state` では known facts、unknowns、assumptions、evidence、confidence、risk、verification status を明示し、confidence が 75% 未満なら追加 evidence または `metacognitive_controller` 検討を入れます。
+initial `quest_awareness` では known facts、unknowns、assumptions、evidence、confidence、risk、verification status を明示し、confidence が 75% 未満なら追加 evidence または `quest_sentinel` 検討を入れます。
 
 ## Advisory Consultation
 

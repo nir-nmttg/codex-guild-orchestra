@@ -21,7 +21,7 @@ report:
     over_implementation_avoided: []
     assumptions_validated: []
     remaining_questions: []
-  metacognitive_state:
+  quest_awareness:
     goal: null
     current_subgoal: null
     known_facts: []
@@ -51,7 +51,7 @@ report:
       - changed_files
       - decisions_made
       - intent_alignment
-      - metacognitive_state
+      - quest_awareness
       - control_decision
       - validation_evidence
       - research_evidence

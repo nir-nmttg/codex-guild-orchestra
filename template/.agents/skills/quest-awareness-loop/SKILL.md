@@ -1,14 +1,14 @@
 ---
-name: metacognitive-task-loop
-description: "非 trivial な coding task で、metacognitive monitoring、uncertainty tracking、confidence calibration、verification control、adaptive planning を行うための Guild-owned workflow です。"
+name: quest-awareness-loop
+description: "非 trivial な coding task で、Quest Awareness として uncertainty tracking、confidence calibration、verification control、adaptive planning を行うための Guild-owned workflow です。"
 owner: codex-guild-orchestra
 scope: target-repository-workflow
 ---
 
-# metacognitive-task-loop
+# quest-awareness-loop
 
-非 trivial な engineering task で、作業中の `metacognitive_state` と `control_decision` を維持するための workflow です。
-これは自己意識ではなく、known facts、unknowns、assumptions、evidence、confidence、risk、verification status を監視し、次の行動を制御するために使います。
+非 trivial な engineering task で、作業中の `quest_awareness` と `control_decision` を維持するための workflow です。
+Quest Awareness は自己意識ではなく、known facts、unknowns、assumptions、evidence、confidence、risk、verification status を監視し、次の行動を制御するために使います。
 
 ## 使う時
 
@@ -24,13 +24,13 @@ scope: target-repository-workflow
 - authority、boundaries、Guild Law
 - known facts、unknowns、assumptions、evidence
 - current strategy、validation result、diff、risk
-- `metacognitive_control` の threshold と trigger
+- `quest_awareness_control` の threshold と trigger
 
 ## 手順
 
 1. Contract を確認する。goal、expected behavior、affected surfaces、non-goals、constraints、done conditions、verification plan を整理する。
    large refactor、bug fix、security-sensitive work、release work、migration work、complex UI work、long-running goal では `.agents/orchestra/docs/agent-memory.md` の cognitive failure patterns と prevention artifact を確認する。
-2. `metacognitive_state` を初期化する。goal、current_subgoal、known_facts、unknowns、assumptions、evidence、risk_level、confidence_percent、verification_status、next_action、stop_condition を置く。
+2. `quest_awareness` を初期化する。goal、current_subgoal、known_facts、unknowns、assumptions、evidence、risk_level、confidence_percent、verification_status、next_action、stop_condition を置く。
 3. state から次の action を選ぶ。inspect code、inspect tests、official docs 確認、minimal change、regression test、verification、subagent、user approval のどれが必要かを決める。
 4. meaningful discovery、edit、command failure、test result ごとに state を更新する。
 5. Control policy を適用する。high-risk unknown は evidence を先に集める。low-risk assumption は明示して進み後で検証する。failed test は first failure に集中し、1つの focused fix 後に同じ check を再実行する。
@@ -41,7 +41,7 @@ scope: target-repository-workflow
 
 ## 出力
 
-- `metacognitive_state`
+- `quest_awareness`
 - `control_decision`
 - confidence calibration と basis
 - verification checklist と実行結果

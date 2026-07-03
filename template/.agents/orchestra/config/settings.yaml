@@ -5,7 +5,7 @@ guild_runtime:
   doctrine: "Guild Law で安全境界を固定し、Quest Charter で目的と権限を渡し、Party Tactics と Trial は担当が裁量で設計する。"
   lifecycle:
     - intent_analysis
-    - metacognitive_state
+    - quest_awareness
     - control_decision
     - quest_charter
     - party_tactics
@@ -178,7 +178,7 @@ quest_charter:
     - boundaries
     - guild_law
     - known_context
-    - metacognitive_state
+    - quest_awareness
     - autonomy_budget
     - party_tactics
     - trial_plan
@@ -218,8 +218,8 @@ quest_charter:
     - "success_criteria と既存方針が衝突する。"
     - "検証不能、再現不能、または confidence が low のまま完了判断が必要。"
 
-metacognitive_control:
-  rule: "メタ認知は自己意識ではなく、作業中の monitoring、evaluation、control として扱う。非 trivial Quest では metacognitive_state と control_decision を維持し、known facts / unknowns / assumptions / evidence / confidence / risk / verification status に応じて調査、計画変更、subagent 起動、検証、停止判断を選ぶ。"
+quest_awareness_control:
+  rule: "メタ認知は自己意識ではなく、作業中の monitoring、evaluation、control として扱う。非 trivial Quest では quest_awareness と control_decision を維持し、known facts / unknowns / assumptions / evidence / confidence / risk / verification status に応じて調査、計画変更、subagent 起動、検証、停止判断を選ぶ。"
   state_fields:
     - goal
     - current_subgoal
@@ -255,7 +255,7 @@ metacognitive_control:
     - gather_more_evidence
     - revise_plan
     - run_tests
-    - invoke_metacognitive_controller
+    - invoke_quest_sentinel
     - invoke_security_review
     - stop_for_user_approval
   unknowns_policy:
@@ -324,19 +324,19 @@ metacognitive_control:
       - cognitive_failure_memory
   subagent_trigger_policy:
     rule: "trivial edit では subagent を使わない。uncertainty、risk、context overload を下げる時だけ使う。"
-    metacognitive_controller_when:
+    quest_sentinel_when:
       - confidence_below_75
       - important_unknowns_remain
       - scope_expands
       - tests_fail_repeatedly
       - plan_may_need_change
       - long_running_or_high_risk
-    metacognitive_controller_contract:
+    quest_sentinel_contract:
       read_only: true
       implementation_authority: false
       decision_authority: false
       ledger_authority: false
-      output: metacognitive_state_and_control_decision
+      output: quest_awareness_and_control_decision
   security_sensitive_triggers:
     - auth
     - authorization
@@ -354,7 +354,7 @@ metacognitive_control:
     - Cloud_Storage
     - Cloudflare
     - deployment_behavior
-  ledger_policy: "Ledger には metacognitive_state の要約、control_decision、confidence basis、unresolved unknowns、residual risk だけを残す。raw discussion、秘密値、PII は残さない。"
+  ledger_policy: "Ledger には quest_awareness の要約、control_decision、confidence basis、unresolved unknowns、residual risk だけを残す。raw discussion、秘密値、PII は残さない。"
 
 handoff_sufficiency:
   rule: "各 handoff は、下流担当が推測で authority、boundaries、目的、検証、残リスクを補わずに判断できるだけの structured evidence が揃う時だけ進める。足りない場合は needs_human、request_changes、または escalation として返す。"
@@ -363,7 +363,7 @@ handoff_sufficiency:
       owner: receptionist
       required:
         - intent_analysis
-        - metacognitive_state
+        - quest_awareness
         - objective
         - success_criteria
         - non_goals
@@ -379,7 +379,7 @@ handoff_sufficiency:
       required:
         - objective
         - intent_analysis
-        - metacognitive_state
+        - quest_awareness
         - implementation_strategy
         - owned_scope
         - authority
@@ -396,7 +396,7 @@ handoff_sufficiency:
         - changed_files
         - decisions_made
         - intent_alignment
-        - metacognitive_state
+        - quest_awareness
         - control_decision
         - validation_evidence
         - research_evidence
@@ -411,7 +411,7 @@ handoff_sufficiency:
         - decision
         - findings
         - intent_coverage
-        - metacognitive_state
+        - quest_awareness
         - control_decision
         - validation_evidence
         - advisor_dialogue_synthesis
@@ -447,8 +447,8 @@ workers:
     max_parallel: 4
     terminal_worker: true
     assignment_identity: "Quest ID、owner assignment、focus で区別する。"
-  metacognitive_controller:
-    role: metacognitive_control_monitor
+  quest_sentinel:
+    role: quest_awareness_control_monitor
     max_parallel: 2
     terminal_worker: true
     decision_authority: false

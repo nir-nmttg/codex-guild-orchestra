@@ -1,4 +1,4 @@
-id: metacognitive_confidence_below_50_stop
+id: quest_awareness_confidence_below_50_stop
 summary: "confidence が 50% 未満なら speculative editing を止め、task contract と missing evidence を再構成する。"
 input:
   confidence_percent: 40

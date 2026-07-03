@@ -49,7 +49,7 @@ requests: []
 #           status: null
 #           disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
 #           skip_reason: null
-#     metacognitive_state:
+#     quest_awareness:
 #       goal: null
 #       current_subgoal: null
 #       known_facts: []
@@ -85,7 +85,7 @@ requests: []
 #       intake_to_charter_ready: false
 #       required_evidence:
 #         - intent_analysis
-#         - metacognitive_state
+#         - quest_awareness
 #         - objective
 #         - success_criteria
 #         - non_goals

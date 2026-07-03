@@ -53,7 +53,7 @@ runtime helper はホスト側 Python を直接使いません。
 - `adventurer`: Quest Charter の範囲内で実装と検証を完遂し、`intent_alignment` を残す実行担当
 - `inquisitor`: Trial を担当し、`intent_coverage` で本質的な成果、non-goals、過剰実装回避を確認する品質担当
 - `advisor`: focus 限定の read-only 助言担当。terminal worker（終端助言担当）として追加 subagent 起動（追加エージェント起動）、実装、採否、Ledger 反映を行わない
-- `metacognitive_controller`: 作業中の `metacognitive_state`、confidence、unknowns、verification status を監視し、次アクションだけを推薦する read-only 制御監視担当
+- `quest_sentinel`: 作業中の `quest_awareness`、confidence、unknowns、verification status を監視し、次アクションだけを推薦する read-only 制御監視担当
 - `courier`: Ledger 反映と、Root または Quest Charter が明示した local Git 操作だけを扱う軽量実行担当
 
 ## Guild Law
@@ -67,7 +67,7 @@ runtime helper はホスト側 Python を直接使いません。
 - 各担当の読み取り調査結果は、担当者が確認した根拠だけ採用する。
 - Inquisitor は Trial の採否と重大度分類を自分で完結する。`focused_trial` / `multi_focus_trial`、または architecture、safety、security、regression、validation などの high-value focus で `autonomy_budget.subassignments` が残る場合は read-only advisor の focus input を既定で検討し、使わない場合も理由を Trial evidence に残す。advisor は実装分業者ではなく、考慮漏れ、矛盾、未確認リスクを見つけて成果物の confidence を高めるために使い、採否、実装、別品質担当の直接起動は任せない。
 - advisor dialogue は confidence-based で、回数ではなく新しい evidence、blocking unknown の解消、confidence delta で継続可否を判断する。進捗が止まる、同じ unknown が残る、focus や authority / boundaries が広がる、人間確認が必要になる場合は、target confidence 未満でも停止する。
-- `metacognitive_controller` は confidence が 75% 未満、重要 unknown、scope drift、繰り返す failed check、high-risk 作業で検討する。実装、採否、Ledger 反映は行わず、`control_decision` と required next action だけを返す。
+- `quest_sentinel` は confidence が 75% 未満、重要 unknown、scope drift、繰り返す failed check、high-risk 作業で検討する。実装、採否、Ledger 反映は行わず、`control_decision` と required next action だけを返す。
 - Ledger には advisor assignment、advisor report、owner synthesis の判断根拠、confidence、未解決理由だけを残し、raw discussion は残さない。
 
 ## Ledger

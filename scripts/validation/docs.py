@@ -27,7 +27,7 @@ EXPECTED_AGENT_SANDBOX_MODES = {
     "courier": "workspace-write",
     "guildmaster": "read-only",
     "inquisitor": "read-only",
-    "metacognitive_controller": "read-only",
+    "quest_sentinel": "read-only",
     "party_leader": "read-only",
 }
 
@@ -64,21 +64,21 @@ def validate_agents() -> None:
     require(agents_config.get("max_depth") == 4, "template/.codex/config.toml の agents.max_depth は 4 にしてください。")
     for token in LEGACY_ROUTE_COMMENT_TERMS:
         require(token not in config_text, f"template/.codex/config.toml に旧固定 route コメント `{token}` を戻さないでください。")
-    require("mapmaking" in config_text and "guild_quest" in config_text and "advisor" in config_text and "terminal worker" in config_text and "metacognitive_controller" in config_text, "template/.codex/config.toml の agent コメントは Quest Rank と advisor / metacognitive_controller 境界を説明してください。")
+    require("mapmaking" in config_text and "guild_quest" in config_text and "advisor" in config_text and "terminal worker" in config_text and "quest_sentinel" in config_text, "template/.codex/config.toml の agent コメントは Quest Rank と advisor / quest_sentinel 境界を説明してください。")
     require_tokens(config_text, ("focus reviewer", "workers.inquisitor.max_parallel", "autonomy_budget.subassignments"), "template/.codex/config.toml")
     advisor = tomllib.loads(read("template/.codex/agents/advisor.toml"))
     advisor_text = read("template/.codex/agents/advisor.toml")
     require(advisor.get("sandbox_mode") == "read-only", "advisor.toml の sandbox_mode は read-only にしてください。")
     require(advisor.get("model_reasoning_effort") == "xhigh", "advisor.toml の model_reasoning_effort は xhigh にしてください。")
     require_tokens(advisor_text, ("terminal worker", "追加 subagent", "実装", "採否", "Ledger", "owner synthesis", "Guild Law", "confidence-based", "confidence delta", "同じ unknown", "owner が根拠確認"), "template/.codex/agents/advisor.toml")
-    controller = tomllib.loads(read("template/.codex/agents/metacognitive_controller.toml"))
-    controller_text = read("template/.codex/agents/metacognitive_controller.toml")
-    require(controller.get("sandbox_mode") == "read-only", "metacognitive_controller.toml の sandbox_mode は read-only にしてください。")
-    require(controller.get("model_reasoning_effort") == "high", "metacognitive_controller.toml の model_reasoning_effort は high にしてください。")
+    controller = tomllib.loads(read("template/.codex/agents/quest_sentinel.toml"))
+    controller_text = read("template/.codex/agents/quest_sentinel.toml")
+    require(controller.get("sandbox_mode") == "read-only", "quest_sentinel.toml の sandbox_mode は read-only にしてください。")
+    require(controller.get("model_reasoning_effort") == "high", "quest_sentinel.toml の model_reasoning_effort は high にしてください。")
     require_tokens(
         controller_text,
-        ("metacognitive_state", "unknowns", "assumptions", "confidence", "verification status", "control signal", "実装", "採否", "Ledger", "Git 操作", "外部送信", "75%", "50%", "first failure", "security-sensitive", "control_decision"),
-        "template/.codex/agents/metacognitive_controller.toml",
+        ("quest_awareness", "unknowns", "assumptions", "confidence", "verification status", "control signal", "実装", "採否", "Ledger", "Git 操作", "外部送信", "75%", "50%", "first failure", "security-sensitive", "control_decision"),
+        "template/.codex/agents/quest_sentinel.toml",
     )
     cartographer_text = read("template/.codex/agents/cartographer.toml")
     require_tokens(cartographer_text, ("設計", "実装計画", "方針整理", "アーキテクチャ", "mapmaking", "read-only advisor", "intent_analysis", "implementation_strategy"), "template/.codex/agents/cartographer.toml")
@@ -157,11 +157,11 @@ def validate_docs_and_instructions() -> None:
         text = read(rel)
         require("Guild Law" in text, f"{rel} は Guild Law を参照してください。")
         require("Quest" in text, f"{rel} は Quest を参照してください。")
-    metacognitive_doc = read("docs/metacognitive-runtime.md")
+    quest_awareness_doc = read("docs/quest-awareness-runtime.md")
     require_tokens(
-        metacognitive_doc,
-        ("Guild-native runtime", "正本は常に", "メタ認知", "自己意識ではなく", "作業中の監視、評価、制御", "制御領域", "intent_analysis", "metacognitive_state", "control_decision", "implementation_strategy", "intent_coverage", "confidence-based control signal", "metacognitive_controller", "認知ミス補正", "Ledger", "作らないもの"),
-        "docs/metacognitive-runtime.md",
+        quest_awareness_doc,
+        ("Guild-native runtime", "正本は常に", "メタ認知", "自己意識ではなく", "作業中の監視、評価、制御", "制御領域", "intent_analysis", "quest_awareness", "control_decision", "implementation_strategy", "intent_coverage", "confidence-based control signal", "quest_sentinel", "認知ミス補正", "Ledger", "作らないもの"),
+        "docs/quest-awareness-runtime.md",
     )
     agent_memory = read("docs/agent-memory.md")
     require_tokens(
@@ -184,15 +184,18 @@ def validate_docs_and_instructions() -> None:
     ]
     metaphor_scan_paths = sorted(set(canonical_paths + [
         "docs/agent-memory.md",
-        "docs/metacognitive-runtime.md",
+        "docs/quest-awareness-runtime.md",
         "scripts/validation/docs.py",
+        "template/.agents/skills/quest-awareness-loop/SKILL.md",
         "template/.agents/orchestra/README.md",
         "template/.agents/orchestra/docs/agent-memory.md",
+        "template/.codex/agents/quest_sentinel.toml",
+        "template/.codex/config.toml",
     ]))
     for rel in metaphor_scan_paths:
         text = read(rel)
-        for token in ("Fa" + "ble", "fa" + "ble", "fa" + "ble-style-task-loop"):
-            require(token not in text, f"{rel} に比喩依存語彙を入れないでください。")
+        for token in ("Fa" + "ble", "fa" + "ble", "fa" + "ble-style-task-loop", "メタ認" + "識"):
+            require(token not in text, f"{rel} に比喩依存または旧語彙を入れないでください。")
     combined = "\n".join(read(rel) for rel in full_contract_paths + role_paths)
     for token in LEGACY_PRIMARY_TERMS:
         require(token not in combined, f"docs/instructions に旧固定 contract `{token}` が残っています。")
@@ -203,7 +206,7 @@ def validate_docs_and_instructions() -> None:
     require("Trial 統合担当の `inquisitor`" in combined, "docs/instructions は Trial 統合担当の `inquisitor` 表記を使ってください。")
     require_tokens(
         combined,
-        ("intent_analysis", "metacognitive_state", "control_decision", "implementation_strategy", "intent_alignment", "confirmation_needed", "intent_coverage", "本質的な成果", "過剰実装"),
+        ("intent_analysis", "quest_awareness", "control_decision", "implementation_strategy", "intent_alignment", "confirmation_needed", "intent_coverage", "本質的な成果", "過剰実装"),
         "docs/instructions intent analysis contract",
     )
     common = read("template/.agents/orchestra/instructions/common.md")
@@ -211,24 +214,24 @@ def validate_docs_and_instructions() -> None:
     orchestration_runtime = read("docs/orchestration-runtime.md")
     require_tokens(
         agents,
-        ("`metacognitive_state`: goal", "intake から Quest Charter", "owner から Trial", "Trial から Ledger / final", "`control_decision`", "`validation_evidence`"),
-        "template/AGENTS.md metacognitive handoff contract",
+        ("`quest_awareness`: goal", "intake から Quest Charter", "owner から Trial", "Trial から Ledger / final", "`control_decision`", "`validation_evidence`"),
+        "template/AGENTS.md quest_awareness handoff contract",
     )
     require_tokens(
         common,
-        ("`metacognitive_state`: goal", "intake から Quest Charter", "owner から Trial", "Trial から Ledger / final", "`control_decision`", "`validation_evidence`", ".agents/orchestra/docs/agent-memory.md"),
-        "template/.agents/orchestra/instructions/common.md metacognitive handoff contract",
+        ("`quest_awareness`: goal", "intake から Quest Charter", "owner から Trial", "Trial から Ledger / final", "`control_decision`", "`validation_evidence`", ".agents/orchestra/docs/agent-memory.md"),
+        "template/.agents/orchestra/instructions/common.md quest_awareness handoff contract",
     )
     receptionist = read("template/.agents/orchestra/instructions/receptionist.md")
     require_tokens(
         receptionist,
-        ("`metacognitive_state`", "initial `metacognitive_state`", "confidence", "verification status"),
-        "template/.agents/orchestra/instructions/receptionist.md metacognitive charter contract",
+        ("`quest_awareness`", "initial `quest_awareness`", "confidence", "verification status"),
+        "template/.agents/orchestra/instructions/receptionist.md quest_awareness charter contract",
     )
     require_tokens(
         orchestration_runtime,
-        ("`metacognitive_state`", "Handoff", "owner -> Trial", "Trial -> Ledger / final", "`validation_evidence`", "`revise_plan`"),
-        "docs/orchestration-runtime.md metacognitive handoff contract",
+        ("`quest_awareness`", "Handoff", "owner -> Trial", "Trial -> Ledger / final", "`validation_evidence`", "`revise_plan`"),
+        "docs/orchestration-runtime.md quest_awareness handoff contract",
     )
     require_tokens(
         combined,
@@ -314,7 +317,6 @@ def validate_docs_and_instructions() -> None:
         ("terminal worker", "追加 subagent", "実装", "品質採否", "Ledger", "Guild Law", "Quest Charter", "confidence-based", "confidence_delta_min_percent", "同じ unknown"),
         "template/.agents/orchestra/instructions/advisor.md",
     )
-    require("メタ認" + "識" not in "\n".join(read(rel) for rel in ("README.md", "docs/metacognitive-runtime.md")), "公開 docs では旧語ではなく `メタ認知` を使ってください。")
 
 
 def validate_skills() -> None:
@@ -408,11 +410,11 @@ def validate_skills() -> None:
         "明示がない通常作業へ、この Skill を無理に適用しない" not in use_guild_workflow,
         "use-guild-workflow は always_guild_intake と衝突する旧トリガー文言を戻さないでください。",
     )
-    metacognitive_skill = read("template/.agents/skills/metacognitive-task-loop/SKILL.md")
+    quest_awareness_skill = read("template/.agents/skills/quest-awareness-loop/SKILL.md")
     require_tokens(
-        metacognitive_skill,
-        ("metacognitive_state", "control_decision", "confidence", "75%", "50%", "failed test", "first failure", "security-sensitive", "scope drift", "contradictory evidence", "未信頼"),
-        "template/.agents/skills/metacognitive-task-loop/SKILL.md",
+        quest_awareness_skill,
+        ("quest_awareness", "control_decision", "confidence", "75%", "50%", "failed test", "first failure", "security-sensitive", "scope drift", "contradictory evidence", "未信頼"),
+        "template/.agents/skills/quest-awareness-loop/SKILL.md",
     )
 
     runtime_readme = read("template/.agents/orchestra/README.md")

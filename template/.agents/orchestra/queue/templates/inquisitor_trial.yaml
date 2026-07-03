@@ -24,7 +24,7 @@ trial:
     ambiguities: []
     confirmation_needed: []
   success_criteria: []
-  metacognitive_state:
+  quest_awareness:
     goal: null
     current_subgoal: null
     known_facts: []

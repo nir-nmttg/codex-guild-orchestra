@@ -33,7 +33,7 @@ report:
     alternatives_considered: []
     minimality_rationale: null
     scope_guardrails: []
-  metacognitive_state:
+  quest_awareness:
     goal: null
     current_subgoal: null
     known_facts: []

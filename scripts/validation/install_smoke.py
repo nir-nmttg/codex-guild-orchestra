@@ -15,7 +15,7 @@ READ_ONLY_AGENT_ROLES = (
     "cartographer",
     "guildmaster",
     "inquisitor",
-    "metacognitive_controller",
+    "quest_sentinel",
     "party_leader",
 )
 
@@ -75,8 +75,8 @@ def validate_install_upgrade_smoke() -> None:
     missing_advisor = run_with_mutated_source("missing advisor.toml", lambda source: (source / ".codex/agents/advisor.toml").unlink())
     require("advisor.toml" in (missing_advisor.stdout + missing_advisor.stderr), "install.py の advisor 不足拒否 message は advisor.toml を示してください。")
 
-    missing_controller = run_with_mutated_source("missing metacognitive_controller.toml", lambda source: (source / ".codex/agents/metacognitive_controller.toml").unlink())
-    require("metacognitive_controller.toml" in (missing_controller.stdout + missing_controller.stderr), "install.py の metacognitive_controller 不足拒否 message は metacognitive_controller.toml を示してください。")
+    missing_controller = run_with_mutated_source("missing quest_sentinel.toml", lambda source: (source / ".codex/agents/quest_sentinel.toml").unlink())
+    require("quest_sentinel.toml" in (missing_controller.stdout + missing_controller.stderr), "install.py の quest_sentinel 不足拒否 message は quest_sentinel.toml を示してください。")
 
     for role in READ_ONLY_AGENT_ROLES:
         def make_role_writable(source: Path, role: str = role) -> None:

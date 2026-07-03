@@ -26,7 +26,7 @@ assignment:
     alternatives_considered: []
     minimality_rationale: null
     scope_guardrails: []
-  metacognitive_state:
+  quest_awareness:
     goal: null
     current_subgoal: null
     known_facts: []
@@ -94,7 +94,7 @@ assignment:
     required_evidence:
       - objective
       - intent_analysis
-      - metacognitive_state
+      - quest_awareness
       - implementation_strategy
       - owned_scope
       - authority
