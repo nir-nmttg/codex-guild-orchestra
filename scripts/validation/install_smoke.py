@@ -58,6 +58,7 @@ INSTALLED_OLD_TERM_TOKENS = (
     "meta-" "recognition",
     "meta " "recognition",
     "meta_" "recognition",
+    "メタ認" "知",
     "メタ認" "識",
     "cognitive_" "failure_memory",
 )
@@ -116,6 +117,20 @@ def _assert_agents_block_idempotent(target: Path) -> None:
     require("既存ユーザー規約" in agents, "install.py は AGENTS.md の管理ブロック外の既存内容を保持してください。")
 
 
+def _write_duplicate_agents(target: Path) -> None:
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "AGENTS.md").write_text(
+        "既存ユーザー規約\n\n"
+        f"{AGENTS_START}\n"
+        f"{AGENTS_START}\n"
+        "古い二重化ブロック\n"
+        f"{AGENTS_END}\n"
+        f"{AGENTS_END}\n"
+        "末尾の既存内容\n",
+        encoding="utf-8",
+    )
+
+
 def validate_install_upgrade_smoke() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"
@@ -132,17 +147,7 @@ def validate_install_upgrade_smoke() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"
-        target.mkdir(parents=True)
-        (target / "AGENTS.md").write_text(
-            "既存ユーザー規約\n\n"
-            f"{AGENTS_START}\n"
-            f"{AGENTS_START}\n"
-            "古い二重化ブロック\n"
-            f"{AGENTS_END}\n"
-            f"{AGENTS_END}\n"
-            "末尾の既存内容\n",
-            encoding="utf-8",
-        )
+        _write_duplicate_agents(target)
         legacy_paths = [
             target / ".codex/agents/spark.toml",
             target / ".codex/agents/" / ("meta" "cognitive_controller.toml"),
@@ -164,6 +169,26 @@ def validate_install_upgrade_smoke() -> None:
         _assert_agents_block_idempotent(target)
         remaining = [str(path.relative_to(target)) for path in legacy_paths if path.exists()]
         require(not remaining, "install.py は削除済み旧 template を prune してください: " + ", ".join(remaining))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "guild"
+        _write_duplicate_agents(target)
+        existing_database = target / ".orchestra/queue/state.sqlite"
+        existing_database.parent.mkdir(parents=True, exist_ok=True)
+        existing_database.write_bytes(b"legacy runtime state")
+        (target / ".orchestra/dashboard.md").write_text("legacy dashboard\n", encoding="utf-8")
+
+        clean_dry_run = _run_install("--target", target, "--mode", "copy", "--clean-install", "--dry-run")
+        clean_dry_run_output = clean_dry_run.stdout + clean_dry_run.stderr
+        require(clean_dry_run.returncode == 0, "install.py --clean-install --dry-run が失敗しました: " + clean_dry_run.stderr)
+        require("remove" in clean_dry_run_output and ".orchestra" in clean_dry_run_output, "install.py --clean-install --dry-run は runtime state の削除計画を表示してください。")
+        require("init sqlite" in clean_dry_run_output and "state.sqlite" in clean_dry_run_output, "install.py --clean-install --dry-run は runtime DB 再初期化計画を表示してください。")
+        require("既存状態を保持" not in clean_dry_run_output, "install.py --clean-install --dry-run は既存 runtime state を保持すると表示しないでください。")
+
+        clean_installed = _run_install("--target", target, "--mode", "copy", "--clean-install")
+        require(clean_installed.returncode == 0, "install.py --clean-install smoke が失敗しました: " + clean_installed.stderr)
+        _assert_installed_surface(target)
+        _assert_agents_block_idempotent(target)
 
     def run_with_mutated_source(mutation: str, mutate: object) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as tmp:

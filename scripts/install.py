@@ -418,7 +418,7 @@ def remove_block(text: str, start_marker: str, end_marker: str) -> str:
     if start_marker not in text or end_marker not in text:
         return text
     before, rest = text.split(start_marker, 1)
-    _middle, after = rest.split(end_marker, 1)
+    _middle, after = rest.rsplit(end_marker, 1)
     before = before.rstrip('\n')
     after = after.lstrip('\n')
     if before and after:
@@ -1040,10 +1040,11 @@ def main() -> int:
     elif args.reset_runtime:
         reset_runtime_state(target_root, args.dry_run)
 
-    copy_template_files(source_root, target_root, args.reset_runtime, args.dry_run)
+    reset_runtime_state_requested = args.reset_runtime or args.clean_install
+    copy_template_files(source_root, target_root, reset_runtime_state_requested, args.dry_run)
     prune_removed_template_files(source_root, target_root, args.dry_run)
     update_agents_md(target_root, source_root, args.dry_run)
-    initialize_sqlite_runtime(source_root, target_root, args.reset_runtime, args.dry_run)
+    initialize_sqlite_runtime(source_root, target_root, reset_runtime_state_requested, args.dry_run)
 
     update_git_exclude(target_root, not args.no_git_exclude, args.dry_run)
 
