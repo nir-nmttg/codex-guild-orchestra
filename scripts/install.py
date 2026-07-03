@@ -164,6 +164,7 @@ SOURCE_REQUIRED_REL_PATHS = (
     Path('.codex/hooks/stop_quality_gate.sh'),
     Path('.agents/orchestra/README.md'),
     Path('.agents/orchestra/config/settings.yaml'),
+    Path('.agents/orchestra/dashboard.md'),
     Path('.agents/orchestra/docker/.dockerignore'),
     Path('.agents/orchestra/docker/Dockerfile'),
     Path('.agents/orchestra/docker/requirements.txt'),

@@ -88,6 +88,7 @@ def _assert_installed_surface(target: Path) -> None:
     require(actual_skills == EXPECTED_SKILL_DIRS, ".agents/skills の導入 directory set が期待値と一致しません: " + ", ".join(sorted(actual_skills)))
     require((skill_dir / "quest-awareness-loop/SKILL.md").exists(), "install.py は quest-awareness-loop skill を導入してください。")
     require((target / ".agents/orchestra/docs/agent-memory.md").exists(), "install.py は agent-memory runtime artifact を導入してください。")
+    require((target / ".orchestra/dashboard.md").exists(), "install.py は dashboard runtime artifact を .orchestra/dashboard.md に導入してください。")
     for path in _installed_text_paths(target):
         text = path.read_text(encoding="utf-8").casefold()
         for token in INSTALLED_OLD_TERM_TOKENS:
@@ -148,6 +149,9 @@ def validate_install_upgrade_smoke() -> None:
 
     missing_runtime_doc = run_with_mutated_source("missing runtime memory doc", lambda source: (source / ".agents/orchestra/docs/agent-memory.md").unlink())
     require("agent-memory.md" in (missing_runtime_doc.stdout + missing_runtime_doc.stderr), "install.py の runtime docs 不足拒否 message は agent-memory.md を示してください。")
+
+    missing_dashboard = run_with_mutated_source("missing dashboard", lambda source: (source / ".agents/orchestra/dashboard.md").unlink())
+    require("dashboard.md" in (missing_dashboard.stdout + missing_dashboard.stderr), "install.py の dashboard 不足拒否 message は dashboard.md を示してください。")
 
     missing_queue_schema = run_with_mutated_source("missing queue schema", lambda source: (source / ".agents/orchestra/scripts/queue_schema.sql").unlink())
     require("queue_schema.sql" in (missing_queue_schema.stdout + missing_queue_schema.stderr), "install.py の queue schema 不足拒否 message は queue_schema.sql を示してください。")
