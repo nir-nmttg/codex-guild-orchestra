@@ -398,8 +398,8 @@ def replace_or_append_block(text: str, block: str, start_marker: str, end_marker
     if start_marker in text and end_marker in text:
         before, rest = text.split(start_marker, 1)
         _middle, after = rest.rsplit(end_marker, 1)
-        before = before.rstrip('\n')
-        after = after.lstrip('\n')
+        before = remove_marker_lines(before, start_marker, end_marker).rstrip('\n')
+        after = remove_marker_lines(after, start_marker, end_marker).lstrip('\n')
         parts = []
         if before:
             parts.append(before)
@@ -408,19 +408,24 @@ def replace_or_append_block(text: str, block: str, start_marker: str, end_marker
             parts.append(after)
         return '\n\n'.join(parts).rstrip() + '\n'
 
-    stripped = text.rstrip()
+    stripped = remove_marker_lines(text, start_marker, end_marker).rstrip()
     if stripped:
         return stripped + '\n\n' + block.rstrip('\n') + '\n'
     return block.rstrip('\n') + '\n'
 
 
+def remove_marker_lines(text: str, start_marker: str, end_marker: str) -> str:
+    marker_lines = {start_marker, end_marker}
+    return '\n'.join(line for line in text.splitlines() if line.strip() not in marker_lines)
+
+
 def remove_block(text: str, start_marker: str, end_marker: str) -> str:
     if start_marker not in text or end_marker not in text:
-        return text
+        return remove_marker_lines(text, start_marker, end_marker)
     before, rest = text.split(start_marker, 1)
     _middle, after = rest.rsplit(end_marker, 1)
-    before = before.rstrip('\n')
-    after = after.lstrip('\n')
+    before = remove_marker_lines(before, start_marker, end_marker).rstrip('\n')
+    after = remove_marker_lines(after, start_marker, end_marker).lstrip('\n')
     if before and after:
         return before + '\n\n' + after.rstrip() + '\n'
     if before:

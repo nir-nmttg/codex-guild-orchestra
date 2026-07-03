@@ -120,13 +120,15 @@ def _assert_agents_block_idempotent(target: Path) -> None:
 def _write_duplicate_agents(target: Path) -> None:
     target.mkdir(parents=True, exist_ok=True)
     (target / "AGENTS.md").write_text(
+        f"{AGENTS_END}\n"
         "既存ユーザー規約\n\n"
         f"{AGENTS_START}\n"
         f"{AGENTS_START}\n"
         "古い二重化ブロック\n"
         f"{AGENTS_END}\n"
         f"{AGENTS_END}\n"
-        "末尾の既存内容\n",
+        "末尾の既存内容\n"
+        f"{AGENTS_START}\n",
         encoding="utf-8",
     )
 
