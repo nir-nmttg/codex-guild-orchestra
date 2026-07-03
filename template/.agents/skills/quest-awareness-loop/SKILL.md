@@ -35,7 +35,7 @@ Quest Awareness は自己意識ではなく、known facts、unknowns、assumptio
 4. meaningful discovery、edit、command failure、test result ごとに state を更新する。
 5. Control policy を適用する。high-risk unknown は evidence を先に集める。low-risk assumption は明示して進み後で検証する。failed test は first failure に集中し、1つの focused fix 後に同じ check を再実行する。
 6. confidence が 75% 未満なら finalize しない。50% 未満なら speculative editing を止め、`revise_plan` として task contract と missing evidence を再構成する。人間確認条件に触れる時だけ `stop_for_user_approval` を使う。
-7. security-sensitive 変更なら security review を起動または要求する。scope drift は新 scope を restate する。contradictory evidence は plan を修正する。
+7. security-sensitive 変更なら、Trial 統合担当の `inquisitor` へ security focus の focused Trial / safety_gate を戻す、または要求する。scope drift は新 scope を restate する。contradictory evidence は plan を修正する。
 8. Verification は risk に応じて narrowest meaningful check から広げる。targeted test、typecheck、lint、integration / request / system test、build、security-specific check、migration check、visual / browser check、full suite の順に必要な範囲だけ選ぶ。
 9. Final calibration では contract と結果を照合し、unresolved unknowns、assumptions、confidence、residual risk、intentionally not changed を明示する。
 
