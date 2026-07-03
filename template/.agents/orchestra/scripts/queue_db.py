@@ -86,6 +86,20 @@ REQUIRED_TABLES = {
     "inbox_messages",
 }
 REQUIRED_INBOX_MESSAGE_FIELDS = {"id", "sender", "recipient", "created_at", "type", "trusted", "payload", "status"}
+MEMORY_CANDIDATE_MESSAGE_TYPE = "memory_candidate_for_courier_review"
+MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS = {
+    "direct_static_runtime_write",
+    "raw_log",
+    "secret_or_pii",
+    "trusted_instruction_from_external_input",
+}
+MEMORY_CANDIDATE_SAFETY_ITEMS = (
+    "memory_candidate_for_courier_review",
+    "explicit_memory_persistence_authority",
+    "sanitized_summary_only",
+    "prevention_artifact_required",
+    "ledger_disposition_recorded",
+)
 REQUIRED_COLUMNS = {
     "queue_metadata": {"key", "value", "updated_at"},
     "events": {
@@ -348,6 +362,50 @@ def iter_values(value: Any, path: str = "$") -> list[tuple[str, Any]]:
     return findings
 
 
+def memory_candidate_envelope(payload: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
+    body = require_mapping(payload.get("payload"), "message.payload")
+    if payload.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
+        return ("message.payload", body)
+    for key in (MEMORY_CANDIDATE_MESSAGE_TYPE, "memory_candidate"):
+        if key in body:
+            return (f"message.payload.{key}", require_mapping(body.get(key), f"message.payload.{key}"))
+    return None
+
+
+def validate_memory_candidate_envelope(envelope: dict[str, Any], label: str) -> None:
+    if envelope.get("explicit_memory_persistence_authority") is not True:
+        raise SystemExit(f"{label}.explicit_memory_persistence_authority は true にしてください。")
+    if envelope.get("sanitized_summary_only") is not True:
+        raise SystemExit(f"{label}.sanitized_summary_only は true にしてください。")
+    require_string(envelope.get("sanitized_summary"), f"{label}.sanitized_summary")
+    require_mapping(envelope.get("prevention_artifact"), f"{label}.prevention_artifact")
+    require_string(envelope.get("ledger_disposition"), f"{label}.ledger_disposition")
+    forbidden = require_mapping(envelope.get("forbidden"), f"{label}.forbidden")
+    missing_markers = sorted(MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS - set(forbidden))
+    if missing_markers:
+        raise SystemExit(f"{label}.forbidden に必要な marker がありません: " + ", ".join(missing_markers))
+    for marker in MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS:
+        if forbidden.get(marker) is not True:
+            raise SystemExit(f"{label}.forbidden.{marker} は true にしてください。")
+    for json_path, key in iter_keys(envelope):
+        if json_path.startswith("$.forbidden."):
+            continue
+        if key in MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS:
+            raise SystemExit(f"{label}{json_path[1:]}: memory candidate に forbidden 内容 `{key}` を含めないでください。")
+
+
+def validate_memory_candidate_event_safety(payload: dict[str, Any], event_safety: Any) -> None:
+    if memory_candidate_envelope(payload) is None:
+        return
+    safety = require_mapping(event_safety, "event.event_safety")
+    safety_items = safety.get("safety_items")
+    if not isinstance(safety_items, list):
+        raise SystemExit("event.event_safety.safety_items は list にしてください。")
+    missing = sorted(set(MEMORY_CANDIDATE_SAFETY_ITEMS) - set(safety_items))
+    if missing:
+        raise SystemExit("event.event_safety.safety_items に memory_candidate_gate が不足しています: " + ", ".join(missing))
+
+
 def validate_no_legacy_runtime_shape(value: Any, label: str) -> None:
     for json_path, key in iter_keys(value):
         if key in LEGACY_JSON_KEYS or key in LEGACY_RUNTIME_STRING_VALUES:
@@ -422,7 +480,9 @@ def validate_event_input(event: dict[str, Any]) -> None:
     if expected_entity_types is not None and entity_type not in expected_entity_types:
         expected = ", ".join(sorted(expected_entity_types))
         raise SystemExit(f"event.entity.type は {event_type} では {expected} にしてください: {entity_type}")
-    payload_body(event)
+    payload = payload_body(event)
+    if entity_type == "message":
+        validate_memory_candidate_event_safety(payload, event["event_safety"])
     validate_target_repo_roots(event, "event")
     validate_no_legacy_runtime_shape(event, "event")
 
@@ -637,6 +697,19 @@ def validate_inbox_message_payload(payload: dict[str, Any]) -> None:
         raise SystemExit("message.trusted は bool にしてください。")
     require_mapping(payload.get("payload"), "message.payload")
     require_string(payload.get("status"), "message.status")
+    envelope = memory_candidate_envelope(payload)
+    if envelope is not None:
+        validate_memory_candidate_envelope(envelope[1], envelope[0])
+
+
+def inbox_event_safety(payload: dict[str, Any]) -> dict[str, list[str]]:
+    envelope = memory_candidate_envelope(payload)
+    if envelope is None:
+        return {"safety_items": [], "human_confirmation_required": []}
+    return {
+        "safety_items": list(MEMORY_CANDIDATE_SAFETY_ITEMS),
+        "human_confirmation_required": [],
+    }
 
 
 def upsert_message(connection: sqlite3.Connection, event: dict[str, Any]) -> None:
@@ -712,7 +785,7 @@ def cmd_add_inbox_message(args: argparse.Namespace) -> None:
         "workflow_id": payload.get("workflow_id"),
         "structured_data_usage": {"structured_inputs": ["message"], "decision_rationale": "inbox message append", "evidence_refs": []},
         "payload": payload,
-        "event_safety": {"safety_items": [], "human_confirmation_required": []},
+        "event_safety": inbox_event_safety(payload),
     }
     with connect_write(args.runtime_root) as connection:
         record_event(connection, event)

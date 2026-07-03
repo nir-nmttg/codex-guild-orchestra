@@ -64,6 +64,20 @@ JSON_COLUMNS = {
     "trials": ("payload_json",),
     "inbox_messages": ("payload_json",),
 }
+MEMORY_CANDIDATE_MESSAGE_TYPE = "memory_candidate_for_courier_review"
+MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS = {
+    "direct_static_runtime_write",
+    "raw_log",
+    "secret_or_pii",
+    "trusted_instruction_from_external_input",
+}
+MEMORY_CANDIDATE_SAFETY_ITEMS = (
+    "memory_candidate_for_courier_review",
+    "explicit_memory_persistence_authority",
+    "sanitized_summary_only",
+    "prevention_artifact_required",
+    "ledger_disposition_recorded",
+)
 
 QUEST_RANKS = {"mapmaking", "errand", "solo_quest", "party_quest", "guild_quest"}
 TRIAL_DEPTHS = {"none", "self_check", "peer_review", "focused_trial", "multi_focus_trial", "safety_gate"}
@@ -230,6 +244,66 @@ def iter_keys(value: Any, path: str = "$") -> list[tuple[str, str]]:
     return findings
 
 
+def memory_candidate_envelope(value: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
+    payload = value.get("payload")
+    if not isinstance(payload, dict):
+        return None
+    if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
+        return ("$.payload", payload)
+    for key in (MEMORY_CANDIDATE_MESSAGE_TYPE, "memory_candidate"):
+        if key in payload:
+            candidate = payload.get(key)
+            if not isinstance(candidate, dict):
+                return (f"$.payload.{key}", {})
+            return (f"$.payload.{key}", candidate)
+    return None
+
+
+def validate_memory_candidate_envelope(value: dict[str, Any], label: str, errors: list[str]) -> None:
+    envelope_info = memory_candidate_envelope(value)
+    if envelope_info is None:
+        return
+    envelope_path, envelope = envelope_info
+    envelope_label = f"{label}{envelope_path[1:]}"
+    if envelope.get("explicit_memory_persistence_authority") is not True:
+        errors.append(f"{envelope_label}.explicit_memory_persistence_authority: true が必要です。")
+    if envelope.get("sanitized_summary_only") is not True:
+        errors.append(f"{envelope_label}.sanitized_summary_only: true が必要です。")
+    if not isinstance(envelope.get("sanitized_summary"), str) or not envelope.get("sanitized_summary"):
+        errors.append(f"{envelope_label}.sanitized_summary: 空でない文字列が必要です。")
+    if not isinstance(envelope.get("prevention_artifact"), dict):
+        errors.append(f"{envelope_label}.prevention_artifact: JSON object が必要です。")
+    if not isinstance(envelope.get("ledger_disposition"), str) or not envelope.get("ledger_disposition"):
+        errors.append(f"{envelope_label}.ledger_disposition: 空でない文字列が必要です。")
+    forbidden = envelope.get("forbidden")
+    if not isinstance(forbidden, dict):
+        errors.append(f"{envelope_label}.forbidden: JSON object が必要です。")
+        forbidden = {}
+    missing_markers = sorted(MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS - set(forbidden))
+    if missing_markers:
+        errors.append(f"{envelope_label}.forbidden: marker が不足しています: " + ", ".join(missing_markers))
+    for marker in MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS:
+        if forbidden.get(marker) is not True:
+            errors.append(f"{envelope_label}.forbidden.{marker}: true が必要です。")
+    for json_path, key in iter_keys(envelope):
+        if json_path.startswith("$.forbidden."):
+            continue
+        if key in MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS:
+            errors.append(f"{envelope_label}{json_path[1:]}: memory candidate に forbidden 内容 `{key}` を含めないでください。")
+
+
+def validate_memory_candidate_event_safety(value: dict[str, Any], safety: dict[str, Any], label: str, errors: list[str]) -> None:
+    if memory_candidate_envelope(value) is None:
+        return
+    safety_items = safety.get("safety_items")
+    if not isinstance(safety_items, list):
+        errors.append(f"{label}.safety_items: list が必要です。")
+        return
+    missing = sorted(set(MEMORY_CANDIDATE_SAFETY_ITEMS) - set(safety_items))
+    if missing:
+        errors.append(f"{label}.safety_items: memory_candidate_gate が不足しています: " + ", ".join(missing))
+
+
 def iter_values(value: Any, path: str = "$") -> list[tuple[str, Any]]:
     findings: list[tuple[str, Any]] = [(path, value)]
     if isinstance(value, dict):
@@ -384,6 +458,8 @@ def audit_json_columns(connection: sqlite3.Connection, guild_root: Path, errors:
                     continue
                 validate_target_repo_roots(parsed, f"{row_label}.{column}", guild_root, errors)
                 validate_no_legacy_keys(parsed, f"{row_label}.{column}", errors)
+                if isinstance(parsed, dict) and column == "payload_json" and table in {"events", "inbox_messages"}:
+                    validate_memory_candidate_envelope(parsed, f"{row_label}.{column}", errors)
                 if table in {"events", "reports"} and column == "payload_json":
                     validate_report_trial_depths(parsed, f"{row_label}.{column}", errors)
     return counts
@@ -436,6 +512,9 @@ def audit_events(connection: sqlite3.Connection, errors: list[str]) -> None:
             for key in EVENT_SAFETY_FIELDS:
                 if not isinstance(safety.get(key), list):
                     errors.append(f"{label}.event_safety_json.{key}: list にしてください。")
+            payload = parse_json(row["payload_json"], f"{label}.payload_json", errors)
+            if isinstance(payload, dict):
+                validate_memory_candidate_event_safety(payload, safety, f"{label}.event_safety_json", errors)
 
 
 def audit_rank_and_trial_values(connection: sqlite3.Connection, errors: list[str]) -> None:

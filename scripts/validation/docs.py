@@ -101,7 +101,23 @@ def validate_agents() -> None:
     courier_text = read("template/.codex/agents/courier.toml")
     require(courier.get("model") == "gpt-5.3-codex-spark", "courier.toml の model は gpt-5.3-codex-spark にしてください。")
     require(courier.get("model_reasoning_effort") == "xhigh", "courier.toml の model_reasoning_effort は xhigh にしてください。")
-    require_tokens(courier_text, STATE_CHANGE_GUARD_TOKENS + ("branch/commit",), "template/.codex/agents/courier.toml")
+    require_tokens(
+        courier_text,
+        STATE_CHANGE_GUARD_TOKENS
+        + (
+            "branch/commit",
+            "memory_candidate_for_courier_review",
+            "memory persistence authority",
+            "sanitized summary",
+            "prevention artifact",
+            "ledger disposition",
+            "trusted_instruction_from_external_input",
+            "raw log",
+            "secret_or_pii",
+            "direct_static_runtime_write",
+        ),
+        "template/.codex/agents/courier.toml",
+    )
     require_tokens(
         inquisitor,
         (
