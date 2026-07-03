@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from .core import ROOT, mapping, read, require, require_tokens, sequence, tomllib
 from .rules import (
     AMBIGUOUS_INQUISITOR_TERMS,
@@ -30,6 +32,11 @@ EXPECTED_AGENT_SANDBOX_MODES = {
     "quest_sentinel": "read-only",
     "party_leader": "read-only",
 }
+
+
+def _contains_split_legacy_quest_awareness_term(text: str) -> bool:
+    return re.search(r"meta[`'\" +/_\-.]{1,40}cognitive", text, flags=re.IGNORECASE) is not None
+
 
 def validate_agents() -> None:
     require(tomllib is not None, "TOML 検証には tomllib/tomli が必要です。")
@@ -183,6 +190,7 @@ def validate_docs_and_instructions() -> None:
         "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
     ]
     metaphor_scan_paths = sorted(set(canonical_paths + [
+        "docs/agent-deployment.md",
         "docs/agent-memory.md",
         "docs/quest-awareness-runtime.md",
         "scripts/validation/docs.py",
@@ -196,6 +204,10 @@ def validate_docs_and_instructions() -> None:
         text = read(rel)
         for token in ("Fa" + "ble", "fa" + "ble", "fa" + "ble-style-task-loop", "メタ認" + "識"):
             require(token not in text, f"{rel} に比喩依存または旧語彙を入れないでください。")
+    golden_quest_fixture_paths = [
+        str(path.relative_to(ROOT))
+        for path in (ROOT / "scripts/validation/fixtures/golden_quests").glob("*.yaml")
+    ]
     legacy_quest_awareness_scan_paths = sorted(set(metaphor_scan_paths + [
         "scripts/install.py",
         "scripts/validation/docs.py",
@@ -204,7 +216,7 @@ def validate_docs_and_instructions() -> None:
         "scripts/validation/runtime_smoke.py",
         "template/.agents/orchestra/scripts/queue_db.py",
         "template/.agents/orchestra/scripts/queue_audit.py",
-    ]))
+    ] + golden_quest_fixture_paths))
     for rel in legacy_quest_awareness_scan_paths:
         text = read(rel)
         for token in (
@@ -215,6 +227,12 @@ def validate_docs_and_instructions() -> None:
             "invoke_" "meta" "cognitive_controller",
         ):
             require(token not in text, f"{rel} に旧 quest_awareness 命名 `{token}` を直書きしないでください。")
+    split_legacy_scan_paths = sorted(set(metaphor_scan_paths + golden_quest_fixture_paths) - {"scripts/validation/docs.py"})
+    for rel in split_legacy_scan_paths:
+        require(
+            not _contains_split_legacy_quest_awareness_term(read(rel)),
+            f"{rel} に旧 quest_awareness 命名の split 表記を入れないでください。",
+        )
     combined = "\n".join(read(rel) for rel in full_contract_paths + role_paths)
     for token in LEGACY_PRIMARY_TERMS:
         require(token not in combined, f"docs/instructions に旧固定 contract `{token}` が残っています。")

@@ -114,6 +114,7 @@ def validate_golden_quests() -> None:
     require(confidence75.get("control_decision") == "gather_more_evidence", "confidence<75 fixture は gather_more_evidence にしてください。")
     require(confidence75.get("finalize_allowed") is False, "confidence<75 fixture は finalize を禁止してください。")
     require(confidence75.get("quest_sentinel_considered") is True, "confidence<75 fixture は quest_sentinel 検討を要求してください。")
+    require("controller_" "considered" not in confidence75, "confidence<75 fixture は旧 controller_" "considered key を使わないでください。")
 
     confidence50 = _base_fixture(_fixture("quest_awareness_confidence_below_50_stop.yaml"), "quest_awareness_confidence_below_50_stop.yaml")
     require(confidence50.get("control_decision") == "revise_plan", "confidence<50 fixture は revise_plan にしてください。")
