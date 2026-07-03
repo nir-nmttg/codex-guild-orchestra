@@ -12,6 +12,7 @@ expected:
   memory_write_requires:
     - explicit_memory_persistence_authority
     - sanitized_summary_only
+    - prevention_artifact_required
     - ledger_disposition_recorded
   allowed_artifacts:
     - regression_test

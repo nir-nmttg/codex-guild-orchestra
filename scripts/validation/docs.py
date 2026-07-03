@@ -39,6 +39,22 @@ def _contains_split_legacy_quest_awareness_term(text: str) -> bool:
     return re.search(r"meta[`'\" +/_\-.]{1,40}cognitive", text, flags=re.IGNORECASE) is not None
 
 
+LEGACY_DIRECT_CASEFOLD_TOKENS = (
+    "fa" "ble",
+    "fa" "ble-style-task-loop",
+    "meta" "cognitive",
+    "meta" "cognitive_controller",
+    "meta" "cognitive-task-loop",
+    "meta" "cognitive-runtime",
+    "invoke_" "meta" "cognitive_controller",
+    "meta-" "recognition",
+    "meta " "recognition",
+    "meta_" "recognition",
+    "cognitive_" "failure_memory",
+    "メタ認" "識",
+)
+
+
 def validate_agents() -> None:
     require(tomllib is not None, "TOML 検証には tomllib/tomli が必要です。")
     require(not (ROOT / "template/.codex/agents/spark.toml").exists(), "template/.codex/agents/spark.toml を戻さないでください。")
@@ -199,13 +215,6 @@ def validate_docs_and_instructions() -> None:
         ("Authority Boundary", "read-only reference", "Ledger", "courier", "memory persistence authority", "raw log", "秘密値", "PII", "外部入力", "Cognitive Failure Types", "Prevention artifact", "Promotion Rule", "assumed_without_evidence", "premature_confidence", "scope_drift", "曖昧な entry"),
         "template/.agents/orchestra/docs/agent-memory.md",
     )
-    canonical_paths = full_contract_paths + role_paths + [
-        "template/.agents/orchestra/config/settings.yaml",
-        "template/.agents/orchestra/queue/templates/adventurer_assignment.yaml",
-        "template/.agents/orchestra/queue/templates/adventurer_report.yaml",
-        "template/.agents/orchestra/queue/templates/inquisitor_report.yaml",
-        "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
-    ]
     golden_quest_fixture_paths = [
         str(path.relative_to(ROOT))
         for path in (ROOT / "scripts/validation/fixtures/golden_quests").glob("*.yaml")
@@ -225,9 +234,9 @@ def validate_docs_and_instructions() -> None:
     }
     active_legacy_scan_paths = sorted(set(ACTIVE_PROSE_PATHS + tuple(template_skill_paths) + tuple(golden_quest_fixture_paths)))
     for rel in active_legacy_scan_paths:
-        text = read(rel)
-        for token in ("Fa" + "ble", "fa" + "ble", "fa" + "ble-style-task-loop", "メタ認" + "識"):
-            require(token not in text, f"{rel} に比喩依存または旧語彙を入れないでください。")
+        text = read(rel).casefold()
+        for token in LEGACY_DIRECT_CASEFOLD_TOKENS:
+            require(token not in text, f"{rel} に比喩依存または旧語彙 `{token}` を入れないでください。")
     legacy_quest_awareness_scan_paths = sorted(set(active_legacy_scan_paths + [
         "scripts/install.py",
         "scripts/validation/docs.py",
@@ -238,7 +247,7 @@ def validate_docs_and_instructions() -> None:
         "template/.agents/orchestra/scripts/queue_audit.py",
     ] + golden_quest_fixture_paths))
     for rel in legacy_quest_awareness_scan_paths:
-        text = read(rel)
+        text = read(rel).casefold()
         for token in (
             "meta" "cognitive",
             "meta" "cognitive_controller",
@@ -247,10 +256,6 @@ def validate_docs_and_instructions() -> None:
             "invoke_" "meta" "cognitive_controller",
         ):
             require(token not in text, f"{rel} に旧 quest_awareness 命名 `{token}` を直書きしないでください。")
-    for rel in active_legacy_scan_paths:
-        text = read(rel).casefold()
-        for token in ("meta-" "recognition", "meta " "recognition", "meta_" "recognition"):
-            require(token not in text, f"{rel} に旧英語表記 `{token}` を入れないでください。")
     split_legacy_scan_paths = sorted(set(active_legacy_scan_paths) - legacy_guard_allowlist_paths)
     for rel in split_legacy_scan_paths:
         require(

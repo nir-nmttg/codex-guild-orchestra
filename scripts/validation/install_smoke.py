@@ -47,11 +47,8 @@ EXPECTED_SKILL_DIRS = {
     "use-guild-workflow",
 }
 INSTALLED_OLD_TERM_TOKENS = (
-    "Fa" "ble",
     "fa" "ble",
     "meta" "cognitive",
-    "Meta" "cognitive",
-    "META" "COGNITIVE",
     "meta-" "recognition",
     "meta " "recognition",
     "meta_" "recognition",
@@ -92,7 +89,7 @@ def _assert_installed_surface(target: Path) -> None:
     require((skill_dir / "quest-awareness-loop/SKILL.md").exists(), "install.py は quest-awareness-loop skill を導入してください。")
     require((target / ".agents/orchestra/docs/agent-memory.md").exists(), "install.py は agent-memory runtime artifact を導入してください。")
     for path in _installed_text_paths(target):
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8").casefold()
         for token in INSTALLED_OLD_TERM_TOKENS:
             require(token not in text, f"install.py の導入結果に旧語彙 `{token}` が残っています: {path.relative_to(target)}")
 
@@ -145,6 +142,12 @@ def validate_install_upgrade_smoke() -> None:
 
     missing_controller = run_with_mutated_source("missing quest_sentinel.toml", lambda source: (source / ".codex/agents/quest_sentinel.toml").unlink())
     require("quest_sentinel.toml" in (missing_controller.stdout + missing_controller.stderr), "install.py の quest_sentinel 不足拒否 message は quest_sentinel.toml を示してください。")
+
+    missing_quest_awareness_skill = run_with_mutated_source("missing quest-awareness-loop skill", lambda source: shutil.rmtree(source / ".agents/skills/quest-awareness-loop"))
+    require("quest-awareness-loop" in (missing_quest_awareness_skill.stdout + missing_quest_awareness_skill.stderr), "install.py の quest-awareness-loop 不足拒否 message は skill 名を示してください。")
+
+    missing_runtime_doc = run_with_mutated_source("missing runtime memory doc", lambda source: (source / ".agents/orchestra/docs/agent-memory.md").unlink())
+    require("agent-memory.md" in (missing_runtime_doc.stdout + missing_runtime_doc.stderr), "install.py の runtime docs 不足拒否 message は agent-memory.md を示してください。")
 
     for role in READ_ONLY_AGENT_ROLES:
         def make_role_writable(source: Path, role: str = role) -> None:
