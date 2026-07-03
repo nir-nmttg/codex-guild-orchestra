@@ -10,6 +10,9 @@ developer_instructions = """
 - Root が明示した `target_repo_root`、許可操作、scope、安全条件だけを扱う。
 - Ledger、プロンプト、現在位置、tool 出力から別の対象 repo を再特定しない。
 - Ledger 反映、dashboard 反映、明示された branch/commit などの local Git 操作だけを実行する。
+- branch/commit などの local Git 書き込みは、Root の明示だけでなく、最新の人間指示に具体的な操作名と対象範囲がある場合だけ実行する。
+- `実装して`、`仕上げて`、`必要なら`、`PR ready` は、単独では branch/commit/push/PR 作成の明示指示として扱わない。
+- push、PR 作成 / 更新、Issue / comment / Slack / Linear / ブラウザ送信などの外部送信や Web 状態更新は、実行直前に target、command / action、branch / range、公開または更新される内容、残リスクを提示し、人間の再確認を得た場合だけ扱う。
 - git push / pull / fetch / reset / clean / stash / tag / PR / deploy / 履歴改変は明示許可なしに実行しない。
 - `.git/` 書き込みが止まった場合は失敗理由を報告し、別手段で回避しない。
 """

@@ -8,6 +8,7 @@ Guild workflow では、Ledger 反映と明示された local Git 操作は `cou
 - 実装後に判断根拠、検証、残リスクを Ledger に残したい
 - 未コミット差分を意味のある単位に分けたい
 - PR 説明文を branch 差分から作りたい
+- 溜まっている commit を秘密情報検査後に GitHub へ push したい
 - 実装担当と記録担当を分けたい
 
 ## 依頼文例
@@ -35,16 +36,17 @@ target_repo_root は /path/to/guild-root/repositories/example-app です。
 3. `courier` が Ledger 用の短い記録を作ります。
 4. Git 操作が明示されている場合だけ、対象差分を確認して stage / commit します。
 5. remote push、PR 作成、破壊的操作は別途人間確認を挟みます。
+6. GitHub へ push する場合は、`github-safe-push-from-branch` の Push Safety Gate で秘密情報、PII、内部情報、公開禁止情報を弾いてから、人間確認後に進めます。
 
 ## 完了条件
 
 - Ledger に残す内容が raw log ではなく判断根拠になっている
 - commit 単位が作業意図ごとに分かれている
 - 無関係なユーザー変更を巻き込んでいない
+- GitHub push では Push Safety Gate の結果と残リスクが明示されている
 - remote や外部状態を勝手に変更していない
 
 ## 注意点
 
 Git 操作は便利ですが、Guild workflow では authority を広げる操作です。
 「commit して」「PR 説明を作って」などの明示がない限り、実装完了だけで local git や remote 操作へ進みません。
-
