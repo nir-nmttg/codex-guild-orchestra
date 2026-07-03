@@ -201,6 +201,60 @@ def validate_queue_db_smoke() -> None:
             connection.execute("DELETE FROM inbox_messages WHERE message_id = ?", (bad_audit_payload["id"],))
             connection.commit()
 
+        malformed_audit_payload = _memory_candidate_message("msg_malformed_audit_memory_candidate")
+        malformed_audit_payload.pop("payload")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "INSERT INTO inbox_messages(message_id, recipient, workflow_id, status, payload_json, created_at) VALUES(?, ?, ?, ?, ?, ?)",
+                (
+                    malformed_audit_payload["id"],
+                    malformed_audit_payload["recipient"],
+                    malformed_audit_payload["workflow_id"],
+                    malformed_audit_payload["status"],
+                    json.dumps(malformed_audit_payload),
+                    malformed_audit_payload["created_at"],
+                ),
+            )
+            connection.commit()
+        malformed_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        malformed_audit_output = malformed_audit.stdout + malformed_audit.stderr
+        require(malformed_audit.returncode != 0 and "explicit_memory_persistence_authority" in malformed_audit_output, "queue_audit.py は payload 欠落の memory candidate を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute("DELETE FROM inbox_messages WHERE message_id = ?", (malformed_audit_payload["id"],))
+            connection.commit()
+
+        malformed_event_payload = _memory_candidate_message("msg_malformed_event_memory_candidate")
+        malformed_event_payload.pop("payload")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE events SET payload_json = ?, event_safety_json = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'",
+                [json.dumps(malformed_event_payload), json.dumps({"safety_items": [], "human_confirmation_required": []})],
+            )
+            connection.commit()
+        malformed_event_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        malformed_event_output = malformed_event_audit.stdout + malformed_event_audit.stderr
+        require(malformed_event_audit.returncode != 0 and "memory_candidate_gate" in malformed_event_output, "queue_audit.py は payload 欠落 memory candidate event の safety metadata 不足を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE events SET payload_json = ?, event_safety_json = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'",
+                [
+                    json.dumps(memory_message),
+                    json.dumps(
+                        {
+                            "safety_items": [
+                                "memory_candidate_for_courier_review",
+                                "explicit_memory_persistence_authority",
+                                "sanitized_summary_only",
+                                "prevention_artifact_required",
+                                "ledger_disposition_recorded",
+                            ],
+                            "human_confirmation_required": [],
+                        }
+                    ),
+                ],
+            )
+            connection.commit()
+
         with sqlite3.connect(database) as connection:
             connection.execute(
                 "UPDATE quests SET payload_json = ? WHERE quest_id = 'quest_smoke'",

@@ -246,6 +246,8 @@ def iter_keys(value: Any, path: str = "$") -> list[tuple[str, str]]:
 
 def memory_candidate_envelope(value: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
     payload = value.get("payload")
+    if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE and not isinstance(payload, dict):
+        return ("$.payload", {})
     if not isinstance(payload, dict):
         return None
     if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
