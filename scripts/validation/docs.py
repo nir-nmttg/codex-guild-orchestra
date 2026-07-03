@@ -260,6 +260,10 @@ def validate_skills() -> None:
             "finding disposition",
             "skip reason",
             "cost reason",
+            "対応可能な Minor",
+            "保留できる Minor",
+            "保留理由",
+            "再検討条件",
         ),
         "template/.agents/skills/branch-implementation-final-review/SKILL.md",
     )
