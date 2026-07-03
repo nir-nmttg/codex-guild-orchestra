@@ -130,8 +130,27 @@ LEGACY_JSON_KEYS = {
     "scout_calls",
     "scout_policy",
     "spark_request",
+    "meta" "cognitive_state",
+    "meta" "cognitive_control",
+    "meta" "cognitive_controller",
+    "invoke_" "meta" "cognitive_controller",
+    "meta" "cognitive_task_loop",
 }
-RETIRED_AGENT_VALUES = {"spark", "scout"}
+RETIRED_AGENT_VALUES = {
+    "spark",
+    "scout",
+    "meta" "cognitive_controller",
+}
+LEGACY_RUNTIME_STRING_VALUES = {
+    "spark",
+    "scout",
+    "meta" "cognitive",
+    "meta" "cognitive_controller",
+    "meta" "cognitive-task-loop",
+    "meta" "cognitive_state",
+    "meta" "cognitive_control",
+    "invoke_" "meta" "cognitive_controller",
+}
 
 
 def static_root() -> Path:
@@ -331,11 +350,11 @@ def iter_values(value: Any, path: str = "$") -> list[tuple[str, Any]]:
 
 def validate_no_legacy_runtime_shape(value: Any, label: str) -> None:
     for json_path, key in iter_keys(value):
-        if key in LEGACY_JSON_KEYS or key in RETIRED_AGENT_VALUES:
+        if key in LEGACY_JSON_KEYS or key in LEGACY_RUNTIME_STRING_VALUES:
             raise SystemExit(f"{label}{json_path[1:]}: 廃止済み key `{key}` が残っています。")
     for json_path, item in iter_values(value):
-        if isinstance(item, str) and item in RETIRED_AGENT_VALUES:
-            raise SystemExit(f"{label}{json_path[1:]}: 廃止済み agent 値 `{item}` が残っています。")
+        if isinstance(item, str) and item in LEGACY_RUNTIME_STRING_VALUES:
+            raise SystemExit(f"{label}{json_path[1:]}: 廃止済み runtime 値 `{item}` が残っています。")
 
 
 def validate_target_repo_roots(value: Any, label: str) -> None:

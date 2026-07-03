@@ -196,6 +196,25 @@ def validate_docs_and_instructions() -> None:
         text = read(rel)
         for token in ("Fa" + "ble", "fa" + "ble", "fa" + "ble-style-task-loop", "メタ認" + "識"):
             require(token not in text, f"{rel} に比喩依存または旧語彙を入れないでください。")
+    legacy_quest_awareness_scan_paths = sorted(set(metaphor_scan_paths + [
+        "scripts/install.py",
+        "scripts/validation/docs.py",
+        "scripts/validation/golden_quests.py",
+        "scripts/validation/install_smoke.py",
+        "scripts/validation/runtime_smoke.py",
+        "template/.agents/orchestra/scripts/queue_db.py",
+        "template/.agents/orchestra/scripts/queue_audit.py",
+    ]))
+    for rel in legacy_quest_awareness_scan_paths:
+        text = read(rel)
+        for token in (
+            "meta" "cognitive",
+            "meta" "cognitive_controller",
+            "meta" "cognitive-task-loop",
+            "meta" "cognitive-runtime",
+            "invoke_" "meta" "cognitive_controller",
+        ):
+            require(token not in text, f"{rel} に旧 quest_awareness 命名 `{token}` を直書きしないでください。")
     combined = "\n".join(read(rel) for rel in full_contract_paths + role_paths)
     for token in LEGACY_PRIMARY_TERMS:
         require(token not in combined, f"docs/instructions に旧固定 contract `{token}` が残っています。")

@@ -60,11 +60,11 @@ def validate_queue_db_smoke() -> None:
     text = read("template/.agents/orchestra/scripts/queue_db.py")
     require_tokens(
         text,
-        ("mode=ro", "record-event", "add-inbox-message", "dump", "REQUIRED_TABLES", "LEGACY_JSON_KEYS", "RETIRED_AGENT_VALUES"),
+        ("mode=ro", "record-event", "add-inbox-message", "dump", "REQUIRED_TABLES", "LEGACY_JSON_KEYS", "RETIRED_AGENT_VALUES", "LEGACY_RUNTIME_STRING_VALUES"),
         "queue_db.py",
     )
     audit_text = read("template/.agents/orchestra/scripts/queue_audit.py")
-    require_tokens(audit_text, ("REQUIRED_TABLES", "LEGACY_COLUMNS", "LEGACY_JSON_KEYS", "RETIRED_AGENT_VALUES"), "queue_audit.py")
+    require_tokens(audit_text, ("REQUIRED_TABLES", "LEGACY_COLUMNS", "LEGACY_JSON_KEYS", "RETIRED_AGENT_VALUES", "LEGACY_RUNTIME_STRING_VALUES"), "queue_audit.py")
 
     db_legacy_keys = python_string_set_constant("template/.agents/orchestra/scripts/queue_db.py", "LEGACY_JSON_KEYS")
     audit_legacy_keys = python_string_set_constant("template/.agents/orchestra/scripts/queue_audit.py", "LEGACY_JSON_KEYS")
@@ -75,6 +75,11 @@ def validate_queue_db_smoke() -> None:
     audit_retired_values = python_string_set_constant("template/.agents/orchestra/scripts/queue_audit.py", "RETIRED_AGENT_VALUES")
     install_retired_values = python_string_set_constant("scripts/install.py", "RETIRED_AGENT_VALUES")
     require(db_retired_values == audit_retired_values == install_retired_values, "廃止済み agent 値を queue_db.py / queue_audit.py / install.py で一致させてください。")
+
+    db_legacy_values = python_string_set_constant("template/.agents/orchestra/scripts/queue_db.py", "LEGACY_RUNTIME_STRING_VALUES")
+    audit_legacy_values = python_string_set_constant("template/.agents/orchestra/scripts/queue_audit.py", "LEGACY_RUNTIME_STRING_VALUES")
+    install_legacy_values = python_string_set_constant("scripts/install.py", "LEGACY_RUNTIME_STRING_VALUES")
+    require(db_legacy_values == audit_legacy_values == install_legacy_values, "廃止済み runtime 値を queue_db.py / queue_audit.py / install.py で一致させてください。")
 
     inbox_script = ROOT / "template/.agents/orchestra/scripts/inbox_write.sh"
     docker_runner = ROOT / "template/.agents/orchestra/scripts/docker_python.sh"
@@ -116,6 +121,31 @@ def validate_queue_db_smoke() -> None:
 
         audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
         require(audit.returncode == 0, "queue_audit.py の smoke が失敗しました: " + (audit.stderr or audit.stdout))
+
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE quests SET payload_json = ? WHERE quest_id = 'quest_smoke'",
+                [json.dumps({"quest": {"id": "quest_smoke", "meta" "cognitive_state": {"confidence_percent": 70}}})],
+            )
+            connection.commit()
+        legacy_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        legacy_output = legacy_audit.stdout + legacy_audit.stderr
+        require(legacy_audit.returncode != 0 and "廃止済み" in legacy_output, "queue_audit.py は旧 runtime JSON key を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE quests SET payload_json = ? WHERE quest_id = 'quest_smoke'",
+                [json.dumps({"quest": {"id": "quest_smoke", "control_decision": "invoke_" "meta" "cognitive_controller"}})],
+            )
+            connection.commit()
+        legacy_value_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        legacy_value_output = legacy_value_audit.stdout + legacy_value_audit.stderr
+        require(legacy_value_audit.returncode != 0 and "廃止済み" in legacy_value_output, "queue_audit.py は旧 runtime string value を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE quests SET payload_json = ? WHERE quest_id = 'quest_smoke'",
+                [json.dumps({"quest": {"id": "quest_smoke", "rank": "solo_quest", "status": "active", "workflow_id": "workflow_smoke"}})],
+            )
+            connection.commit()
 
         invalid_event = _valid_event()
         invalid_event["event_id"] = "evt_invalid_operation"

@@ -107,8 +107,27 @@ LEGACY_RUNTIME_JSON_KEYS = {
     'scout_calls',
     'scout_policy',
     'spark_request',
+    'meta' 'cognitive_state',
+    'meta' 'cognitive_control',
+    'meta' 'cognitive_controller',
+    'invoke_' 'meta' 'cognitive_controller',
+    'meta' 'cognitive_task_loop',
 }
-RETIRED_AGENT_VALUES = {'spark', 'scout'}
+RETIRED_AGENT_VALUES = {
+    'spark',
+    'scout',
+    'meta' 'cognitive_controller',
+}
+LEGACY_RUNTIME_STRING_VALUES = {
+    'spark',
+    'scout',
+    'meta' 'cognitive',
+    'meta' 'cognitive_controller',
+    'meta' 'cognitive-task-loop',
+    'meta' 'cognitive_state',
+    'meta' 'cognitive_control',
+    'invoke_' 'meta' 'cognitive_controller',
+}
 EXPECTED_AGENT_SANDBOX_MODES = {
     'adventurer': 'workspace-write',
     'advisor': 'read-only',
@@ -158,8 +177,10 @@ UNTRUSTED_SOURCE_PATH_TOKENS = {
 }
 REMOVED_TEMPLATE_REL_PATHS = [
     Path('.codex/agents/spark.toml'),
+    Path('.codex/agents/' 'meta' 'cognitive_controller.toml'),
     Path('.agents/orchestra/queue/templates/adventurer_task.yaml'),
     Path('.agents/orchestra/queue/templates/inquisitor_task.yaml'),
+    Path('.agents/skills/' 'meta' 'cognitive-task-loop'),
 ]
 ADVISOR_DEVELOPER_INSTRUCTION_TOKENS = (
     'terminal worker',
@@ -466,11 +487,11 @@ def iter_runtime_json_values(value: Any, path: str = '$') -> list[tuple[str, Any
 def collect_runtime_json_value_errors(parsed: Any, label: str) -> list[str]:
     errors: list[str] = []
     for json_path, key in iter_runtime_json_keys(parsed):
-        if key in LEGACY_RUNTIME_JSON_KEYS or key in RETIRED_AGENT_VALUES:
+        if key in LEGACY_RUNTIME_JSON_KEYS or key in LEGACY_RUNTIME_STRING_VALUES:
             errors.append(f'{label}{json_path[1:]}: 廃止済み key `{key}` が残っています')
     for json_path, item in iter_runtime_json_values(parsed):
-        if isinstance(item, str) and item in RETIRED_AGENT_VALUES:
-            errors.append(f'{label}{json_path[1:]}: 廃止済み agent 値 `{item}` が残っています')
+        if isinstance(item, str) and item in LEGACY_RUNTIME_STRING_VALUES:
+            errors.append(f'{label}{json_path[1:]}: 廃止済み runtime 値 `{item}` が残っています')
     return errors
 
 

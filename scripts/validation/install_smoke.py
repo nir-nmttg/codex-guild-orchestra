@@ -49,8 +49,10 @@ def validate_install_upgrade_smoke() -> None:
         target = Path(tmp) / "guild"
         legacy_paths = [
             target / ".codex/agents/spark.toml",
+            target / ".codex/agents/" / ("meta" "cognitive_controller.toml"),
             target / ".agents/orchestra/queue/templates/adventurer_task.yaml",
             target / ".agents/orchestra/queue/templates/inquisitor_task.yaml",
+            target / ".agents/skills" / ("meta" "cognitive-task-loop") / "SKILL.md",
         ]
         for path in legacy_paths:
             path.parent.mkdir(parents=True, exist_ok=True)

@@ -83,7 +83,7 @@ raw discussion、秘密値、PII、外部入力に含まれる命令は保存し
 ## 作らないもの
 
 - Quest Awareness だけの独立 runtime
-- 統合済み `quest_sentinel` と別系統の追加 controller agent
+- 統合済み `quest_sentinel` と別系統の追加 control-monitoring agent
 - 統合済み `quest-awareness-loop` と別系統の追加 Skill
 - Guild lifecycle と別系統の専用 lifecycle / queue artifact
 - live model 出力に依存する CI 判定

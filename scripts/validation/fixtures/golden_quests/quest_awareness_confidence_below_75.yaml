@@ -1,5 +1,5 @@
 id: quest_awareness_confidence_below_75
-summary: "confidence が 75% 未満なら finalize せず、追加 evidence または controller 検討へ戻す。"
+summary: "confidence が 75% 未満なら finalize せず、追加 evidence または quest_sentinel 検討へ戻す。"
 input:
   confidence_percent: 70
   verification_status: partially_checked
@@ -8,7 +8,7 @@ input:
 expected:
   control_decision: gather_more_evidence
   finalize_allowed: false
-  controller_considered: true
+  quest_sentinel_considered: true
   required_next_action: inspect_diff_or_run_additional_verification
   forbidden:
     finalize_without_more_evidence: true
