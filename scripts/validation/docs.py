@@ -318,6 +318,18 @@ def validate_docs_and_instructions() -> None:
         ("`quest_awareness`", "Handoff", "owner -> Trial", "Trial -> Ledger / final", "`validation_evidence`", "`revise_plan`"),
         "docs/orchestration-runtime.md quest_awareness handoff contract",
     )
+    small_fix_use_case = read("docs/use-cases/02-small-fix-solo-quest.md")
+    require_tokens(
+        small_fix_use_case,
+        ("`quest_awareness`", "`control_decision`", "`intent_alignment`", "`validation_evidence`"),
+        "docs/use-cases/02-small-fix-solo-quest.md handoff contract",
+    )
+    focused_trial_use_case = read("docs/use-cases/04-focused-trial-after-implementation.md")
+    require_tokens(
+        focused_trial_use_case,
+        ("`quest_awareness`", "`control_decision`", "cost reason", "finding disposition"),
+        "docs/use-cases/04-focused-trial-after-implementation.md handoff contract",
+    )
     require_tokens(
         combined,
         ("Handoff Sufficiency", "intent_alignment", "validation_evidence", "finding disposition", "needs_human", "request_changes"),

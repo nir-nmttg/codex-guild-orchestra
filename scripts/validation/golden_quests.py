@@ -43,6 +43,11 @@ def _forbidden(value: object, label: str) -> dict[str, object]:
     return forbidden
 
 
+def _required_next_action(value: object, label: str) -> str:
+    require(isinstance(value, str) and value, f"{label} は空でない文字列にしてください。")
+    return value
+
+
 def _base_fixture(doc: dict[str, object], rel_name: str) -> dict[str, object]:
     require(doc.get("id") == rel_name.removesuffix(".yaml"), f"{rel_name}.id は filename と一致させてください。")
     require(doc.get("fixture_mode") == "static_contract_example", f"{rel_name}.fixture_mode は static_contract_example にしてください。")
@@ -115,26 +120,42 @@ def validate_golden_quests() -> None:
     require(confidence75.get("control_decision") == "gather_more_evidence", "confidence<75 fixture は gather_more_evidence にしてください。")
     require(confidence75.get("finalize_allowed") is False, "confidence<75 fixture は finalize を禁止してください。")
     require(confidence75.get("quest_sentinel_considered") is True, "confidence<75 fixture は quest_sentinel 検討を要求してください。")
+    require(_required_next_action(confidence75.get("required_next_action"), "confidence<75.expected.required_next_action") == "inspect_diff_or_run_additional_verification", "confidence<75 fixture は追加 evidence / 検証を next action にしてください。")
+    confidence75_forbidden = _forbidden(confidence75.get("forbidden"), "confidence<75.expected.forbidden")
+    require({"finalize_without_more_evidence", "raise_confidence_without_evidence"} <= set(confidence75_forbidden), "confidence<75 fixture の forbidden が不足しています。")
     require("controller_" "considered" not in confidence75, "confidence<75 fixture は旧 controller_" "considered key を使わないでください。")
 
     confidence50 = _base_fixture(_fixture("quest_awareness_confidence_below_50_stop.yaml"), "quest_awareness_confidence_below_50_stop.yaml")
     require(confidence50.get("control_decision") == "revise_plan", "confidence<50 fixture は revise_plan にしてください。")
     require(confidence50.get("speculative_editing_allowed") is False, "confidence<50 fixture は speculative editing を禁止してください。")
+    require(_required_next_action(confidence50.get("required_next_action"), "confidence<50.expected.required_next_action") == "reconstruct_task_contract", "confidence<50 fixture は task contract 再構成を next action にしてください。")
+    confidence50_forbidden = _forbidden(confidence50.get("forbidden"), "confidence<50.expected.forbidden")
+    require({"speculative_fix_stacking", "final_report_as_complete"} <= set(confidence50_forbidden), "confidence<50 fixture の forbidden が不足しています。")
 
     failed = _base_fixture(_fixture("quest_awareness_failed_check_first_failure.yaml"), "quest_awareness_failed_check_first_failure.yaml")
     require(failed.get("control_decision") == "run_tests", "failed check fixture は run_tests にしてください。")
     require(failed.get("first_failure_required") is True and failed.get("rerun_same_check_required") is True, "failed check fixture は first failure と same check rerun を要求してください。")
+    failed_forbidden = _forbidden(failed.get("forbidden"), "failed_check.expected.forbidden")
+    require({"multiple_speculative_fixes", "skip_failure_explanation"} <= set(failed_forbidden), "failed check fixture の forbidden が不足しています。")
 
     scope = _base_fixture(_fixture("quest_awareness_scope_drift.yaml"), "quest_awareness_scope_drift.yaml")
     require(scope.get("control_decision") == "revise_plan" and scope.get("pause_required") is True, "scope drift fixture は pause と revise_plan を要求してください。")
+    require(_required_next_action(scope.get("required_next_action"), "scope_drift.expected.required_next_action") == "restate_scope_and_check_goal_relevance", "scope drift fixture は scope 再確認を next action にしてください。")
+    scope_forbidden = _forbidden(scope.get("forbidden"), "scope_drift.expected.forbidden")
+    require({"unrelated_refactor", "silent_scope_expansion"} <= set(scope_forbidden), "scope drift fixture の forbidden が不足しています。")
 
     security = _base_fixture(_fixture("quest_awareness_security_sensitive.yaml"), "quest_awareness_security_sensitive.yaml")
     require(security.get("risk_level") == "high" and security.get("control_decision") == "invoke_security_review", "security-sensitive fixture は high risk と security review を要求してください。")
     require(security.get("security_review_route") == "existing_authority_security_focused_trial", "security-sensitive fixture は既存 authority 内の security-focused Trial route を要求してください。")
     require(security.get("security_review_owner") == "inquisitor" and security.get("new_worker_allowed") is False, "security-sensitive fixture は新 worker ではなく inquisitor route にしてください。")
+    security_forbidden = _forbidden(security.get("forbidden"), "security_sensitive.expected.forbidden")
+    require({"finalize_without_security_review", "treat_as_low_risk"} <= set(security_forbidden), "security-sensitive fixture の forbidden が不足しています。")
 
     contradictory = _base_fixture(_fixture("quest_awareness_contradictory_evidence.yaml"), "quest_awareness_contradictory_evidence.yaml")
     require(contradictory.get("control_decision") == "revise_plan" and contradictory.get("assumptions_must_update") is True, "contradictory evidence fixture は plan / assumptions 更新を要求してください。")
+    require(contradictory.get("confidence_must_drop") is True, "contradictory evidence fixture は confidence 低下を要求してください。")
+    contradictory_forbidden = _forbidden(contradictory.get("forbidden"), "contradictory_evidence.expected.forbidden")
+    require({"force_original_approach", "ignore_new_evidence"} <= set(contradictory_forbidden), "contradictory evidence fixture の forbidden が不足しています。")
 
     memory = _base_fixture(_fixture("quest_awareness_memory_prevention_artifact.yaml"), "quest_awareness_memory_prevention_artifact.yaml")
     require(memory.get("memory_entry_allowed") is True and memory.get("prevention_artifact_required") is True, "memory fixture は prevention artifact 必須にしてください。")

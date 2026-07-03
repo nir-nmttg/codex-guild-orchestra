@@ -49,12 +49,13 @@ authority:
 3. `adventurer` が `implementation_strategy` に沿って、空行だけを扱う最小十分な差分を選びます。
 4. 変更に見合う検証を実行します。
 5. `self_check` または軽い `peer_review` で、`intent_coverage`、成功条件、回帰リスクを確認します。
-6. 変更点、`intent_alignment`、検証、未検証範囲、残リスクを短く報告します。
+6. 変更点、`intent_alignment`、`quest_awareness`、`control_decision`、`validation_evidence`、未検証範囲、残リスクを短く報告します。
 
 ## 完了条件
 
 - 成功条件を満たす差分がある
 - `intent_analysis` の本質的な成果を満たし、過剰実装を避けた根拠がある
+- `quest_awareness` と `control_decision` が owner から Trial へ渡せる形で整理されている
 - 変更理由が既存設計と矛盾しない
 - 実行した検証と未検証範囲が明示されている
 - 人間確認が必要な操作を勝手に進めていない
