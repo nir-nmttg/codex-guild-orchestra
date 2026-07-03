@@ -50,12 +50,15 @@ def validate_queue_templates() -> None:
             require(token not in text, f"{rel} に表記揺れ `{token}` が残っています。")
 
     assignment = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/adventurer_assignment.yaml"), "adventurer_assignment").get("assignment"), "adventurer_assignment.assignment")
-    for key in ("id", "quest_id", "rank", "objective", "intent_analysis", "success_criteria", "implementation_strategy", "authority", "boundaries", "autonomy_budget", "research_plan", "validation_expectations", "trial_expectations", "escalation_triggers", "evidence_required", "status"):
+    for key in ("id", "quest_id", "rank", "objective", "intent_analysis", "success_criteria", "implementation_strategy", "owned_scope", "authority", "boundaries", "autonomy_budget", "research_plan", "validation_expectations", "trial_expectations", "escalation_triggers", "evidence_required", "status"):
         require(key in assignment, f"adventurer_assignment.assignment.{key} が必要です。")
     assignment_intent = mapping(assignment.get("intent_analysis"), "adventurer_assignment.assignment.intent_analysis")
     require(set(assignment_intent) == INTENT_ANALYSIS_KEYS, "adventurer_assignment.assignment.intent_analysis が期待値と一致しません。")
     assignment_strategy = mapping(assignment.get("implementation_strategy"), "adventurer_assignment.assignment.implementation_strategy")
     require(set(assignment_strategy) == IMPLEMENTATION_STRATEGY_KEYS, "adventurer_assignment.assignment.implementation_strategy が期待値と一致しません。")
+    assignment_handoff = mapping(assignment.get("handoff_sufficiency"), "adventurer_assignment.assignment.handoff_sufficiency")
+    require({"intake_to_charter_confirmed", "charter_to_owner_confirmed", "required_evidence", "missing"} <= set(assignment_handoff), "adventurer_assignment.assignment.handoff_sufficiency が不足しています。")
+    require({"objective", "intent_analysis", "implementation_strategy", "owned_scope", "authority", "boundaries", "autonomy_budget", "trial_expectations"} <= set(sequence(assignment_handoff.get("required_evidence"), "adventurer_assignment.assignment.handoff_sufficiency.required_evidence")), "adventurer_assignment handoff required_evidence が不足しています。")
     validate_authority(assignment["authority"], "adventurer_assignment.assignment.authority")
     validate_boundaries(assignment["boundaries"], "adventurer_assignment.assignment.boundaries")
     validate_autonomy_budget(assignment["autonomy_budget"], "adventurer_assignment.assignment.autonomy_budget")
@@ -197,6 +200,9 @@ def validate_queue_templates() -> None:
         if rel.endswith("adventurer_report.yaml"):
             intent_alignment = mapping(report.get("intent_alignment"), f"{rel}.report.intent_alignment")
             require(set(intent_alignment) == INTENT_ALIGNMENT_KEYS, f"{rel}.report.intent_alignment が期待値と一致しません。")
+            handoff = mapping(report.get("handoff_sufficiency"), f"{rel}.report.handoff_sufficiency")
+            require({"owner_to_trial_ready", "required_evidence", "missing"} <= set(handoff), f"{rel}.report.handoff_sufficiency が不足しています。")
+            require({"changed_files", "decisions_made", "intent_alignment", "validation_evidence", "research_evidence", "risks"} <= set(sequence(handoff.get("required_evidence"), f"{rel}.report.handoff_sufficiency.required_evidence")), f"{rel}.report.handoff_sufficiency.required_evidence が不足しています。")
         report_research = mapping(report.get("research_evidence"), f"{rel}.report.research_evidence")
         validate_compat_context(report_research.get("compat_context"), f"{rel}.report.research_evidence.compat_context")
         if rel.endswith("inquisitor_report.yaml"):
@@ -233,6 +239,9 @@ def validate_queue_templates() -> None:
             require(dialogue_synthesis.get("raw_discussion_recorded") is False, f"{rel}.report.advisor_dialogue_synthesis.raw_discussion_recorded は false にしてください。")
             for key in ("confidence_target_percent", "owner_confidence_percent", "previous_confidence_percent", "confidence_delta_percent", "new_evidence_refs", "blocking_unknowns_resolved", "blocking_unknowns_remaining", "continue_or_stop", "stop_reason"):
                 require(key in dialogue_synthesis, f"{rel}.report.advisor_dialogue_synthesis.{key} が必要です。")
+            handoff = mapping(report.get("handoff_sufficiency"), f"{rel}.report.handoff_sufficiency")
+            require({"trial_to_ledger_final_ready", "required_evidence", "missing"} <= set(handoff), f"{rel}.report.handoff_sufficiency が不足しています。")
+            require({"decision", "findings", "intent_coverage", "validation_evidence", "advisor_dialogue_synthesis", "reviewer_synthesis", "finding_dispositions", "risks"} <= set(sequence(handoff.get("required_evidence"), f"{rel}.report.handoff_sufficiency.required_evidence")), f"{rel}.report.handoff_sufficiency.required_evidence が不足しています。")
     advisor_report = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/advisor_report.yaml"), "advisor_report").get("report"), "advisor_report.report")
     for key in ("id", "quest_id", "assignment_id", "worker_id", "owner_worker_id", "status", "decision_authority", "terminal_worker", "owner_synthesis_required", "summary", "focus", "findings", "risks", "unknowns", "confidence_percent", "confidence_basis", "confidence_delta_percent", "new_evidence_refs", "blocking_unknowns_resolved", "blocking_unknowns_remaining", "recommended_next_focus", "research_evidence", "confidence", "evidence_refs"):
         require(key in advisor_report, f"advisor_report.report.{key} が必要です。")

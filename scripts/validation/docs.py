@@ -33,6 +33,16 @@ def validate_agents() -> None:
     config_text = read("template/.codex/config.toml")
     require(config.get("model") == "gpt-5.5", "template/.codex/config.toml の model は gpt-5.5 にしてください。")
     require(config.get("sandbox_mode") == "read-only", "Root sandbox は read-only にしてください。")
+    require(config.get("approval_policy") == "on-request", "template/.codex/config.toml の approval_policy は on-request にしてください。")
+    require(config.get("approvals_reviewer") == "auto_review", "template/.codex/config.toml の approvals_reviewer は auto_review にしてください。")
+    require(config.get("web_search") == "cached", "template/.codex/config.toml の web_search は cached にしてください。")
+    require(config.get("allow_login_shell") is False, "template/.codex/config.toml の allow_login_shell は false にしてください。")
+    sandbox_workspace_write = mapping(config.get("sandbox_workspace_write"), "template/.codex/config.toml.sandbox_workspace_write")
+    require(sandbox_workspace_write.get("network_access") is False, "workspace-write 時の network_access は false にしてください。")
+    shell_environment_policy = mapping(config.get("shell_environment_policy"), "template/.codex/config.toml.shell_environment_policy")
+    excluded_env = set(sequence(shell_environment_policy.get("exclude"), "template/.codex/config.toml.shell_environment_policy.exclude"))
+    require({"*secret*", "*token*", "*credential*", "*password*", "*key*", "*auth*"} <= excluded_env, "shell_environment_policy.exclude の secret deny glob が不足しています。")
+    require("mcp_servers" not in config and "[mcp" not in config_text.casefold(), "MCP server は既定設定へ追加しないでください。")
     agents_config = mapping(config.get("agents"), "template/.codex/config.toml.agents")
     require(agents_config.get("max_depth") == 4, "template/.codex/config.toml の agents.max_depth は 4 にしてください。")
     for token in LEGACY_ROUTE_COMMENT_TERMS:
@@ -121,6 +131,21 @@ def validate_docs_and_instructions() -> None:
         text = read(rel)
         require("Guild Law" in text, f"{rel} は Guild Law を参照してください。")
         require("Quest" in text, f"{rel} は Quest を参照してください。")
+    metacognitive_doc = read("docs/metacognitive-runtime.md")
+    require_tokens(
+        metacognitive_doc,
+        ("Fable", "正本ではありません", "intent_analysis", "implementation_strategy", "intent_alignment", "intent_coverage", "Ledger", "作らないもの"),
+        "docs/metacognitive-runtime.md",
+    )
+    canonical_paths = full_contract_paths + role_paths + [
+        "template/.agents/orchestra/config/settings.yaml",
+        "template/.agents/orchestra/queue/templates/adventurer_assignment.yaml",
+        "template/.agents/orchestra/queue/templates/adventurer_report.yaml",
+        "template/.agents/orchestra/queue/templates/inquisitor_report.yaml",
+        "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
+    ]
+    for rel in canonical_paths:
+        require("Fable" not in read(rel), f"{rel} に非正本語彙 `Fable` を入れないでください。docs/metacognitive-runtime.md だけで扱ってください。")
     combined = "\n".join(read(rel) for rel in full_contract_paths + role_paths)
     for token in LEGACY_PRIMARY_TERMS:
         require(token not in combined, f"docs/instructions に旧固定 contract `{token}` が残っています。")
@@ -133,6 +158,11 @@ def validate_docs_and_instructions() -> None:
         combined,
         ("intent_analysis", "implementation_strategy", "intent_alignment", "confirmation_needed", "intent_coverage", "本質的な成果", "過剰実装"),
         "docs/instructions intent analysis contract",
+    )
+    require_tokens(
+        combined,
+        ("Handoff Sufficiency", "intent_alignment", "validation_evidence", "finding disposition", "needs_human", "request_changes"),
+        "docs/instructions handoff sufficiency contract",
     )
     require_tokens(combined, FOCUS_REVIEWER_CONTRACT_TOKENS + ("validation result", "blast radius", "coupling"), "docs/instructions focus reviewer contract")
     common = read("template/.agents/orchestra/instructions/common.md")
@@ -331,4 +361,5 @@ def validate_stop_hook() -> None:
     hook_shell = read("template/.codex/hooks/stop_quality_gate.sh")
     require("stop_quality_gate.sh" in hooks, "hooks.json は Docker runner 用 stop_quality_gate.sh を呼び出してください。")
     require("python3" not in hooks and "/usr/bin/env python" not in hooks, "hooks.json は host Python を直接探索しないでください。")
+    require("valid_root()" in hooks and "*/repositories/*" in hooks and "$1/repositories" in hooks, "hooks.json は repositories/<repo> 配下の偽 runtime を Stop hook root として採用しないでください。")
     require("docker image inspect" in hook_shell and "CODEX_GUILD_ORCHESTRA_DOCKER_SKIP_BUILD=1" in hook_shell, "stop_quality_gate.sh は cold build せず既存 runtime image だけで実行してください。")

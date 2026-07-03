@@ -39,7 +39,7 @@ from .schema_helpers import validate_dialogue_policy, validate_percent
 def validate_settings() -> None:
     settings = mapping(load_yaml("template/.agents/orchestra/config/settings.yaml"), "settings.yaml")
     require(settings.get("version") == "3.0", "settings.yaml.version は 3.0 にしてください。")
-    for section in ("guild_runtime", "default_intake_policy", "skill_selection_policy", "paths", "guild_law", "claude_compat", "quest_charter", "workers", "advisory_consultation", "root_session", "party_tactics", "trial", "ledger", "reporting"):
+    for section in ("guild_runtime", "default_intake_policy", "skill_selection_policy", "paths", "guild_law", "claude_compat", "quest_charter", "handoff_sufficiency", "workers", "advisory_consultation", "root_session", "party_tactics", "trial", "ledger", "reporting"):
         require(section in settings, f"settings.yaml に {section} が必要です。")
 
     text = read("template/.agents/orchestra/config/settings.yaml")
@@ -121,6 +121,21 @@ def validate_settings() -> None:
     require_tokens(json.dumps(authority_levels, ensure_ascii=False), ("state_change_guard", "local Git 書き込み", "Web 状態更新", "人間の再確認"), "settings.quest_charter.authority_levels state change guard")
     autonomy_fields = set(sequence(charter.get("autonomy_budget_fields"), "settings.quest_charter.autonomy_budget_fields"))
     require(autonomy_fields == AUTONOMY_KEYS, "autonomy_budget_fields が期待値と一致しません。")
+
+    handoff = mapping(settings["handoff_sufficiency"], "settings.handoff_sufficiency")
+    require("structured evidence" in str(handoff.get("rule") or "") and "request_changes" in str(handoff.get("rule") or ""), "handoff_sufficiency.rule は structured evidence と request_changes を明記してください。")
+    stages = mapping(handoff.get("stages"), "settings.handoff_sufficiency.stages")
+    require(set(stages) == {"intake_to_charter", "charter_to_owner", "owner_to_trial", "trial_to_ledger_final"}, "handoff_sufficiency.stages が期待値と一致しません。")
+    for stage_name, required_tokens in {
+        "intake_to_charter": {"intent_analysis", "objective", "success_criteria", "non_goals", "authority", "boundaries", "evidence_required"},
+        "charter_to_owner": {"implementation_strategy", "owned_scope", "authority", "boundaries", "trial_expectations"},
+        "owner_to_trial": {"changed_files", "decisions_made", "intent_alignment", "validation_evidence", "research_evidence", "risks"},
+        "trial_to_ledger_final": {"decision", "findings", "intent_coverage", "validation_evidence", "advisor_dialogue_synthesis", "reviewer_synthesis", "finding_dispositions", "risks"},
+    }.items():
+        stage = mapping(stages.get(stage_name), f"settings.handoff_sufficiency.stages.{stage_name}")
+        required = set(sequence(stage.get("required"), f"settings.handoff_sufficiency.stages.{stage_name}.required"))
+        require(required_tokens <= required, f"settings.handoff_sufficiency.stages.{stage_name}.required が不足しています。")
+        require(sequence(stage.get("stop_when"), f"settings.handoff_sufficiency.stages.{stage_name}.stop_when"), f"settings.handoff_sufficiency.stages.{stage_name}.stop_when は空にできません。")
 
     party_tactics = mapping(settings["party_tactics"], "settings.party_tactics")
     require("scout_policy" not in party_tactics, "settings.party_tactics.scout_policy を戻さないでください。")

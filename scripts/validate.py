@@ -14,6 +14,7 @@ from validation.basic import (
 from validation.claude_compat_smoke import validate_claude_compat_smoke
 from validation.core import ValidationError
 from validation.docs import validate_agents, validate_docs_and_instructions, validate_skills, validate_stop_hook
+from validation.golden_quests import validate_golden_quests
 from validation.install_smoke import validate_install_upgrade_smoke
 from validation.queue_templates import validate_queue_templates
 from validation.runtime_smoke import validate_queue_db_smoke, validate_sqlite_schema
@@ -29,6 +30,7 @@ def main() -> int:
         validate_queue_templates,
         validate_sqlite_schema,
         validate_queue_db_smoke,
+        validate_golden_quests,
         validate_install_upgrade_smoke,
         validate_claude_compat_smoke,
         validate_agents,
