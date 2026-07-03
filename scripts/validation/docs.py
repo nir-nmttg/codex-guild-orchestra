@@ -20,14 +20,31 @@ from .rules import (
     VOCABULARY_DRIFT_TERMS,
 )
 
+EXPECTED_AGENT_SANDBOX_MODES = {
+    "adventurer": "workspace-write",
+    "advisor": "read-only",
+    "cartographer": "read-only",
+    "courier": "workspace-write",
+    "guildmaster": "read-only",
+    "inquisitor": "read-only",
+    "metacognitive_controller": "read-only",
+    "party_leader": "read-only",
+}
+
 def validate_agents() -> None:
     require(tomllib is not None, "TOML 検証には tomllib/tomli が必要です。")
     require(not (ROOT / "template/.codex/agents/spark.toml").exists(), "template/.codex/agents/spark.toml を戻さないでください。")
-    for rel in sorted((ROOT / "template/.codex/agents").glob("*.toml")):
+    agent_paths = sorted((ROOT / "template/.codex/agents").glob("*.toml"))
+    actual_agent_names = {path.stem for path in agent_paths}
+    require(actual_agent_names == set(EXPECTED_AGENT_SANDBOX_MODES), "template/.codex/agents の role 一覧が期待値と一致しません: " + ", ".join(sorted(actual_agent_names)))
+    for rel in agent_paths:
         raw = rel.read_text(encoding="utf-8")
         data = tomllib.loads(raw)
         for key in ("name", "description", "model", "model_reasoning_effort", "sandbox_mode", "developer_instructions"):
             require(key in data, f"{rel.relative_to(ROOT)} に {key} が必要です。")
+        role = rel.stem
+        require(data.get("name") == role, f"{rel.relative_to(ROOT)} の name は filename と一致させてください。")
+        require(data.get("sandbox_mode") == EXPECTED_AGENT_SANDBOX_MODES[role], f"{rel.relative_to(ROOT)} の sandbox_mode は {EXPECTED_AGENT_SANDBOX_MODES[role]} にしてください。")
         require("Guild Law" in raw, f"{rel.relative_to(ROOT)} は Guild Law を参照してください。")
     config = tomllib.loads(read("template/.codex/config.toml"))
     config_text = read("template/.codex/config.toml")
@@ -47,13 +64,22 @@ def validate_agents() -> None:
     require(agents_config.get("max_depth") == 4, "template/.codex/config.toml の agents.max_depth は 4 にしてください。")
     for token in LEGACY_ROUTE_COMMENT_TERMS:
         require(token not in config_text, f"template/.codex/config.toml に旧固定 route コメント `{token}` を戻さないでください。")
-    require("mapmaking" in config_text and "guild_quest" in config_text and "advisor" in config_text and "terminal worker" in config_text, "template/.codex/config.toml の agent コメントは Quest Rank と advisor 境界を説明してください。")
+    require("mapmaking" in config_text and "guild_quest" in config_text and "advisor" in config_text and "terminal worker" in config_text and "metacognitive_controller" in config_text, "template/.codex/config.toml の agent コメントは Quest Rank と advisor / metacognitive_controller 境界を説明してください。")
     require_tokens(config_text, ("focus reviewer", "workers.inquisitor.max_parallel", "autonomy_budget.subassignments"), "template/.codex/config.toml")
     advisor = tomllib.loads(read("template/.codex/agents/advisor.toml"))
     advisor_text = read("template/.codex/agents/advisor.toml")
     require(advisor.get("sandbox_mode") == "read-only", "advisor.toml の sandbox_mode は read-only にしてください。")
     require(advisor.get("model_reasoning_effort") == "xhigh", "advisor.toml の model_reasoning_effort は xhigh にしてください。")
     require_tokens(advisor_text, ("terminal worker", "追加 subagent", "実装", "採否", "Ledger", "owner synthesis", "Guild Law", "confidence-based", "confidence delta", "同じ unknown", "owner が根拠確認"), "template/.codex/agents/advisor.toml")
+    controller = tomllib.loads(read("template/.codex/agents/metacognitive_controller.toml"))
+    controller_text = read("template/.codex/agents/metacognitive_controller.toml")
+    require(controller.get("sandbox_mode") == "read-only", "metacognitive_controller.toml の sandbox_mode は read-only にしてください。")
+    require(controller.get("model_reasoning_effort") == "high", "metacognitive_controller.toml の model_reasoning_effort は high にしてください。")
+    require_tokens(
+        controller_text,
+        ("metacognitive_state", "unknowns", "assumptions", "confidence", "verification status", "control signal", "実装", "採否", "Ledger", "Git 操作", "外部送信", "75%", "50%", "first failure", "security-sensitive", "control_decision"),
+        "template/.codex/agents/metacognitive_controller.toml",
+    )
     cartographer_text = read("template/.codex/agents/cartographer.toml")
     require_tokens(cartographer_text, ("設計", "実装計画", "方針整理", "アーキテクチャ", "mapmaking", "read-only advisor", "intent_analysis", "implementation_strategy"), "template/.codex/agents/cartographer.toml")
     party_leader_text = read("template/.codex/agents/party_leader.toml")
@@ -134,8 +160,20 @@ def validate_docs_and_instructions() -> None:
     metacognitive_doc = read("docs/metacognitive-runtime.md")
     require_tokens(
         metacognitive_doc,
-        ("Fable", "正本ではありません", "intent_analysis", "implementation_strategy", "intent_alignment", "intent_coverage", "Ledger", "作らないもの"),
+        ("Fable", "正本ではありません", "メタ認知", "自己意識ではなく", "intent_analysis", "metacognitive_state", "control_decision", "implementation_strategy", "intent_coverage", "confidence-based control signal", "metacognitive_controller", "認知ミス補正", "Ledger", "作らないもの"),
         "docs/metacognitive-runtime.md",
+    )
+    agent_memory = read("docs/agent-memory.md")
+    require_tokens(
+        agent_memory,
+        ("Cognitive Failure Types", "Prevention artifact", "Promotion Rule", "assumed_without_evidence", "premature_confidence", "scope_drift", "曖昧な entry"),
+        "docs/agent-memory.md",
+    )
+    runtime_agent_memory = read("template/.agents/orchestra/docs/agent-memory.md")
+    require_tokens(
+        runtime_agent_memory,
+        ("Cognitive Failure Types", "Prevention artifact", "Promotion Rule", "assumed_without_evidence", "premature_confidence", "scope_drift", "曖昧な entry"),
+        "template/.agents/orchestra/docs/agent-memory.md",
     )
     canonical_paths = full_contract_paths + role_paths + [
         "template/.agents/orchestra/config/settings.yaml",
@@ -156,8 +194,32 @@ def validate_docs_and_instructions() -> None:
     require("Trial 統合担当の `inquisitor`" in combined, "docs/instructions は Trial 統合担当の `inquisitor` 表記を使ってください。")
     require_tokens(
         combined,
-        ("intent_analysis", "implementation_strategy", "intent_alignment", "confirmation_needed", "intent_coverage", "本質的な成果", "過剰実装"),
+        ("intent_analysis", "metacognitive_state", "control_decision", "implementation_strategy", "intent_alignment", "confirmation_needed", "intent_coverage", "本質的な成果", "過剰実装"),
         "docs/instructions intent analysis contract",
+    )
+    common = read("template/.agents/orchestra/instructions/common.md")
+    agents = read("template/AGENTS.md")
+    orchestration_runtime = read("docs/orchestration-runtime.md")
+    require_tokens(
+        agents,
+        ("`metacognitive_state`: goal", "intake から Quest Charter", "owner から Trial", "Trial から Ledger / final", "`control_decision`", "`validation_evidence`"),
+        "template/AGENTS.md metacognitive handoff contract",
+    )
+    require_tokens(
+        common,
+        ("`metacognitive_state`: goal", "intake から Quest Charter", "owner から Trial", "Trial から Ledger / final", "`control_decision`", "`validation_evidence`", ".agents/orchestra/docs/agent-memory.md"),
+        "template/.agents/orchestra/instructions/common.md metacognitive handoff contract",
+    )
+    receptionist = read("template/.agents/orchestra/instructions/receptionist.md")
+    require_tokens(
+        receptionist,
+        ("`metacognitive_state`", "initial `metacognitive_state`", "confidence", "verification status"),
+        "template/.agents/orchestra/instructions/receptionist.md metacognitive charter contract",
+    )
+    require_tokens(
+        orchestration_runtime,
+        ("`metacognitive_state`", "Handoff", "owner -> Trial", "Trial -> Ledger / final", "`validation_evidence`", "`revise_plan`"),
+        "docs/orchestration-runtime.md metacognitive handoff contract",
     )
     require_tokens(
         combined,
@@ -243,6 +305,7 @@ def validate_docs_and_instructions() -> None:
         ("terminal worker", "追加 subagent", "実装", "品質採否", "Ledger", "Guild Law", "Quest Charter", "confidence-based", "confidence_delta_min_percent", "同じ unknown"),
         "template/.agents/orchestra/instructions/advisor.md",
     )
+    require("メタ認" + "識" not in "\n".join(read(rel) for rel in ("README.md", "docs/metacognitive-runtime.md")), "公開 docs では旧語ではなく `メタ認知` を使ってください。")
 
 
 def validate_skills() -> None:
@@ -335,6 +398,12 @@ def validate_skills() -> None:
     require(
         "明示がない通常作業へ、この Skill を無理に適用しない" not in use_guild_workflow,
         "use-guild-workflow は always_guild_intake と衝突する旧トリガー文言を戻さないでください。",
+    )
+    metacognitive_skill = read("template/.agents/skills/metacognitive-task-loop/SKILL.md")
+    require_tokens(
+        metacognitive_skill,
+        ("metacognitive_state", "control_decision", "confidence", "75%", "50%", "failed test", "first failure", "security-sensitive", "scope drift", "contradictory evidence", "未信頼"),
+        "template/.agents/skills/metacognitive-task-loop/SKILL.md",
     )
 
     runtime_readme = read("template/.agents/orchestra/README.md")

@@ -16,6 +16,8 @@ expected:
       - changed_files
       - decisions_made
       - intent_alignment
+      - metacognitive_state
+      - control_decision
       - validation_evidence
       - research_evidence
       - risks

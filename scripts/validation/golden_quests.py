@@ -11,6 +11,13 @@ EXPECTED_FIXTURES = {
     "focused_trial_reviewer_budget.yaml",
     "ledger_injection_negative.yaml",
     "mapmaking_readonly_no_edit.yaml",
+    "metacognitive_confidence_below_50_stop.yaml",
+    "metacognitive_confidence_below_75.yaml",
+    "metacognitive_contradictory_evidence.yaml",
+    "metacognitive_failed_check_first_failure.yaml",
+    "metacognitive_memory_prevention_artifact.yaml",
+    "metacognitive_scope_drift.yaml",
+    "metacognitive_security_sensitive.yaml",
     "safety_gate_needs_human.yaml",
     "solo_small_fix_no_git.yaml",
 }
@@ -66,7 +73,7 @@ def validate_golden_quests() -> None:
     require(solo_authority["local_git"] is False and solo_authority["external_actions"] is False, "solo fixture は local git / external action を禁止してください。")
     solo_handoff = mapping(solo.get("handoff_sufficiency"), "solo.expected.handoff_sufficiency")
     solo_required = set(sequence(solo_handoff.get("owner_to_trial_ready_requires"), "solo.expected.handoff_sufficiency.owner_to_trial_ready_requires"))
-    require({"changed_files", "decisions_made", "intent_alignment", "validation_evidence", "research_evidence", "risks"} <= solo_required, "solo fixture は owner_to_trial の required evidence を要求してください。")
+    require({"changed_files", "decisions_made", "intent_alignment", "metacognitive_state", "control_decision", "validation_evidence", "research_evidence", "risks"} <= solo_required, "solo fixture は owner_to_trial の required evidence を要求してください。")
     report_required = mapping(solo.get("report_required"), "solo.expected.report_required")
     require(report_required.get("intent_alignment") is True and report_required.get("validation_evidence") is True and report_required.get("research_evidence") is True and report_required.get("risks") is True, "solo fixture は intent_alignment / validation_evidence / research_evidence / risks を要求してください。")
     _forbidden(solo.get("forbidden"), "solo.expected.forbidden")
@@ -87,7 +94,7 @@ def validate_golden_quests() -> None:
     require(focus_reviewers.get("cost_reason_required") is True and focus_reviewers.get("finding_disposition_required") is True, "focused trial fixture は cost reason / finding disposition を要求してください。")
     trial_handoff = mapping(trial.get("handoff_sufficiency"), "focused_trial.expected.handoff_sufficiency")
     trial_required = set(sequence(trial_handoff.get("trial_to_ledger_final_ready_requires"), "focused_trial.expected.handoff_sufficiency.trial_to_ledger_final_ready_requires"))
-    require({"decision", "findings", "intent_coverage", "validation_evidence", "advisor_dialogue_synthesis", "reviewer_synthesis", "finding_dispositions", "risks"} <= trial_required, "focused trial fixture は trial_to_ledger_final の required evidence を要求してください。")
+    require({"decision", "findings", "intent_coverage", "metacognitive_state", "control_decision", "validation_evidence", "advisor_dialogue_synthesis", "reviewer_synthesis", "finding_dispositions", "risks"} <= trial_required, "focused trial fixture は trial_to_ledger_final の required evidence を要求してください。")
 
     advisor = _base_fixture(_fixture("advisor_dialogue_same_focus_stop.yaml"), "advisor_dialogue_same_focus_stop.yaml")
     require(advisor.get("worker_id") == "advisor" and advisor.get("decision_authority") is False and advisor.get("terminal_worker") is True, "advisor fixture は terminal worker / decision_authority=false にしてください。")
@@ -102,3 +109,28 @@ def validate_golden_quests() -> None:
     require(policy.get("raw_discussion_recorded") is False and policy.get("secret_values_recorded") is False, "ledger negative fixture は raw discussion / secret 保存を禁止してください。")
     require(policy.get("decision_rationale_recorded") is True and policy.get("evidence_refs_recorded") is True, "ledger negative fixture は decision rationale / evidence refs を要求してください。")
     _forbidden(ledger.get("forbidden"), "ledger.expected.forbidden")
+
+    confidence75 = _base_fixture(_fixture("metacognitive_confidence_below_75.yaml"), "metacognitive_confidence_below_75.yaml")
+    require(confidence75.get("control_decision") == "gather_more_evidence", "confidence<75 fixture は gather_more_evidence にしてください。")
+    require(confidence75.get("finalize_allowed") is False, "confidence<75 fixture は finalize を禁止してください。")
+    require(confidence75.get("controller_considered") is True, "confidence<75 fixture は metacognitive_controller 検討を要求してください。")
+
+    confidence50 = _base_fixture(_fixture("metacognitive_confidence_below_50_stop.yaml"), "metacognitive_confidence_below_50_stop.yaml")
+    require(confidence50.get("control_decision") == "revise_plan", "confidence<50 fixture は revise_plan にしてください。")
+    require(confidence50.get("speculative_editing_allowed") is False, "confidence<50 fixture は speculative editing を禁止してください。")
+
+    failed = _base_fixture(_fixture("metacognitive_failed_check_first_failure.yaml"), "metacognitive_failed_check_first_failure.yaml")
+    require(failed.get("control_decision") == "run_tests", "failed check fixture は run_tests にしてください。")
+    require(failed.get("first_failure_required") is True and failed.get("rerun_same_check_required") is True, "failed check fixture は first failure と same check rerun を要求してください。")
+
+    scope = _base_fixture(_fixture("metacognitive_scope_drift.yaml"), "metacognitive_scope_drift.yaml")
+    require(scope.get("control_decision") == "revise_plan" and scope.get("pause_required") is True, "scope drift fixture は pause と revise_plan を要求してください。")
+
+    security = _base_fixture(_fixture("metacognitive_security_sensitive.yaml"), "metacognitive_security_sensitive.yaml")
+    require(security.get("risk_level") == "high" and security.get("control_decision") == "invoke_security_review", "security-sensitive fixture は high risk と security review を要求してください。")
+
+    contradictory = _base_fixture(_fixture("metacognitive_contradictory_evidence.yaml"), "metacognitive_contradictory_evidence.yaml")
+    require(contradictory.get("control_decision") == "revise_plan" and contradictory.get("assumptions_must_update") is True, "contradictory evidence fixture は plan / assumptions 更新を要求してください。")
+
+    memory = _base_fixture(_fixture("metacognitive_memory_prevention_artifact.yaml"), "metacognitive_memory_prevention_artifact.yaml")
+    require(memory.get("memory_entry_allowed") is True and memory.get("prevention_artifact_required") is True, "memory fixture は prevention artifact 必須にしてください。")

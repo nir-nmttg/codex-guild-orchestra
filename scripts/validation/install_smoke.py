@@ -10,6 +10,15 @@ from pathlib import Path
 
 from .core import ROOT, require
 
+READ_ONLY_AGENT_ROLES = (
+    "advisor",
+    "cartographer",
+    "guildmaster",
+    "inquisitor",
+    "metacognitive_controller",
+    "party_leader",
+)
+
 
 def _run_install(*args: object) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -49,6 +58,7 @@ def validate_install_upgrade_smoke() -> None:
 
         installed = _run_install("--target", target, "--mode", "copy")
         require(installed.returncode == 0, "install.py の通常 install smoke が失敗しました: " + installed.stderr)
+        require((target / ".agents/orchestra/docs/agent-memory.md").exists(), "install.py は agent-memory runtime artifact を導入してください。")
         remaining = [str(path.relative_to(target)) for path in legacy_paths if path.exists()]
         require(not remaining, "install.py は削除済み旧 template を prune してください: " + ", ".join(remaining))
 
@@ -65,12 +75,17 @@ def validate_install_upgrade_smoke() -> None:
     missing_advisor = run_with_mutated_source("missing advisor.toml", lambda source: (source / ".codex/agents/advisor.toml").unlink())
     require("advisor.toml" in (missing_advisor.stdout + missing_advisor.stderr), "install.py の advisor 不足拒否 message は advisor.toml を示してください。")
 
-    def make_advisor_writable(source: Path) -> None:
-        path = source / ".codex/agents/advisor.toml"
-        path.write_text(path.read_text(encoding="utf-8").replace('sandbox_mode = "read-only"', 'sandbox_mode = "workspace-write"'), encoding="utf-8")
+    missing_controller = run_with_mutated_source("missing metacognitive_controller.toml", lambda source: (source / ".codex/agents/metacognitive_controller.toml").unlink())
+    require("metacognitive_controller.toml" in (missing_controller.stdout + missing_controller.stderr), "install.py の metacognitive_controller 不足拒否 message は metacognitive_controller.toml を示してください。")
 
-    writable_advisor = run_with_mutated_source("advisor not read-only", make_advisor_writable)
-    require("sandbox_mode" in (writable_advisor.stdout + writable_advisor.stderr), "install.py の advisor sandbox 拒否 message は sandbox_mode を示してください。")
+    for role in READ_ONLY_AGENT_ROLES:
+        def make_role_writable(source: Path, role: str = role) -> None:
+            path = source / ".codex" / "agents" / f"{role}.toml"
+            path.write_text(path.read_text(encoding="utf-8").replace('sandbox_mode = "read-only"', 'sandbox_mode = "workspace-write"'), encoding="utf-8")
+
+        writable_role = run_with_mutated_source(f"{role} not read-only", make_role_writable)
+        output = writable_role.stdout + writable_role.stderr
+        require("sandbox_mode" in output and f"{role}.toml" in output, f"install.py の {role} sandbox 拒否 message は sandbox_mode と role file を示してください。")
 
     def add_source_symlink(source: Path) -> None:
         (source / ".codex" / "secrets").symlink_to(source / ".codex" / "config.toml")

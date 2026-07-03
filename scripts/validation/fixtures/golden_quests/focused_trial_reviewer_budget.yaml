@@ -24,6 +24,8 @@ expected:
       - decision
       - findings
       - intent_coverage
+      - metacognitive_state
+      - control_decision
       - validation_evidence
       - advisor_dialogue_synthesis
       - reviewer_synthesis

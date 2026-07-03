@@ -109,6 +109,16 @@ LEGACY_RUNTIME_JSON_KEYS = {
     'spark_request',
 }
 RETIRED_AGENT_VALUES = {'spark', 'scout'}
+EXPECTED_AGENT_SANDBOX_MODES = {
+    'adventurer': 'workspace-write',
+    'advisor': 'read-only',
+    'cartographer': 'read-only',
+    'courier': 'workspace-write',
+    'guildmaster': 'read-only',
+    'inquisitor': 'read-only',
+    'metacognitive_controller': 'read-only',
+    'party_leader': 'read-only',
+}
 REPOSITORIES_REL_PATH = Path('repositories')
 ORCHESTRA_SKILL_OWNER = 'codex-guild-orchestra'
 TRUSTED_SOURCE_TOP_LEVELS = {'AGENTS.md', '.agents', '.codex'}
@@ -160,6 +170,20 @@ ADVISOR_DEVELOPER_INSTRUCTION_TOKENS = (
     'confidence-based',
     'confidence delta',
     'owner が根拠確認',
+)
+METACOGNITIVE_CONTROLLER_DEVELOPER_INSTRUCTION_TOKENS = (
+    'metacognitive_state',
+    'control_decision',
+    'confidence',
+    'unknowns',
+    'assumptions',
+    'verification status',
+    '実装',
+    '採否',
+    'Ledger',
+    'Git 操作',
+    '75%',
+    '50%',
 )
 
 
@@ -729,6 +753,7 @@ def load_worker_roles(source_root: Path) -> dict[str, dict[str, int]]:
         'party_leader': 1,
         'inquisitor': 1,
         'advisor': 1,
+        'metacognitive_controller': 1,
     }
 
     result: dict[str, dict[str, int]] = {}
@@ -771,6 +796,26 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
     if agents_config.get('max_depth') != 4:
         raise SystemExit('template/.codex/config.toml の agents.max_depth は 4 にしてください。')
 
+    agents_dir = source_root / '.codex' / 'agents'
+    expected_agent_files = {f'{role}.toml' for role in EXPECTED_AGENT_SANDBOX_MODES}
+    actual_agent_files = {path.name for path in agents_dir.glob('*.toml')}
+    if actual_agent_files != expected_agent_files:
+        missing = sorted(expected_agent_files - actual_agent_files)
+        unexpected = sorted(actual_agent_files - expected_agent_files)
+        details = []
+        if missing:
+            details.append('missing: ' + ', '.join(missing))
+        if unexpected:
+            details.append('unexpected: ' + ', '.join(unexpected))
+        raise SystemExit('template/.codex/agents の agent file set が期待値と一致しません: ' + '; '.join(details))
+    for role, expected_sandbox in EXPECTED_AGENT_SANDBOX_MODES.items():
+        agent_path = agents_dir / f'{role}.toml'
+        agent = read_toml_document(agent_path)
+        if agent.get('name') != role:
+            raise SystemExit(f'template/.codex/agents/{role}.toml の name は {role} にしてください。')
+        if agent.get('sandbox_mode') != expected_sandbox:
+            raise SystemExit(f'template/.codex/agents/{role}.toml の sandbox_mode は {expected_sandbox} にしてください。')
+
     advisor_path = source_root / '.codex' / 'agents' / 'advisor.toml'
     advisor = read_toml_document(advisor_path)
     if advisor.get('sandbox_mode') != 'read-only':
@@ -785,6 +830,22 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
         raise SystemExit(
             'template/.codex/agents/advisor.toml の developer_instructions に advisor 契約が不足しています: '
             + ', '.join(missing_tokens)
+        )
+
+    controller_path = source_root / '.codex' / 'agents' / 'metacognitive_controller.toml'
+    controller = read_toml_document(controller_path)
+    if controller.get('sandbox_mode') != 'read-only':
+        raise SystemExit('template/.codex/agents/metacognitive_controller.toml の sandbox_mode は read-only にしてください。')
+    if controller.get('model_reasoning_effort') != 'high':
+        raise SystemExit('template/.codex/agents/metacognitive_controller.toml の model_reasoning_effort は high にしてください。')
+    controller_instructions = controller.get('developer_instructions')
+    if not isinstance(controller_instructions, str):
+        raise SystemExit('template/.codex/agents/metacognitive_controller.toml の developer_instructions が必要です。')
+    controller_missing = [token for token in METACOGNITIVE_CONTROLLER_DEVELOPER_INSTRUCTION_TOKENS if token not in controller_instructions]
+    if controller_missing:
+        raise SystemExit(
+            'template/.codex/agents/metacognitive_controller.toml の developer_instructions に metacognitive controller 契約が不足しています: '
+            + ', '.join(controller_missing)
         )
 
 

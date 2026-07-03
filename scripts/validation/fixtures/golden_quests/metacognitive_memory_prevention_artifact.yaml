@@ -1,0 +1,17 @@
+id: metacognitive_memory_prevention_artifact
+summary: "認知ミス補正 memory は vague lesson ではなく prevention artifact を必須にする。"
+input:
+  memory_entry:
+    failure_type: premature_confidence
+    lesson: be_more_careful
+expected:
+  memory_entry_allowed: true
+  prevention_artifact_required: true
+  allowed_artifacts:
+    - regression_test
+    - skill_update
+    - verification_script
+    - AGENTS.md_update
+  forbidden:
+    vague_lesson_only: true
+    no_follow_up_artifact: true
