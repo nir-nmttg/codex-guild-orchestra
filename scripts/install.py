@@ -190,6 +190,7 @@ SOURCE_REQUIRED_REL_PATHS = (
     Path('.agents/orchestra/queue/templates/command.yaml'),
     Path('.agents/orchestra/queue/templates/inquisitor_report.yaml'),
     Path('.agents/orchestra/queue/templates/inquisitor_trial.yaml'),
+    Path('.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml'),
     Path('.agents/orchestra/queue/templates/request.yaml'),
     Path('.agents/orchestra/queue/templates/role_inbox.yaml'),
     Path('.agents/orchestra/scripts/claude_compat.py'),

@@ -57,6 +57,7 @@ REQUIRED_PATHS = [
     "template/.agents/orchestra/queue/templates/cartographer_report.yaml",
     "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
     "template/.agents/orchestra/queue/templates/inquisitor_report.yaml",
+    "template/.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml",
     "template/.agents/orchestra/queue/templates/role_inbox.yaml",
     "template/.agents/orchestra/queue/templates/request.yaml",
     "template/.agents/orchestra/queue/templates/command.yaml",

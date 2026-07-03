@@ -199,6 +199,9 @@ def validate_install_upgrade_smoke() -> None:
     missing_queue_template = run_with_mutated_source("missing queue template", lambda source: (source / ".agents/orchestra/queue/templates/inquisitor_trial.yaml").unlink())
     require("inquisitor_trial.yaml" in (missing_queue_template.stdout + missing_queue_template.stderr), "install.py の queue template 不足拒否 message は inquisitor_trial.yaml を示してください。")
 
+    missing_sentinel_assignment = run_with_mutated_source("missing quest_sentinel assignment template", lambda source: (source / ".agents/orchestra/queue/templates/quest_sentinel_assignment.yaml").unlink())
+    require("quest_sentinel_assignment.yaml" in (missing_sentinel_assignment.stdout + missing_sentinel_assignment.stderr), "install.py の quest_sentinel assignment template 不足拒否 message は quest_sentinel_assignment.yaml を示してください。")
+
     missing_inbox_script = run_with_mutated_source("missing inbox helper", lambda source: (source / ".agents/orchestra/scripts/inbox_write.sh").unlink())
     require("inbox_write.sh" in (missing_inbox_script.stdout + missing_inbox_script.stderr), "install.py の inbox helper 不足拒否 message は inbox_write.sh を示してください。")
 

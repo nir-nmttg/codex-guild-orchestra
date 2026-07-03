@@ -126,6 +126,47 @@ def validate_queue_db_smoke() -> None:
         recorded = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(_valid_event()))
         require(recorded.returncode == 0, "queue_db.py record-event の smoke が失敗しました: " + recorded.stderr)
 
+        sentinel_assignment_event = {
+            "event_id": "evt_assignment_quest_sentinel_smoke",
+            "timestamp": "2026-01-02T03:04:04+00:00",
+            "actor": "validator",
+            "event_type": "assignment_created",
+            "entity": {"type": "assignment", "id": "assignment_quest_sentinel_smoke"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["assignment"], "decision_rationale": "quest_sentinel assignment linkage smoke", "evidence_refs": ["scripts/validation/runtime_smoke.py"]},
+            "payload": {
+                "assignment": {
+                    "id": "assignment_quest_sentinel_smoke",
+                    "quest_id": "quest_smoke",
+                    "owner_assignment_id": "assignment_owner_smoke",
+                    "worker_id": "quest_sentinel",
+                    "kind": "quest_awareness_control_monitor",
+                    "control_trigger": "confidence_below_75",
+                    "status": "idle",
+                }
+            },
+            "event_safety": {"safety_items": [], "human_confirmation_required": []},
+        }
+        sentinel_assignment = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(sentinel_assignment_event))
+        require(sentinel_assignment.returncode == 0, "queue_db.py は owner/control trigger 付き quest_sentinel assignment を受け付けてください: " + sentinel_assignment.stderr)
+
+        invalid_sentinel_owner_event = json.loads(json.dumps(sentinel_assignment_event))
+        invalid_sentinel_owner_event["event_id"] = "evt_assignment_quest_sentinel_missing_owner"
+        invalid_sentinel_owner_event["entity"]["id"] = "assignment_quest_sentinel_missing_owner"
+        invalid_sentinel_owner_event["payload"]["assignment"]["id"] = "assignment_quest_sentinel_missing_owner"
+        invalid_sentinel_owner_event["payload"]["assignment"].pop("owner_assignment_id")
+        invalid_sentinel_owner = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_sentinel_owner_event))
+        require(invalid_sentinel_owner.returncode != 0 and "owner_assignment_id" in invalid_sentinel_owner.stderr, "queue_db.py は owner assignment なしの quest_sentinel assignment を拒否してください。")
+
+        invalid_sentinel_trigger_event = json.loads(json.dumps(sentinel_assignment_event))
+        invalid_sentinel_trigger_event["event_id"] = "evt_assignment_quest_sentinel_missing_trigger"
+        invalid_sentinel_trigger_event["entity"]["id"] = "assignment_quest_sentinel_missing_trigger"
+        invalid_sentinel_trigger_event["payload"]["assignment"]["id"] = "assignment_quest_sentinel_missing_trigger"
+        invalid_sentinel_trigger_event["payload"]["assignment"].pop("control_trigger")
+        invalid_sentinel_trigger = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_sentinel_trigger_event))
+        require(invalid_sentinel_trigger.returncode != 0 and "control_trigger" in invalid_sentinel_trigger.stderr, "queue_db.py は control_trigger なしの quest_sentinel assignment を拒否してください。")
+
         message = {
             "id": "msg_valid_smoke",
             "sender": "validator",

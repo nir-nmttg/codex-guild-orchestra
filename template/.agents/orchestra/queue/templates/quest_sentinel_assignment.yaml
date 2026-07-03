@@ -1,0 +1,71 @@
+artifact_type: "quest_sentinel_assignment"
+schema_version: "3.0"
+workflow_id: null
+structured_data_usage:
+  structured_inputs: []
+  decision_rationale: null
+  evidence_refs: []
+assignment:
+  id: null
+  quest_id: null
+  parent_id: null
+  owner_assignment_id: null
+  owner_worker_id: null
+  worker_id: quest_sentinel
+  role: quest_awareness_control_monitor
+  kind: quest_awareness_control_monitor
+  control_trigger: null
+  objective: null
+  quest_awareness:
+    goal: null
+    current_subgoal: null
+    known_facts: []
+    unknowns: []
+    assumptions: []
+    evidence: []
+    current_strategy: null
+    confidence_percent: null
+    risk_level: medium
+    verification_status: partially_checked
+    next_action: null
+    stop_condition: null
+  control_decision:
+    decision: gather_more_evidence
+    rationale: null
+    required_next_action: null
+    triggers: []
+    confidence_threshold_applied: null
+    escalation_required: false
+  decision_authority: false
+  terminal_worker: true
+  output_contract:
+    quest_awareness_only: true
+    control_decision_only: true
+    hidden_reasoning_allowed: false
+  authority:
+    read: true
+    edit: false
+    validate: false
+    local_git: false
+    external_actions: false
+  boundaries:
+    target_repo_root: null # 実 assignment では `<guild_root>/repositories/<repo>` の実パスへ置換する
+    read_deny: []
+    edit_deny: []
+    safety_items: []
+  autonomy_budget:
+    subassignments: 0
+    extra_file_reads: 10
+    validation_iterations: 0
+    timebox_minutes: null
+  research_plan:
+    questions: []
+    target_paths: []
+    stop_conditions: []
+  escalation_triggers: []
+  evidence_required: []
+  ledger:
+    event_id: null
+    report_expected: true
+  status: idle
+  timestamp: null

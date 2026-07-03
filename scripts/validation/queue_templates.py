@@ -33,6 +33,7 @@ def validate_queue_templates() -> None:
         "template/.agents/orchestra/queue/templates/cartographer_assignment.yaml",
         "template/.agents/orchestra/queue/templates/cartographer_report.yaml",
         "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
+        "template/.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml",
         "template/.agents/orchestra/queue/templates/adventurer_report.yaml",
         "template/.agents/orchestra/queue/templates/inquisitor_report.yaml",
         "template/.agents/orchestra/queue/templates/request.yaml",
@@ -123,6 +124,24 @@ def validate_queue_templates() -> None:
     validate_autonomy_budget(advisor_assignment["autonomy_budget"], "advisor_assignment.assignment.autonomy_budget")
     advisor_known_context = mapping(advisor_assignment.get("known_context"), "advisor_assignment.assignment.known_context")
     validate_compat_context(advisor_known_context.get("compat_context"), "advisor_assignment.assignment.known_context.compat_context")
+
+    sentinel_assignment = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml"), "quest_sentinel_assignment").get("assignment"), "quest_sentinel_assignment.assignment")
+    for key in ("id", "quest_id", "parent_id", "owner_assignment_id", "owner_worker_id", "worker_id", "role", "kind", "control_trigger", "objective", "quest_awareness", "control_decision", "decision_authority", "terminal_worker", "output_contract", "authority", "boundaries", "autonomy_budget", "research_plan", "escalation_triggers", "evidence_required", "status"):
+        require(key in sentinel_assignment, f"quest_sentinel_assignment.assignment.{key} が必要です。")
+    require(sentinel_assignment["worker_id"] == "quest_sentinel", "quest_sentinel_assignment.assignment.worker_id は quest_sentinel にしてください。")
+    require(sentinel_assignment["kind"] == "quest_awareness_control_monitor", "quest_sentinel_assignment.assignment.kind は quest_awareness_control_monitor にしてください。")
+    require(sentinel_assignment["decision_authority"] is False, "quest_sentinel_assignment.assignment.decision_authority は false にしてください。")
+    require(sentinel_assignment["terminal_worker"] is True, "quest_sentinel_assignment.assignment.terminal_worker は true にしてください。")
+    require("owner_assignment_id" in sentinel_assignment and "control_trigger" in sentinel_assignment, "quest_sentinel assignment は owner_assignment_id と control_trigger で identity を持ってください。")
+    validate_quest_awareness(sentinel_assignment.get("quest_awareness"), "quest_sentinel_assignment.assignment.quest_awareness")
+    validate_control_decision(sentinel_assignment.get("control_decision"), "quest_sentinel_assignment.assignment.control_decision")
+    output_contract = mapping(sentinel_assignment.get("output_contract"), "quest_sentinel_assignment.assignment.output_contract")
+    require(output_contract.get("quest_awareness_only") is True and output_contract.get("control_decision_only") is True and output_contract.get("hidden_reasoning_allowed") is False, "quest_sentinel output は quest_awareness / control_decision のみにしてください。")
+    validate_authority(sentinel_assignment["authority"], "quest_sentinel_assignment.assignment.authority")
+    sentinel_authority = mapping(sentinel_assignment["authority"], "quest_sentinel_assignment.assignment.authority")
+    require(sentinel_authority.get("read") is True and sentinel_authority.get("edit") is False and sentinel_authority.get("validate") is False and sentinel_authority.get("local_git") is False and sentinel_authority.get("external_actions") is False, "quest_sentinel は read-only にしてください。")
+    validate_boundaries(sentinel_assignment["boundaries"], "quest_sentinel_assignment.assignment.boundaries")
+    validate_autonomy_budget(sentinel_assignment["autonomy_budget"], "quest_sentinel_assignment.assignment.autonomy_budget")
 
     trial = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/inquisitor_trial.yaml"), "inquisitor_trial").get("trial"), "inquisitor_trial.trial")
     for key in ("id", "quest_id", "depth", "focus", "objective", "intent_analysis", "success_criteria", "quest_awareness", "control_decision", "authority", "boundaries", "trial_checks", "depth_guardrails", "autonomy_budget", "research_plan", "decision_options", "evidence_required", "status"):
