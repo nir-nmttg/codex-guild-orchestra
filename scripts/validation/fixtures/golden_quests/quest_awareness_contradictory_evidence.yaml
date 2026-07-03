@@ -1,4 +1,5 @@
 id: quest_awareness_contradictory_evidence
+fixture_mode: static_contract_example
 summary: "新しい evidence が plan と矛盾する時は original approach に固執せず plan と assumptions を更新する。"
 input:
   plan: use_existing_hook

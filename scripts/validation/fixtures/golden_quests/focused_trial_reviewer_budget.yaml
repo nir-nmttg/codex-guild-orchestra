@@ -1,4 +1,5 @@
 id: focused_trial_reviewer_budget
+fixture_mode: static_contract_example
 summary: "focused Trial は reviewer 数、budget、cost reason を明示する"
 input:
   request: "実装後に特定リスクだけ確認してください"

@@ -1,4 +1,5 @@
 id: advisor_dialogue_same_focus_stop
+fixture_mode: static_contract_example
 summary: "advisor dialogue は同じ focus で evidence が増える時だけ続ける"
 input:
   request: "設計の見落としだけ助言してください"

@@ -1,4 +1,5 @@
 id: mapmaking_readonly_no_edit
+fixture_mode: static_contract_example
 summary: "設計相談は read-only mapmaking として扱う"
 input:
   request: "実装前に方針を整理してください"

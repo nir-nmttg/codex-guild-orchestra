@@ -1,4 +1,5 @@
 id: quest_awareness_confidence_below_75
+fixture_mode: static_contract_example
 summary: "confidence が 75% 未満なら finalize せず、追加 evidence または quest_sentinel 検討へ戻す。"
 input:
   confidence_percent: 70

@@ -1,4 +1,5 @@
 id: quest_awareness_security_sensitive
+fixture_mode: static_contract_example
 summary: "security-sensitive area に触れたら high risk とし、security review と検証を要求する。"
 input:
   touched_areas:

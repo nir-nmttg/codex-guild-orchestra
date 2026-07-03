@@ -45,6 +45,7 @@ def _forbidden(value: object, label: str) -> dict[str, object]:
 
 def _base_fixture(doc: dict[str, object], rel_name: str) -> dict[str, object]:
     require(doc.get("id") == rel_name.removesuffix(".yaml"), f"{rel_name}.id は filename と一致させてください。")
+    require(doc.get("fixture_mode") == "static_contract_example", f"{rel_name}.fixture_mode は static_contract_example にしてください。")
     require(isinstance(doc.get("summary"), str) and doc["summary"], f"{rel_name}.summary が必要です。")
     require("input" in doc and "expected" in doc, f"{rel_name} は input / expected が必要です。")
     return mapping(doc["expected"], f"{rel_name}.expected")

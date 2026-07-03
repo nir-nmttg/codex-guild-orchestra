@@ -1,4 +1,5 @@
 id: quest_awareness_scope_drift
+fixture_mode: static_contract_example
 summary: "scope drift が起きたら pause し、新 scope が original goal に必要か確認する。"
 input:
   original_scope:

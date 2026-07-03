@@ -34,7 +34,7 @@ intent_analysis
 | subagent layer | `cartographer`、`party_leader`、`adventurer`、`inquisitor`、`advisor`、`quest_sentinel`、`courier` |
 | skill layer | `template/.agents/skills/*` |
 | verification layer | `validation_evidence`、`make validate`、golden Quest |
-| eval layer | 静的 fixture と validator。live model 判定は正本にしない |
+| eval layer | `fixture_mode: static_contract_example` の静的 fixture と validator。live model 判定は正本にせず、runner 型回帰検出は別レイヤーとして追加する |
 | memory layer | source docs の `docs/agent-memory.md` と installed runtime の `.agents/orchestra/docs/agent-memory.md` にある認知ミス補正。通常 Quest では read-only reference とし、永続化は sanitized memory candidate を `Ledger` / `courier` 経由で扱う |
 | permission / security | `Guild Law`、State Change Guard、sandbox / approval 設定 |
 | review / governance | risk-based `Trial`、focus reviewer、owner synthesis |

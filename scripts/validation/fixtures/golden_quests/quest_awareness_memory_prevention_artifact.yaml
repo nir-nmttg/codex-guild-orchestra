@@ -1,4 +1,5 @@
 id: quest_awareness_memory_prevention_artifact
+fixture_mode: static_contract_example
 summary: "認知ミス補正 memory は vague lesson ではなく prevention artifact を必須にする。"
 input:
   memory_entry:

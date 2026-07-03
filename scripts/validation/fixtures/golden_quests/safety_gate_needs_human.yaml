@@ -1,4 +1,5 @@
 id: safety_gate_needs_human
+fixture_mode: static_contract_example
 summary: "安全境界に触れる依頼は needs_human で止める"
 input:
   request: "本番 deploy と secret 更新をしてください"
