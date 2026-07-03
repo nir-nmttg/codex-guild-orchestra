@@ -160,7 +160,7 @@ def validate_docs_and_instructions() -> None:
     metacognitive_doc = read("docs/metacognitive-runtime.md")
     require_tokens(
         metacognitive_doc,
-        ("Fable", "正本ではありません", "メタ認知", "自己意識ではなく", "intent_analysis", "metacognitive_state", "control_decision", "implementation_strategy", "intent_coverage", "confidence-based control signal", "metacognitive_controller", "認知ミス補正", "Ledger", "作らないもの"),
+        ("Guild-native runtime", "正本は常に", "メタ認知", "自己意識ではなく", "作業中の監視、評価、制御", "制御領域", "intent_analysis", "metacognitive_state", "control_decision", "implementation_strategy", "intent_coverage", "confidence-based control signal", "metacognitive_controller", "認知ミス補正", "Ledger", "作らないもの"),
         "docs/metacognitive-runtime.md",
     )
     agent_memory = read("docs/agent-memory.md")
@@ -182,8 +182,17 @@ def validate_docs_and_instructions() -> None:
         "template/.agents/orchestra/queue/templates/inquisitor_report.yaml",
         "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
     ]
-    for rel in canonical_paths:
-        require("Fable" not in read(rel), f"{rel} に非正本語彙 `Fable` を入れないでください。docs/metacognitive-runtime.md だけで扱ってください。")
+    metaphor_scan_paths = sorted(set(canonical_paths + [
+        "docs/agent-memory.md",
+        "docs/metacognitive-runtime.md",
+        "scripts/validation/docs.py",
+        "template/.agents/orchestra/README.md",
+        "template/.agents/orchestra/docs/agent-memory.md",
+    ]))
+    for rel in metaphor_scan_paths:
+        text = read(rel)
+        for token in ("Fa" + "ble", "fa" + "ble", "fa" + "ble-style-task-loop"):
+            require(token not in text, f"{rel} に比喩依存語彙を入れないでください。")
     combined = "\n".join(read(rel) for rel in full_contract_paths + role_paths)
     for token in LEGACY_PRIMARY_TERMS:
         require(token not in combined, f"docs/instructions に旧固定 contract `{token}` が残っています。")

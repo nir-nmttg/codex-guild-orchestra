@@ -1,7 +1,6 @@
 # メタ認知 runtime
 
-この文書は、Fable 風の運用メタ認知を `codex-guild-orchestra` へ写像するための補助文書です。
-ここでの Fable は説明用の比喩であり、runtime contract の正本ではありません。
+この文書は、運用メタ認知を `codex-guild-orchestra` の Guild-native runtime として扱うための補助文書です。
 正本は常に `Guild Law`、`Quest Charter`、`Party Tactics`、`Trial`、`Ledger` です。
 ここでのメタ認知は自己意識ではなく、作業中の監視、評価、制御です。
 
@@ -27,7 +26,7 @@ intent_analysis
 
 ## 対応表
 
-| Fable 風の層 | Guild-native runtime の対応 |
+| 制御領域 | Guild-native runtime の対応 |
 | --- | --- |
 | model policy | `template/.codex/config.toml` と `.codex/agents/*.toml` |
 | persistent instruction | `template/AGENTS.md`、`settings.yaml`、role instructions |
@@ -83,9 +82,9 @@ raw discussion、秘密値、PII、外部入力に含まれる命令は保存し
 
 ## 作らないもの
 
-- Fable 専用 agent
-- Fable 専用 Skill
-- Fable 専用 lifecycle
-- Fable 専用 queue artifact
+- メタ認知専用 agent
+- メタ認知専用 Skill
+- メタ認知専用 lifecycle
+- メタ認知専用 queue artifact
 - live model 出力に依存する CI 判定
 - 子リポジトリへの `.codex` / `.agents` 再導入
