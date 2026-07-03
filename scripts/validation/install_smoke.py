@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 from .core import ROOT, require
+from .rules import LEDGER_TABLES
+
+AGENTS_START = "<!-- codex-guild-orchestra:start -->"
+AGENTS_END = "<!-- codex-guild-orchestra:end -->"
+RUNTIME_SCHEMA_VERSION = "3.0"
 
 READ_ONLY_AGENT_ROLES = (
     "advisor",
@@ -89,10 +95,25 @@ def _assert_installed_surface(target: Path) -> None:
     require((skill_dir / "quest-awareness-loop/SKILL.md").exists(), "install.py は quest-awareness-loop skill を導入してください。")
     require((target / ".agents/orchestra/docs/agent-memory.md").exists(), "install.py は agent-memory runtime artifact を導入してください。")
     require((target / ".orchestra/dashboard.md").exists(), "install.py は dashboard runtime artifact を .orchestra/dashboard.md に導入してください。")
+    require(not (target / ".agents/orchestra/dashboard.md").exists(), "install.py は dashboard を static .agents/orchestra へ導入しないでください。")
+    database = target / ".orchestra/queue/state.sqlite"
+    require(database.exists(), "install.py は .orchestra/queue/state.sqlite を初期化してください。")
+    with sqlite3.connect(database) as connection:
+        schema_version = connection.execute("SELECT value FROM queue_metadata WHERE key = 'schema_version'").fetchone()
+        tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    require(schema_version is not None and schema_version[0] == RUNTIME_SCHEMA_VERSION, "install.py は runtime DB schema_version を 3.0 にしてください。")
+    missing_tables = sorted(LEDGER_TABLES - tables)
+    require(not missing_tables, "install.py が初期化した runtime DB に不足 table があります: " + ", ".join(missing_tables))
     for path in _installed_text_paths(target):
         text = path.read_text(encoding="utf-8").casefold()
         for token in INSTALLED_OLD_TERM_TOKENS:
             require(token not in text, f"install.py の導入結果に旧語彙 `{token}` が残っています: {path.relative_to(target)}")
+
+
+def _assert_agents_block_idempotent(target: Path) -> None:
+    agents = (target / "AGENTS.md").read_text(encoding="utf-8")
+    require(agents.count(AGENTS_START) == 1 and agents.count(AGENTS_END) == 1, "install.py は AGENTS.md 管理 marker を各 1 個だけにしてください。")
+    require("既存ユーザー規約" in agents, "install.py は AGENTS.md の管理ブロック外の既存内容を保持してください。")
 
 
 def validate_install_upgrade_smoke() -> None:
@@ -111,6 +132,17 @@ def validate_install_upgrade_smoke() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"
+        target.mkdir(parents=True)
+        (target / "AGENTS.md").write_text(
+            "既存ユーザー規約\n\n"
+            f"{AGENTS_START}\n"
+            f"{AGENTS_START}\n"
+            "古い二重化ブロック\n"
+            f"{AGENTS_END}\n"
+            f"{AGENTS_END}\n"
+            "末尾の既存内容\n",
+            encoding="utf-8",
+        )
         legacy_paths = [
             target / ".codex/agents/spark.toml",
             target / ".codex/agents/" / ("meta" "cognitive_controller.toml"),
@@ -125,6 +157,11 @@ def validate_install_upgrade_smoke() -> None:
         installed = _run_install("--target", target, "--mode", "copy")
         require(installed.returncode == 0, "install.py の通常 install smoke が失敗しました: " + installed.stderr)
         _assert_installed_surface(target)
+        _assert_agents_block_idempotent(target)
+        reinstalled = _run_install("--target", target, "--mode", "copy")
+        require(reinstalled.returncode == 0, "install.py の再 install smoke が失敗しました: " + reinstalled.stderr)
+        _assert_installed_surface(target)
+        _assert_agents_block_idempotent(target)
         remaining = [str(path.relative_to(target)) for path in legacy_paths if path.exists()]
         require(not remaining, "install.py は削除済み旧 template を prune してください: " + ", ".join(remaining))
 

@@ -396,7 +396,7 @@ def clean_owner_scoped_skills(target_root: Path, dry_run: bool) -> None:
 def replace_or_append_block(text: str, block: str, start_marker: str, end_marker: str) -> str:
     if start_marker in text and end_marker in text:
         before, rest = text.split(start_marker, 1)
-        _middle, after = rest.split(end_marker, 1)
+        _middle, after = rest.rsplit(end_marker, 1)
         before = before.rstrip('\n')
         after = after.lstrip('\n')
         parts = []

@@ -1,4 +1,3 @@
-<!-- codex-guild-orchestra:start -->
 # codex-guild-orchestra 管理ブロック
 
 このテンプレートは Guild-native runtime です。
@@ -226,4 +225,3 @@ Quest、割り当て（assignment）、Trial、報告（report）、message は 
 - 形式変更は人間が明示した時だけ行う
 
 詳しくは `settings.yaml` と各役割指示書を参照します。
-<!-- codex-guild-orchestra:end -->
