@@ -261,12 +261,22 @@ def memory_candidate_envelope(value: dict[str, Any]) -> tuple[str, dict[str, Any
     return None
 
 
+def validate_memory_candidate_message_scope(value: dict[str, Any], label: str, errors: list[str]) -> None:
+    if value.get("type") != MEMORY_CANDIDATE_MESSAGE_TYPE:
+        errors.append(f"{label}.type: memory candidate は exact type `{MEMORY_CANDIDATE_MESSAGE_TYPE}` の courier review 専用 envelope として記録してください。")
+    if value.get("recipient") != "courier":
+        errors.append(f"{label}.recipient: memory candidate は courier 宛にしてください。")
+    if value.get("trusted") is not False:
+        errors.append(f"{label}.trusted: memory candidate は trusted=false にしてください。")
+
+
 def validate_memory_candidate_envelope(value: dict[str, Any], label: str, errors: list[str]) -> None:
     envelope_info = memory_candidate_envelope(value)
     if envelope_info is None:
         return
     envelope_path, envelope = envelope_info
     envelope_label = f"{label}{envelope_path[1:]}"
+    validate_memory_candidate_message_scope(value, label, errors)
     if envelope.get("explicit_memory_persistence_authority") is not True:
         errors.append(f"{envelope_label}.explicit_memory_persistence_authority: true が必要です。")
     if envelope.get("sanitized_summary_only") is not True:

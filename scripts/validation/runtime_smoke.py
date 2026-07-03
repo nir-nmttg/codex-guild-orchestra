@@ -151,6 +151,31 @@ def validate_queue_db_smoke() -> None:
         invalid_memory = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(invalid_memory_message))
         require(invalid_memory.returncode != 0 and "explicit_memory_persistence_authority" in invalid_memory.stderr, "queue_db.py は authority 不足の memory candidate を拒否してください。")
 
+        invalid_recipient_message = _memory_candidate_message("msg_invalid_memory_candidate_recipient")
+        invalid_recipient_message["recipient"] = "adventurer"
+        invalid_recipient = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(invalid_recipient_message))
+        require(invalid_recipient.returncode != 0 and "recipient" in invalid_recipient.stderr, "queue_db.py は courier 宛ではない memory candidate を拒否してください。")
+
+        invalid_trusted_message = _memory_candidate_message("msg_invalid_memory_candidate_trusted")
+        invalid_trusted_message["trusted"] = True
+        invalid_trusted = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(invalid_trusted_message))
+        require(invalid_trusted.returncode != 0 and "trusted" in invalid_trusted.stderr, "queue_db.py は trusted=true の memory candidate を拒否してください。")
+
+        alias_payload = _memory_candidate_message("msg_invalid_memory_candidate_alias")["payload"]
+        alias_message = {
+            "id": "msg_invalid_memory_candidate_alias",
+            "sender": "courier",
+            "recipient": "courier",
+            "created_at": "2026-01-02T03:04:07+00:00",
+            "type": "message",
+            "trusted": False,
+            "workflow_id": "workflow_smoke",
+            "payload": {"memory_candidate": alias_payload},
+            "status": "unread",
+        }
+        invalid_alias = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(alias_message))
+        require(invalid_alias.returncode != 0 and "memory_candidate_for_courier_review" in invalid_alias.stderr, "queue_db.py は generic memory_candidate alias を拒否してください。")
+
         invalid_memory_event = {
             "event_id": "evt_invalid_memory_candidate_safety",
             "timestamp": "2026-01-02T03:04:07+00:00",
@@ -201,6 +226,47 @@ def validate_queue_db_smoke() -> None:
         with sqlite3.connect(database) as connection:
             connection.execute("DELETE FROM inbox_messages WHERE message_id = ?", (bad_audit_payload["id"],))
             connection.commit()
+
+        bad_audit_recipient = _memory_candidate_message("msg_bad_audit_memory_candidate_recipient")
+        bad_audit_recipient["recipient"] = "adventurer"
+        bad_audit_trusted = _memory_candidate_message("msg_bad_audit_memory_candidate_trusted")
+        bad_audit_trusted["trusted"] = True
+        bad_audit_alias_payload = _memory_candidate_message("msg_bad_audit_memory_candidate_alias")["payload"]
+        bad_audit_alias = {
+            "id": "msg_bad_audit_memory_candidate_alias",
+            "sender": "courier",
+            "recipient": "courier",
+            "created_at": "2026-01-02T03:04:06+00:00",
+            "type": "message",
+            "trusted": False,
+            "workflow_id": "workflow_smoke",
+            "payload": {"memory_candidate": bad_audit_alias_payload},
+            "status": "unread",
+        }
+        for bad_scope_payload, expected_token in (
+            (bad_audit_recipient, "recipient"),
+            (bad_audit_trusted, "trusted"),
+            (bad_audit_alias, "memory_candidate_for_courier_review"),
+        ):
+            with sqlite3.connect(database) as connection:
+                connection.execute(
+                    "INSERT INTO inbox_messages(message_id, recipient, workflow_id, status, payload_json, created_at) VALUES(?, ?, ?, ?, ?, ?)",
+                    (
+                        bad_scope_payload["id"],
+                        bad_scope_payload["recipient"],
+                        bad_scope_payload["workflow_id"],
+                        bad_scope_payload["status"],
+                        json.dumps(bad_scope_payload),
+                        bad_scope_payload["created_at"],
+                    ),
+                )
+                connection.commit()
+            bad_scope_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+            bad_scope_audit_output = bad_scope_audit.stdout + bad_scope_audit.stderr
+            require(bad_scope_audit.returncode != 0 and expected_token in bad_scope_audit_output, f"queue_audit.py は scope 不正の memory candidate を拒否してください: {expected_token}")
+            with sqlite3.connect(database) as connection:
+                connection.execute("DELETE FROM inbox_messages WHERE message_id = ?", (bad_scope_payload["id"],))
+                connection.commit()
 
         malformed_audit_payload = _memory_candidate_message("msg_malformed_audit_memory_candidate")
         malformed_audit_payload.pop("payload")

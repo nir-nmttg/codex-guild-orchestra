@@ -368,8 +368,18 @@ def memory_candidate_envelope(payload: dict[str, Any]) -> tuple[str, dict[str, A
         return ("message.payload", body)
     for key in (MEMORY_CANDIDATE_MESSAGE_TYPE, "memory_candidate"):
         if key in body:
-            return (f"message.payload.{key}", require_mapping(body.get(key), f"message.payload.{key}"))
+            raise SystemExit(
+                "memory candidate は message.type を "
+                f"{MEMORY_CANDIDATE_MESSAGE_TYPE} にした courier review 専用 envelope として記録してください: message.payload.{key}"
+            )
     return None
+
+
+def validate_memory_candidate_message_scope(payload: dict[str, Any]) -> None:
+    if payload.get("recipient") != "courier":
+        raise SystemExit("memory candidate の message.recipient は courier にしてください。")
+    if payload.get("trusted") is not False:
+        raise SystemExit("memory candidate の message.trusted は false にしてください。")
 
 
 def validate_memory_candidate_envelope(envelope: dict[str, Any], label: str) -> None:
@@ -397,6 +407,7 @@ def validate_memory_candidate_envelope(envelope: dict[str, Any], label: str) -> 
 def validate_memory_candidate_event_safety(payload: dict[str, Any], event_safety: Any) -> None:
     if memory_candidate_envelope(payload) is None:
         return
+    validate_memory_candidate_message_scope(payload)
     safety = require_mapping(event_safety, "event.event_safety")
     safety_items = safety.get("safety_items")
     if not isinstance(safety_items, list):
@@ -699,6 +710,7 @@ def validate_inbox_message_payload(payload: dict[str, Any]) -> None:
     require_string(payload.get("status"), "message.status")
     envelope = memory_candidate_envelope(payload)
     if envelope is not None:
+        validate_memory_candidate_message_scope(payload)
         validate_memory_candidate_envelope(envelope[1], envelope[0])
 
 
