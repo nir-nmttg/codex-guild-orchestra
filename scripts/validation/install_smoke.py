@@ -14,6 +14,8 @@ from .rules import LEDGER_TABLES
 
 AGENTS_START = "<!-- codex-guild-orchestra:start -->"
 AGENTS_END = "<!-- codex-guild-orchestra:end -->"
+EXCLUDE_START = "# codex-guild-orchestra:start"
+EXCLUDE_END = "# codex-guild-orchestra:end"
 RUNTIME_SCHEMA_VERSION = "3.0"
 
 READ_ONLY_AGENT_ROLES = (
@@ -111,10 +113,48 @@ def _assert_installed_surface(target: Path) -> None:
             require(token not in text, f"install.py の導入結果に旧語彙 `{token}` が残っています: {path.relative_to(target)}")
 
 
-def _assert_agents_block_idempotent(target: Path) -> None:
+def _assert_agents_block_idempotent(target: Path, expect_update_position: bool = True) -> None:
     agents = (target / "AGENTS.md").read_text(encoding="utf-8")
     require(agents.count(AGENTS_START) == 1 and agents.count(AGENTS_END) == 1, "install.py は AGENTS.md 管理 marker を各 1 個だけにしてください。")
     require("既存ユーザー規約" in agents, "install.py は AGENTS.md の管理ブロック外の既存内容を保持してください。")
+    require("中間の既存内容" in agents, "install.py は重複管理ブロック間の AGENTS.md 既存内容を保持してください。")
+    require("末尾の既存内容" in agents, "install.py は AGENTS.md 管理ブロック後の既存内容を保持してください。")
+    require(
+        agents.index("既存ユーザー規約") < agents.index("中間の既存内容") < agents.index("末尾の既存内容"),
+        "install.py は AGENTS.md の管理ブロック外の既存内容順序を保持してください。",
+    )
+    if expect_update_position:
+        require(
+            agents.index("既存ユーザー規約") < agents.index(AGENTS_START) < agents.index("中間の既存内容"),
+            "install.py は AGENTS.md の最初の complete 管理ブロック位置で更新してください。",
+        )
+    else:
+        require(
+            agents.index("末尾の既存内容") < agents.index(AGENTS_START),
+            "install.py --clean-install は pruning 後の既存内容を保持してから AGENTS.md 管理ブロックを再導入してください。",
+        )
+
+
+def _assert_git_exclude_block_idempotent(target: Path, expect_update_position: bool = True) -> None:
+    exclude = (target / ".git/info/exclude").read_text(encoding="utf-8")
+    require(exclude.count(EXCLUDE_START) == 1 and exclude.count(EXCLUDE_END) == 1, "install.py は .git/info/exclude 管理 marker を各 1 個だけにしてください。")
+    require("existing-before" in exclude, "install.py は .git/info/exclude の管理ブロック前の既存内容を保持してください。")
+    require("existing-between" in exclude, "install.py は .git/info/exclude の重複管理ブロック間の既存内容を保持してください。")
+    require("existing-after" in exclude, "install.py は .git/info/exclude の管理ブロック後の既存内容を保持してください。")
+    require(
+        exclude.index("existing-before") < exclude.index("existing-between") < exclude.index("existing-after"),
+        "install.py は .git/info/exclude の管理ブロック外の既存内容順序を保持してください。",
+    )
+    if expect_update_position:
+        require(
+            exclude.index("existing-before") < exclude.index(EXCLUDE_START) < exclude.index("existing-between"),
+            "install.py は .git/info/exclude の最初の complete 管理ブロック位置で更新してください。",
+        )
+    else:
+        require(
+            exclude.index("existing-after") < exclude.index(EXCLUDE_START),
+            "install.py --clean-install は pruning 後の既存内容を保持してから .git/info/exclude 管理ブロックを再導入してください。",
+        )
 
 
 def _write_duplicate_agents(target: Path) -> None:
@@ -123,12 +163,37 @@ def _write_duplicate_agents(target: Path) -> None:
         f"{AGENTS_END}\n"
         "既存ユーザー規約\n\n"
         f"{AGENTS_START}\n"
+        "古い complete block 1\n"
+        f"{AGENTS_END}\n"
+        "中間の既存内容\n"
+        f"{AGENTS_START}\n"
         f"{AGENTS_START}\n"
         "古い二重化ブロック\n"
         f"{AGENTS_END}\n"
         f"{AGENTS_END}\n"
         "末尾の既存内容\n"
         f"{AGENTS_START}\n",
+        encoding="utf-8",
+    )
+
+
+def _write_duplicate_git_exclude(target: Path) -> None:
+    exclude = target / ".git/info/exclude"
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    exclude.write_text(
+        f"{EXCLUDE_END}\n"
+        "existing-before\n"
+        f"{EXCLUDE_START}\n"
+        "old exclude block 1\n"
+        f"{EXCLUDE_END}\n"
+        "existing-between\n"
+        f"{EXCLUDE_START}\n"
+        f"{EXCLUDE_START}\n"
+        "old exclude block 2\n"
+        f"{EXCLUDE_END}\n"
+        f"{EXCLUDE_END}\n"
+        "existing-after\n"
+        f"{EXCLUDE_START}\n",
         encoding="utf-8",
     )
 
@@ -150,6 +215,7 @@ def validate_install_upgrade_smoke() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"
         _write_duplicate_agents(target)
+        _write_duplicate_git_exclude(target)
         legacy_paths = [
             target / ".codex/agents/spark.toml",
             target / ".codex/agents/" / ("meta" "cognitive_controller.toml"),
@@ -165,16 +231,19 @@ def validate_install_upgrade_smoke() -> None:
         require(installed.returncode == 0, "install.py の通常 install smoke が失敗しました: " + installed.stderr)
         _assert_installed_surface(target)
         _assert_agents_block_idempotent(target)
+        _assert_git_exclude_block_idempotent(target)
         reinstalled = _run_install("--target", target, "--mode", "copy")
         require(reinstalled.returncode == 0, "install.py の再 install smoke が失敗しました: " + reinstalled.stderr)
         _assert_installed_surface(target)
         _assert_agents_block_idempotent(target)
+        _assert_git_exclude_block_idempotent(target)
         remaining = [str(path.relative_to(target)) for path in legacy_paths if path.exists()]
         require(not remaining, "install.py は削除済み旧 template を prune してください: " + ", ".join(remaining))
 
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"
         _write_duplicate_agents(target)
+        _write_duplicate_git_exclude(target)
         existing_database = target / ".orchestra/queue/state.sqlite"
         existing_database.parent.mkdir(parents=True, exist_ok=True)
         existing_database.write_bytes(b"legacy runtime state")
@@ -190,7 +259,47 @@ def validate_install_upgrade_smoke() -> None:
         clean_installed = _run_install("--target", target, "--mode", "copy", "--clean-install")
         require(clean_installed.returncode == 0, "install.py --clean-install smoke が失敗しました: " + clean_installed.stderr)
         _assert_installed_surface(target)
-        _assert_agents_block_idempotent(target)
+        _assert_agents_block_idempotent(target, expect_update_position=False)
+        _assert_git_exclude_block_idempotent(target, expect_update_position=False)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "guild"
+        installed = _run_install("--target", target, "--mode", "copy")
+        require(installed.returncode == 0, "install.py の reset-runtime 事前 install が失敗しました: " + installed.stderr)
+        stale_queue_file = target / ".orchestra/queue/stale.txt"
+        stale_queue_file.write_text("stale runtime state\n", encoding="utf-8")
+        dashboard = target / ".orchestra/dashboard.md"
+        dashboard.write_text("edited dashboard\n", encoding="utf-8")
+
+        reset_dry_run = _run_install("--target", target, "--mode", "copy", "--reset-runtime", "--dry-run")
+        reset_dry_run_output = reset_dry_run.stdout + reset_dry_run.stderr
+        require(reset_dry_run.returncode == 0, "install.py --reset-runtime --dry-run が失敗しました: " + reset_dry_run.stderr)
+        require("remove" in reset_dry_run_output and ".orchestra/queue" in reset_dry_run_output, "install.py --reset-runtime --dry-run は runtime queue の削除計画を表示してください。")
+        require("remove" in reset_dry_run_output and "dashboard.md" in reset_dry_run_output, "install.py --reset-runtime --dry-run は dashboard の削除計画を表示してください。")
+        require("init sqlite" in reset_dry_run_output and "state.sqlite" in reset_dry_run_output, "install.py --reset-runtime --dry-run は runtime DB 再初期化計画を表示してください。")
+        require(stale_queue_file.exists(), "install.py --reset-runtime --dry-run は runtime queue を削除しないでください。")
+        require(dashboard.read_text(encoding="utf-8") == "edited dashboard\n", "install.py --reset-runtime --dry-run は dashboard を変更しないでください。")
+
+        reset_without_backup = _run_install("--target", target, "--mode", "copy", "--reset-runtime")
+        reset_without_backup_output = reset_without_backup.stdout + reset_without_backup.stderr
+        require(reset_without_backup.returncode != 0, "install.py --reset-runtime は backup なしの非 dry-run を拒否してください。")
+        require("--backup" in reset_without_backup_output and "--allow-reset-runtime-without-backup" in reset_without_backup_output, "install.py --reset-runtime の拒否 message は backup と escape flag を示してください。")
+        require(stale_queue_file.exists(), "install.py --reset-runtime の拒否時は runtime queue を削除しないでください。")
+
+        reset_with_backup = _run_install("--target", target, "--mode", "copy", "--reset-runtime", "--backup")
+        require(reset_with_backup.returncode == 0, "install.py --reset-runtime --backup smoke が失敗しました: " + reset_with_backup.stderr)
+        _assert_installed_surface(target)
+        require(not stale_queue_file.exists(), "install.py --reset-runtime --backup は古い runtime queue 内容を削除してください。")
+        backup_root = target / ".codex-guild-orchestra-backups"
+        backups = sorted(path for path in backup_root.iterdir() if path.is_dir())
+        require(backups and any((backup / ".orchestra/queue/stale.txt").exists() for backup in backups), "install.py --reset-runtime --backup は既存 runtime state を退避してください。")
+
+        stale_queue_file = target / ".orchestra/queue/stale.txt"
+        stale_queue_file.write_text("stale runtime state again\n", encoding="utf-8")
+        reset_with_escape = _run_install("--target", target, "--mode", "copy", "--reset-runtime", "--allow-reset-runtime-without-backup")
+        require(reset_with_escape.returncode == 0, "install.py --reset-runtime --allow-reset-runtime-without-backup smoke が失敗しました: " + reset_with_escape.stderr)
+        _assert_installed_surface(target)
+        require(not stale_queue_file.exists(), "install.py --reset-runtime --allow-reset-runtime-without-backup は古い runtime queue 内容を削除してください。")
 
     def run_with_mutated_source(mutation: str, mutate: object) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as tmp:

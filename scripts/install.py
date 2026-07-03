@@ -395,44 +395,59 @@ def clean_owner_scoped_skills(target_root: Path, dry_run: bool) -> None:
 
 
 def replace_or_append_block(text: str, block: str, start_marker: str, end_marker: str) -> str:
-    if start_marker in text and end_marker in text:
-        before, rest = text.split(start_marker, 1)
-        _middle, after = rest.rsplit(end_marker, 1)
-        before = remove_marker_lines(before, start_marker, end_marker).rstrip('\n')
-        after = remove_marker_lines(after, start_marker, end_marker).lstrip('\n')
-        parts = []
-        if before:
-            parts.append(before)
-        parts.append(block.rstrip('\n'))
-        if after:
-            parts.append(after)
-        return '\n\n'.join(parts).rstrip() + '\n'
+    kept_lines, insertion_index = split_managed_block_text(text, start_marker, end_marker)
+    block_text = block.rstrip('\n')
+    if insertion_index is None:
+        stripped = '\n'.join(kept_lines).rstrip()
+        if stripped:
+            return stripped + '\n\n' + block_text + '\n'
+        return block_text + '\n'
+    before = '\n'.join(kept_lines[:insertion_index]).rstrip('\n')
+    after = '\n'.join(kept_lines[insertion_index:]).lstrip('\n')
+    parts = []
+    if before:
+        parts.append(before)
+    parts.append(block_text)
+    if after:
+        parts.append(after)
+    return '\n\n'.join(parts).rstrip() + '\n'
 
-    stripped = remove_marker_lines(text, start_marker, end_marker).rstrip()
-    if stripped:
-        return stripped + '\n\n' + block.rstrip('\n') + '\n'
-    return block.rstrip('\n') + '\n'
+
+def strip_managed_blocks(text: str, start_marker: str, end_marker: str) -> str:
+    kept_lines, _insertion_index = split_managed_block_text(text, start_marker, end_marker)
+    return '\n'.join(kept_lines)
 
 
-def remove_marker_lines(text: str, start_marker: str, end_marker: str) -> str:
+def split_managed_block_text(text: str, start_marker: str, end_marker: str) -> tuple[list[str], int | None]:
     marker_lines = {start_marker, end_marker}
-    return '\n'.join(line for line in text.splitlines() if line.strip() not in marker_lines)
+    lines = text.splitlines()
+    kept: list[str] = []
+    insertion_index: int | None = None
+    index = 0
+    while index < len(lines):
+        stripped = lines[index].strip()
+        if stripped == start_marker:
+            next_marker = index + 1
+            while next_marker < len(lines) and lines[next_marker].strip() not in marker_lines:
+                next_marker += 1
+            if next_marker < len(lines) and lines[next_marker].strip() == end_marker:
+                if insertion_index is None:
+                    insertion_index = len(kept)
+                index = next_marker + 1
+            else:
+                index += 1
+            continue
+        if stripped == end_marker:
+            index += 1
+            continue
+        kept.append(lines[index])
+        index += 1
+    return kept, insertion_index
 
 
 def remove_block(text: str, start_marker: str, end_marker: str) -> str:
-    if start_marker not in text or end_marker not in text:
-        return remove_marker_lines(text, start_marker, end_marker)
-    before, rest = text.split(start_marker, 1)
-    _middle, after = rest.rsplit(end_marker, 1)
-    before = remove_marker_lines(before, start_marker, end_marker).rstrip('\n')
-    after = remove_marker_lines(after, start_marker, end_marker).lstrip('\n')
-    if before and after:
-        return before + '\n\n' + after.rstrip() + '\n'
-    if before:
-        return before.rstrip() + '\n'
-    if after:
-        return after.rstrip() + '\n'
-    return ''
+    stripped = strip_managed_blocks(text, start_marker, end_marker).rstrip()
+    return stripped + '\n' if stripped else ''
 
 
 def upsert_text_block(path: Path, block: str, start_marker: str, end_marker: str, dry_run: bool) -> None:
