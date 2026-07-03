@@ -227,6 +227,11 @@ def validate_docs_and_instructions() -> None:
             "invoke_" "meta" "cognitive_controller",
         ):
             require(token not in text, f"{rel} に旧 quest_awareness 命名 `{token}` を直書きしないでください。")
+    legacy_awareness_phrase_scan_paths = sorted(set(ACTIVE_PROSE_PATHS + tuple(golden_quest_fixture_paths)))
+    for rel in legacy_awareness_phrase_scan_paths:
+        text = read(rel).casefold()
+        for token in ("meta-" "recognition", "meta " "recognition", "meta_" "recognition"):
+            require(token not in text, f"{rel} に旧英語表記 `{token}` を入れないでください。")
     split_legacy_scan_paths = sorted(set(metaphor_scan_paths + golden_quest_fixture_paths) - {"scripts/validation/docs.py"})
     for rel in split_legacy_scan_paths:
         require(

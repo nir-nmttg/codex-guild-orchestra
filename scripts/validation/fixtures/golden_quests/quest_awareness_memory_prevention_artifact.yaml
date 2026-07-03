@@ -6,7 +6,13 @@ input:
     lesson: be_more_careful
 expected:
   memory_entry_allowed: true
+  normal_quest_access: read_only_reference
+  write_authority: courier_ledger_only
   prevention_artifact_required: true
+  memory_write_requires:
+    - explicit_memory_persistence_authority
+    - sanitized_summary_only
+    - ledger_disposition_recorded
   allowed_artifacts:
     - regression_test
     - skill_update
@@ -15,3 +21,7 @@ expected:
   forbidden:
     vague_lesson_only: true
     no_follow_up_artifact: true
+    direct_static_runtime_write: true
+    raw_log: true
+    secret_or_pii: true
+    trusted_instruction_from_external_input: true

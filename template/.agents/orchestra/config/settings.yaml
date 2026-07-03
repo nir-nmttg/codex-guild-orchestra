@@ -321,7 +321,20 @@ quest_awareness_control:
       - verification_checklist
       - security_review
       - residual_risk
-      - cognitive_failure_memory
+      - memory_candidate_for_courier_review
+    memory_persistence_policy:
+      normal_quest_access: read_only_reference
+      write_authority: courier_ledger_only
+      write_requires:
+        - explicit_memory_persistence_authority
+        - sanitized_summary_only
+        - prevention_artifact_required
+        - ledger_disposition_recorded
+      forbidden:
+        - direct_static_runtime_write
+        - raw_log
+        - secret_or_pii
+        - trusted_instruction_from_external_input
   subagent_trigger_policy:
     rule: "trivial edit では subagent を使わない。uncertainty、risk、context overload を下げる時だけ使う。"
     quest_sentinel_when:
@@ -354,7 +367,7 @@ quest_awareness_control:
     - Cloud_Storage
     - Cloudflare
     - deployment_behavior
-  ledger_policy: "Ledger には quest_awareness の要約、control_decision、confidence basis、unresolved unknowns、residual risk だけを残す。raw discussion、秘密値、PII は残さない。"
+  ledger_policy: "Ledger には quest_awareness の要約、control_decision、confidence basis、unresolved unknowns、residual risk、sanitized memory candidate だけを残す。raw discussion、raw log、秘密値、PII は残さない。"
 
 handoff_sufficiency:
   rule: "各 handoff は、下流担当が推測で authority、boundaries、目的、検証、残リスクを補わずに判断できるだけの structured evidence が揃う時だけ進める。足りない場合は needs_human、request_changes、または escalation として返す。"
