@@ -590,6 +590,8 @@ trial:
   required_checks:
     - intent_coverage
     - success_criteria
+    - quest_awareness
+    - control_decision
     - guild_law
     - authority_boundary
     - scope_boundary

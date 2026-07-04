@@ -96,6 +96,8 @@ TRIAL_DEPTHS = {"none", "self_check", "peer_review", "focused_trial", "multi_foc
 TRIAL_REQUIRED_CHECKS = {
     "intent_coverage",
     "success_criteria",
+    "quest_awareness",
+    "control_decision",
     "guild_law",
     "authority_boundary",
     "scope_boundary",
