@@ -181,6 +181,12 @@ def validate_queue_db_smoke() -> None:
         inbox = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(message))
         require(inbox.returncode == 0, "queue_db.py add-inbox-message の smoke が失敗しました: " + inbox.stderr)
 
+        trusted_message = dict(message)
+        trusted_message["id"] = "msg_invalid_trusted_generic"
+        trusted_message["trusted"] = True
+        trusted_inbox = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(trusted_message))
+        require(trusted_inbox.returncode != 0 and "trusted" in trusted_inbox.stderr, "queue_db.py は generic inbox message の trusted=true を拒否してください。")
+
         memory_message = _memory_candidate_message()
         memory_inbox = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(memory_message))
         require(memory_inbox.returncode == 0, "queue_db.py は正しい memory candidate envelope を受け付けてください: " + memory_inbox.stderr)
@@ -327,6 +333,29 @@ def validate_queue_db_smoke() -> None:
 
         audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
         require(audit.returncode == 0, "queue_audit.py の smoke が失敗しました: " + (audit.stderr or audit.stdout))
+
+        bad_generic_trusted_payload = dict(message)
+        bad_generic_trusted_payload["id"] = "msg_bad_audit_trusted_generic"
+        bad_generic_trusted_payload["trusted"] = True
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "INSERT INTO inbox_messages(message_id, recipient, workflow_id, status, payload_json, created_at) VALUES(?, ?, ?, ?, ?, ?)",
+                (
+                    bad_generic_trusted_payload["id"],
+                    bad_generic_trusted_payload["recipient"],
+                    bad_generic_trusted_payload["workflow_id"],
+                    bad_generic_trusted_payload["status"],
+                    json.dumps(bad_generic_trusted_payload),
+                    bad_generic_trusted_payload["created_at"],
+                ),
+            )
+            connection.commit()
+        bad_generic_trusted_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        bad_generic_trusted_output = bad_generic_trusted_audit.stdout + bad_generic_trusted_audit.stderr
+        require(bad_generic_trusted_audit.returncode != 0 and "trusted" in bad_generic_trusted_output, "queue_audit.py は generic inbox message の trusted=true を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute("DELETE FROM inbox_messages WHERE message_id = ?", (bad_generic_trusted_payload["id"],))
+            connection.commit()
 
         bad_audit_payload = _memory_candidate_message("msg_bad_audit_memory_candidate")
         bad_payload = bad_audit_payload["payload"]
@@ -564,3 +593,47 @@ def validate_queue_db_smoke() -> None:
         legacy_init = _run_python(script, "--runtime-root", runtime_root, "init")
         output = legacy_init.stdout + legacy_init.stderr
         require(legacy_init.returncode != 0 and ("tickets" in output or "task_id" in output), "queue_db.py init は旧物理 schema を拒否してください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        runtime_root = Path(tmp) / ".orchestra"
+        init = _run_python(script, "--runtime-root", runtime_root, "init")
+        require(init.returncode == 0, "queue_db.py init の未知 schema smoke 準備が失敗しました: " + init.stderr)
+        database = runtime_root / "queue" / "state.sqlite"
+        for suffix in ("-wal", "-shm"):
+            sidecar = database.with_name(database.name + suffix)
+            if sidecar.exists():
+                sidecar.unlink()
+        with sqlite3.connect(database) as connection:
+            connection.execute("PRAGMA journal_mode=DELETE")
+            connection.execute("ALTER TABLE quests ADD COLUMN raw_log TEXT")
+            connection.execute("CREATE TABLE unsafe_runtime_payload(secret TEXT)")
+            connection.commit()
+
+        unexpected_init = _run_python(script, "--runtime-root", runtime_root, "init")
+        unexpected_init_output = unexpected_init.stdout + unexpected_init.stderr
+        require(
+            unexpected_init.returncode != 0 and ("raw_log" in unexpected_init_output or "unsafe_runtime_payload" in unexpected_init_output),
+            "queue_db.py init は未知 table/column を含む schema を拒否してください。",
+        )
+        unexpected_dump = _run_python(script, "--runtime-root", runtime_root, "dump", "quests")
+        unexpected_dump_output = unexpected_dump.stdout + unexpected_dump.stderr
+        require(
+            unexpected_dump.returncode != 0 and ("raw_log" in unexpected_dump_output or "unsafe_runtime_payload" in unexpected_dump_output),
+            "queue_db.py dump は未知 table/column を含む schema を拒否してください。",
+        )
+        unexpected_write = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(_valid_event()))
+        unexpected_write_output = unexpected_write.stdout + unexpected_write.stderr
+        require(
+            unexpected_write.returncode != 0 and ("raw_log" in unexpected_write_output or "unsafe_runtime_payload" in unexpected_write_output),
+            "queue_db.py record-event は未知 table/column を含む schema を拒否してください。",
+        )
+        require(
+            not any(database.with_name(database.name + suffix).exists() for suffix in ("-wal", "-shm")),
+            "queue_db.py record-event は schema mismatch DB を write open する前に拒否してください。",
+        )
+        unexpected_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        unexpected_audit_output = unexpected_audit.stdout + unexpected_audit.stderr
+        require(
+            unexpected_audit.returncode != 0 and ("raw_log" in unexpected_audit_output or "unsafe_runtime_payload" in unexpected_audit_output),
+            "queue_audit.py は未知 table/column を含む schema を拒否してください。",
+        )

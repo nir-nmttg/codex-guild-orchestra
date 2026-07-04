@@ -299,6 +299,11 @@ def validate_memory_candidate_message_scope(value: dict[str, Any], label: str, e
         errors.append(f"{label}.trusted: memory candidate は trusted=false にしてください。")
 
 
+def validate_message_trust(value: dict[str, Any], label: str, errors: list[str]) -> None:
+    if value.get("trusted") is not False:
+        errors.append(f"{label}.trusted: message は trusted=false にしてください。")
+
+
 def validate_memory_candidate_envelope(value: dict[str, Any], label: str, errors: list[str]) -> None:
     envelope_info = memory_candidate_envelope(value)
     if envelope_info is None:
@@ -463,6 +468,10 @@ def audit_schema(connection: sqlite3.Connection, errors: list[str]) -> bool:
     legacy_tables = sorted(LEGACY_TABLES & tables)
     if legacy_tables:
         schema_errors.append("SQLite schema に旧 table があります: " + ", ".join(legacy_tables))
+    managed_tables = {table for table in tables if not table.startswith("sqlite_")}
+    unexpected_tables = sorted(managed_tables - REQUIRED_TABLES - LEGACY_TABLES)
+    if unexpected_tables:
+        schema_errors.append("SQLite schema に未知 table があります: " + ", ".join(unexpected_tables))
     missing_tables = sorted(REQUIRED_TABLES - tables)
     if missing_tables:
         schema_errors.append("SQLite schema に不足 table があります: " + ", ".join(missing_tables))
@@ -476,6 +485,9 @@ def audit_schema(connection: sqlite3.Connection, errors: list[str]) -> bool:
         missing_columns = sorted(required_columns - columns)
         if missing_columns:
             schema_errors.append(f"{table}: 不足 column があります: " + ", ".join(missing_columns))
+        unexpected_columns = sorted(columns - required_columns - LEGACY_COLUMNS.get(table, set()))
+        if unexpected_columns:
+            schema_errors.append(f"{table}: 未知 column があります: " + ", ".join(unexpected_columns))
     errors.extend(schema_errors)
     return not schema_errors
 
@@ -513,6 +525,8 @@ def audit_json_columns(connection: sqlite3.Connection, guild_root: Path, errors:
                     continue
                 validate_target_repo_roots(parsed, f"{row_label}.{column}", guild_root, errors)
                 validate_no_legacy_keys(parsed, f"{row_label}.{column}", errors)
+                if table == "inbox_messages" and column == "payload_json" and isinstance(parsed, dict):
+                    validate_message_trust(parsed, f"{row_label}.{column}", errors)
                 if isinstance(parsed, dict) and column == "payload_json" and table in {"events", "inbox_messages"}:
                     validate_memory_candidate_envelope(parsed, f"{row_label}.{column}", errors)
                 if table in {"events", "reports"} and column == "payload_json":
@@ -569,6 +583,8 @@ def audit_events(connection: sqlite3.Connection, errors: list[str]) -> None:
                     errors.append(f"{label}.event_safety_json.{key}: list にしてください。")
             payload = parse_json(row["payload_json"], f"{label}.payload_json", errors)
             if isinstance(payload, dict):
+                if entity_type == "message":
+                    validate_message_trust(payload, f"{label}.payload_json", errors)
                 if memory_candidate_envelope(payload) is not None and entity_type != "message":
                     errors.append(f"{label}.entity_type: memory candidate event は message entity で記録してください。")
                 validate_memory_candidate_event_safety(payload, safety, f"{label}.event_safety_json", errors, row["actor"])

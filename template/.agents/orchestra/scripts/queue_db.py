@@ -197,6 +197,7 @@ def json_dumps(value: Any) -> str:
 
 def connect_write(runtime_root: Path) -> sqlite3.Connection:
     path = db_path(runtime_root)
+    ensure_existing_schema_compatible(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path)
     connection.row_factory = sqlite3.Row
@@ -209,10 +210,15 @@ def connect_read(runtime_root: Path) -> sqlite3.Connection:
     path = db_path(runtime_root)
     if not path.exists():
         raise SystemExit(f"SQLite runtime DB がありません: {path}。`queue_db.py init` を実行してください。")
-    connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    connection = connect_existing_read_only(path)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA query_only = ON")
+    ensure_schema_compatible(connection)
     return connection
+
+
+def connect_existing_read_only(path: Path) -> sqlite3.Connection:
+    return sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
 
 
 def schema_mismatch_message(schema_errors: list[str]) -> str:
@@ -253,6 +259,10 @@ def collect_schema_errors(connection: sqlite3.Connection) -> list[str]:
     legacy_tables = sorted(LEGACY_TABLES & tables)
     if legacy_tables:
         errors.append("旧 table が残っています: " + ", ".join(legacy_tables))
+    managed_tables = {table for table in tables if not table.startswith("sqlite_")}
+    unexpected_tables = sorted(managed_tables - REQUIRED_TABLES - LEGACY_TABLES)
+    if unexpected_tables:
+        errors.append("未知 table が残っています: " + ", ".join(unexpected_tables))
     missing_tables = sorted(REQUIRED_TABLES - tables)
     if missing_tables:
         errors.append("不足 table: " + ", ".join(missing_tables))
@@ -266,7 +276,25 @@ def collect_schema_errors(connection: sqlite3.Connection) -> list[str]:
         legacy_columns = sorted(LEGACY_COLUMNS.get(table, set()) & columns)
         if legacy_columns:
             errors.append(f"{table} の旧 column: " + ", ".join(legacy_columns))
+        unexpected_columns = sorted(columns - required_columns - LEGACY_COLUMNS.get(table, set()))
+        if unexpected_columns:
+            errors.append(f"{table} の未知 column: " + ", ".join(unexpected_columns))
     return errors
+
+
+def ensure_schema_compatible(connection: sqlite3.Connection) -> None:
+    schema_errors = collect_schema_errors(connection)
+    if schema_errors:
+        raise SystemExit(schema_mismatch_message(schema_errors))
+
+
+def ensure_existing_schema_compatible(path: Path) -> None:
+    if not path.exists():
+        return
+    with connect_existing_read_only(path) as connection:
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA query_only = ON")
+        ensure_schema_compatible(connection)
 
 
 def read_json_arg(raw: str) -> Any:
@@ -741,6 +769,8 @@ def validate_inbox_message_payload(payload: dict[str, Any]) -> None:
     require_string(payload.get("type"), "message.type")
     if not isinstance(payload.get("trusted"), bool):
         raise SystemExit("message.trusted は bool にしてください。")
+    if payload.get("trusted") is not False:
+        raise SystemExit("message.trusted は false にしてください。")
     require_mapping(payload.get("payload"), "message.payload")
     require_string(payload.get("status"), "message.status")
     envelope = memory_candidate_envelope(payload)
@@ -814,6 +844,7 @@ def cmd_init(args: argparse.Namespace) -> None:
 def cmd_record_event(args: argparse.Namespace) -> None:
     event = require_mapping(read_json_arg(args.event), "event")
     with connect_write(args.runtime_root) as connection:
+        ensure_schema_compatible(connection)
         record_event(connection, event)
         connection.commit()
     print(event["event_id"])
@@ -835,6 +866,7 @@ def cmd_add_inbox_message(args: argparse.Namespace) -> None:
         "event_safety": inbox_event_safety(payload),
     }
     with connect_write(args.runtime_root) as connection:
+        ensure_schema_compatible(connection)
         record_event(connection, event)
         connection.commit()
     print(event["event_id"])
