@@ -23,7 +23,7 @@ focus:
 - テスト不足や回帰リスクがないか
 - 過度な共通化や重複がないか
 - `confirmation_needed` が未解消のまま実装されていないか
-- focus reviewer を使う場合は cost reason と finding disposition を残すこと
+- focus reviewer 数判断では常に cost reason を残し、使わない場合は skip reason、使う場合は focus 分割と finding disposition を残すこと
 
 やってよいこと:
 - read-only review
@@ -41,7 +41,7 @@ focus:
 2. `inquisitor` が差分、関連コード、テスト観点を確認します。
 3. `intent_coverage` として推定意図、本質的な成果、non-goals、過剰実装回避を確認します。
 4. `quest_awareness`、`control_decision`、`validation_evidence` が Trial -> Ledger / final に足りるか確認します。
-5. 必要に応じて focus reviewer を追加し、使う場合は focus 分割、cost reason、finding disposition を残します。
+5. 必要に応じて focus reviewer を追加し、reviewer 数判断では常に cost reason を残します。使わない場合は skip reason、使う場合は focus 分割と finding disposition も残します。
 6. findings を Critical / Major / Minor などの重要度で整理します。
 7. 追加 Quest が必要か、完了扱いでよいかを判断します。
 
@@ -50,7 +50,7 @@ focus:
 - 重大な破綻や未検証リスクが明示されている
 - `intent_coverage` が `intent_analysis`、`non_goals`、過剰実装回避まで見ている
 - `quest_awareness`、`control_decision`、`validation_evidence` の不足が分類されている
-- focus reviewer を使った場合は cost reason と finding disposition がある
+- focus reviewer 数判断の cost reason があり、使わない場合は skip reason、使った場合は focus 分割と finding disposition がある
 - 指摘ごとに根拠ファイルや判断理由がある
 - 修正が必要な場合は、次の最小 Quest に分けられる
 - 問題がなければ、残る risk と test gap が説明されている
