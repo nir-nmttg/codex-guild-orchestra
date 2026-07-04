@@ -394,6 +394,23 @@ def validate_install_upgrade_smoke() -> None:
         target = Path(tmp) / "guild"
         existing_database = target / ".orchestra/queue/state.sqlite"
         existing_database.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(existing_database) as connection:
+            connection.executescript((ROOT / "template/.agents/orchestra/scripts/queue_schema.sql").read_text(encoding="utf-8"))
+            connection.execute("INSERT INTO queue_metadata(key, value) VALUES('schema_version', '3.0')")
+            connection.execute("ALTER TABLE quests ADD COLUMN raw_log TEXT")
+            connection.execute("CREATE TABLE unsafe_runtime_payload(secret TEXT)")
+            connection.commit()
+
+        _assert_incompatible_runtime_install_rejected(target, "v3 unexpected physical schema")
+        with sqlite3.connect(existing_database) as connection:
+            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(quests)")}
+        require("unsafe_runtime_payload" in tables and "raw_log" in columns, "install.py の拒否時は未知 schema を変更しないでください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "guild"
+        existing_database = target / ".orchestra/queue/state.sqlite"
+        existing_database.parent.mkdir(parents=True, exist_ok=True)
         old_runtime_value = "invoke_" "meta" "cognitive_controller"
         with sqlite3.connect(existing_database) as connection:
             connection.execute("PRAGMA foreign_keys = ON")
@@ -471,6 +488,168 @@ def validate_install_upgrade_smoke() -> None:
         _assert_installed_surface(target)
         require(not stale_queue_file.exists(), "install.py --reset-runtime --allow-reset-runtime-without-backup は古い runtime queue 内容を削除してください。")
 
+    for rel in (".agents", ".codex", ".orchestra"):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "guild"
+            target.mkdir()
+            external = root / "external"
+            external.mkdir()
+            (target / rel).symlink_to(external, target_is_directory=True)
+
+            backup_symlink = _run_install("--target", target, "--mode", "copy", "--backup")
+            output = backup_symlink.stdout + backup_symlink.stderr
+            require(backup_symlink.returncode != 0 and "symlink" in output and rel in output, f"install.py --backup は {rel} symlink を追跡せず拒否してください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        target = root / "guild"
+        target.mkdir()
+        external = root / "external.txt"
+        external.write_text("external\n", encoding="utf-8")
+        link = target / ".orchestra/queue/external-link"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(external)
+
+        backup_nested_symlink = _run_install("--target", target, "--mode", "copy", "--backup")
+        output = backup_nested_symlink.stdout + backup_nested_symlink.stderr
+        require(backup_nested_symlink.returncode != 0 and "symlink" in output and "external-link" in output, "install.py --backup は backup 対象配下の symlink を追跡せず拒否してください。")
+
+    for symlink_parent_rel in (".git", ".git/info"):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "guild"
+            target.mkdir()
+            external_git = root / "external-git"
+            external_exclude = external_git / "info" / "exclude"
+            external_exclude.parent.mkdir(parents=True)
+            external_exclude.write_text("external exclude\n", encoding="utf-8")
+            link = target / symlink_parent_rel
+            link.parent.mkdir(parents=True, exist_ok=True)
+            link.symlink_to(external_git if symlink_parent_rel == ".git" else external_git / "info", target_is_directory=True)
+
+            backup_git_parent_symlink = _run_install("--target", target, "--mode", "copy", "--backup")
+            output = backup_git_parent_symlink.stdout + backup_git_parent_symlink.stderr
+            require(backup_git_parent_symlink.returncode != 0 and "symlink" in output and symlink_parent_rel in output, f"install.py --backup は {symlink_parent_rel} symlink parent 経由で .git/info/exclude を読まないでください。")
+            require(external_exclude.read_text(encoding="utf-8") == "external exclude\n", f"install.py --backup は {symlink_parent_rel} symlink parent の外部 exclude を変更しないでください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        target = root / "guild"
+        target.mkdir()
+        external = root / "external-readme.md"
+        external.write_text("external readme\n", encoding="utf-8")
+        link = target / ".agents/orchestra/README.md"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(external)
+
+        destination_symlink = _run_install("--target", target, "--mode", "copy")
+        output = destination_symlink.stdout + destination_symlink.stderr
+        require(destination_symlink.returncode != 0 and "symlink" in output and ".agents/orchestra/README.md" in output, "install.py は通常 install の destination file symlink を拒否してください。")
+        require(external.read_text(encoding="utf-8") == "external readme\n", "install.py は destination symlink の外部実体を書き換えないでください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        target = root / "guild"
+        target.mkdir()
+        external = root / "external-codex"
+        external.mkdir()
+        (target / ".codex").symlink_to(external, target_is_directory=True)
+
+        destination_parent_symlink = _run_install("--target", target, "--mode", "copy")
+        output = destination_parent_symlink.stdout + destination_parent_symlink.stderr
+        require(destination_parent_symlink.returncode != 0 and "symlink" in output and ".codex" in output, "install.py は通常 install の destination parent symlink を拒否してください。")
+        require(not (external / "config.toml").exists(), "install.py は destination parent symlink の外部 dir へ書き込まないでください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        target = root / "guild"
+        target.mkdir()
+        external = root / "external-agents.md"
+        external.write_text("external agents\n", encoding="utf-8")
+        (target / "AGENTS.md").symlink_to(external)
+
+        destination_agents_symlink = _run_install("--target", target, "--mode", "copy")
+        output = destination_agents_symlink.stdout + destination_agents_symlink.stderr
+        require(destination_agents_symlink.returncode != 0 and "symlink" in output and "AGENTS.md" in output, "install.py は AGENTS.md symlink を読まず書かず拒否してください。")
+        require(external.read_text(encoding="utf-8") == "external agents\n", "install.py は AGENTS.md symlink の外部実体を書き換えないでください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        target = root / "guild"
+        target.mkdir()
+        external = root / "external-agents"
+        sentinel = external / "orchestra" / "keep.txt"
+        sentinel.parent.mkdir(parents=True)
+        sentinel.write_text("keep\n", encoding="utf-8")
+        (target / ".agents").symlink_to(external, target_is_directory=True)
+
+        clean_parent_symlink = _run_install("--target", target, "--mode", "copy", "--clean-install")
+        output = clean_parent_symlink.stdout + clean_parent_symlink.stderr
+        require(clean_parent_symlink.returncode != 0 and "symlink" in output and ".agents" in output, "install.py --clean-install は symlink parent 経由の削除を拒否してください。")
+        require(sentinel.read_text(encoding="utf-8") == "keep\n", "install.py --clean-install は symlink parent の外部 dir を削除しないでください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        target = root / "guild"
+        target.mkdir()
+        external = root / "external-orchestra"
+        sentinel = external / "queue" / "stale.txt"
+        sentinel.parent.mkdir(parents=True)
+        sentinel.write_text("stale\n", encoding="utf-8")
+        (target / ".orchestra").symlink_to(external, target_is_directory=True)
+
+        reset_parent_symlink = _run_install("--target", target, "--mode", "copy", "--reset-runtime", "--allow-reset-runtime-without-backup")
+        output = reset_parent_symlink.stdout + reset_parent_symlink.stderr
+        require(reset_parent_symlink.returncode != 0 and "symlink" in output and ".orchestra" in output, "install.py --reset-runtime は symlink parent 経由の runtime 削除を拒否してください。")
+        require(sentinel.read_text(encoding="utf-8") == "stale\n", "install.py --reset-runtime は symlink parent の外部 runtime を削除しないでください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        target = root / "guild"
+        target.mkdir()
+        existing = target / ".agents" / "orchestra" / "README.md"
+        existing.parent.mkdir(parents=True)
+        existing.write_text("existing\n", encoding="utf-8")
+        external_backups = root / "external-backups"
+        external_backups.mkdir()
+        (target / ".codex-guild-orchestra-backups").symlink_to(external_backups, target_is_directory=True)
+
+        backup_destination_symlink = _run_install("--target", target, "--mode", "copy", "--backup")
+        output = backup_destination_symlink.stdout + backup_destination_symlink.stderr
+        require(backup_destination_symlink.returncode != 0 and "symlink" in output and ".codex-guild-orchestra-backups" in output, "install.py --backup は backup destination symlink を拒否してください。")
+        require(not any(external_backups.iterdir()), "install.py --backup は backup destination symlink の外部 dir へ書き込まないでください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        target = root / "guild"
+        target.mkdir()
+        external_queue = root / "external-queue"
+        external_queue.mkdir()
+        queue_link = target / ".orchestra" / "queue"
+        queue_link.parent.mkdir(parents=True)
+        queue_link.symlink_to(external_queue, target_is_directory=True)
+
+        runtime_parent_symlink = _run_install("--target", target, "--mode", "copy")
+        output = runtime_parent_symlink.stdout + runtime_parent_symlink.stderr
+        require(runtime_parent_symlink.returncode != 0 and "symlink" in output and ".orchestra/queue" in output, "install.py は SQLite runtime parent symlink を拒否してください。")
+        require(not (external_queue / "state.sqlite").exists(), "install.py は SQLite runtime parent symlink の外部 dir へ DB を作成しないでください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        target = root / "guild"
+        target.mkdir()
+        external_database = root / "external-state.sqlite"
+        external_database.write_text("external db\n", encoding="utf-8")
+        state_link = target / ".orchestra" / "queue" / "state.sqlite"
+        state_link.parent.mkdir(parents=True)
+        state_link.symlink_to(external_database)
+
+        runtime_file_symlink = _run_install("--target", target, "--mode", "copy")
+        output = runtime_file_symlink.stdout + runtime_file_symlink.stderr
+        require(runtime_file_symlink.returncode != 0 and "symlink" in output and "state.sqlite" in output, "install.py は SQLite runtime file symlink を読まず書かず拒否してください。")
+        require(external_database.read_text(encoding="utf-8") == "external db\n", "install.py は SQLite runtime file symlink の外部実体を変更しないでください。")
+
     def run_with_mutated_source(mutation: str, mutate: object) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "template"
@@ -479,6 +658,16 @@ def validate_install_upgrade_smoke() -> None:
             mutate(source)
             result = _run_install("--target", target, "--source", source, "--allow-non-default-source", "--mode", "copy", "--dry-run")
             require(result.returncode != 0, f"install.py は不正な source template を拒否してください: {mutation}")
+            return result
+
+    def run_with_allowed_mutated_source(mutation: str, mutate: object) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "template"
+            target = Path(tmp) / "guild"
+            shutil.copytree(ROOT / "template", source)
+            mutate(source)
+            result = _run_install("--target", target, "--source", source, "--allow-non-default-source", "--mode", "copy", "--dry-run")
+            require(result.returncode == 0, f"install.py は許可される source template を拒否しないでください: {mutation}: " + result.stderr)
             return result
 
     missing_advisor = run_with_mutated_source("missing advisor.toml", lambda source: (source / ".codex/agents/advisor.toml").unlink())
@@ -585,6 +774,34 @@ def validate_install_upgrade_smoke() -> None:
 
     auth_path = run_with_mutated_source("unexpected auth path", add_auth_path)
     require("auth" in (auth_path.stdout + auth_path.stderr), "install.py は source 内の auth path を拒否してください。")
+
+    def add_dot_token_variant(source: Path, name: str) -> None:
+        path = source / ".agents" / "orchestra" / name
+        path.write_text("redacted\n", encoding="utf-8")
+
+    for name, expected in (
+        (".env.local", ".env"),
+        (".envrc", ".env"),
+        (".env-local", ".env"),
+        (".env_local", ".env"),
+        (".aws-config", ".aws"),
+        ("id_ed25519.bak", "id_ed25519"),
+        ("id_rsa.pub", "id_rsa"),
+        ("state.sqlite.bak", "state.sqlite"),
+    ):
+        dot_token_variant = run_with_mutated_source(
+            f"unexpected source token variant path {name}",
+            lambda source, name=name: add_dot_token_variant(source, name),
+        )
+        require(expected in (dot_token_variant.stdout + dot_token_variant.stderr), f"install.py は source 内の {name} path を拒否してください。")
+
+    def add_harmless_keyword_substrings(source: Path) -> None:
+        docs_dir = source / ".agents" / "orchestra" / "docs"
+        (docs_dir / "keyboard-shortcuts.md").write_text("keyboard\n", encoding="utf-8")
+        (docs_dir / "authoring-guide.md").write_text("authoring\n", encoding="utf-8")
+        (docs_dir / "environment-guide.md").write_text("environment\n", encoding="utf-8")
+
+    run_with_allowed_mutated_source("harmless keyword substrings", add_harmless_keyword_substrings)
 
     def add_ssh_key_path(source: Path) -> None:
         path = source / ".codex" / ".ssh" / "id_ed25519"

@@ -7,6 +7,7 @@ import argparse
 import datetime as dt
 import json
 from pathlib import Path
+import re
 import shutil
 import sqlite3
 import sys
@@ -239,6 +240,7 @@ UNTRUSTED_SOURCE_PATH_TOKENS = {
     'token',
     'tokens',
 }
+PATH_TERM_RE = re.compile(r'[^a-z0-9]+')
 REMOVED_TEMPLATE_REL_PATHS = [
     Path('.codex/agents/spark.toml'),
     Path('.codex/agents/' 'meta' 'cognitive_controller.toml'),
@@ -327,7 +329,28 @@ def is_runtime_state_file(rel_path: Path) -> bool:
     return posix == '.orchestra/dashboard.md'
 
 
-def copy_file(src: Path, dst: Path, dry_run: bool) -> None:
+def validate_target_managed_path(path: Path, target_root: Path) -> None:
+    try:
+        relative = path.relative_to(target_root)
+    except ValueError as exc:
+        raise SystemExit(f'導入先の管理対象 path が target root 外です: {path}') from exc
+    cursor = target_root
+    for part in relative.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise SystemExit(f'導入先の管理対象 path に symlink は使えません: {cursor.relative_to(target_root)}')
+    try:
+        path.resolve(strict=False).relative_to(target_root)
+    except ValueError as exc:
+        raise SystemExit(f'導入先の管理対象 path が target root 外へ解決されます: {relative}') from exc
+
+
+def validate_target_write_path(path: Path, target_root: Path) -> None:
+    validate_target_managed_path(path, target_root)
+
+
+def copy_file(src: Path, dst: Path, target_root: Path, dry_run: bool) -> None:
+    validate_target_write_path(dst, target_root)
     log(f'copy {src} -> {dst}')
     if dry_run:
         return
@@ -335,7 +358,8 @@ def copy_file(src: Path, dst: Path, dry_run: bool) -> None:
     shutil.copy2(src, dst)
 
 
-def write_text(path: Path, content: str, dry_run: bool) -> None:
+def write_text(path: Path, content: str, target_root: Path, dry_run: bool) -> None:
+    validate_target_write_path(path, target_root)
     log(f'write {path}')
     if dry_run:
         return
@@ -343,7 +367,8 @@ def write_text(path: Path, content: str, dry_run: bool) -> None:
     path.write_text(content, encoding='utf-8')
 
 
-def remove_path(path: Path, dry_run: bool) -> None:
+def remove_path(path: Path, target_root: Path, dry_run: bool) -> None:
+    validate_target_managed_path(path, target_root)
     if not path.exists() and not path.is_symlink():
         return
     log(f'remove {path}')
@@ -385,13 +410,16 @@ def read_skill_owner(skill_path: Path) -> str | None:
 
 def clean_owner_scoped_skills(target_root: Path, dry_run: bool) -> None:
     skills_root = target_root / '.agents' / 'skills'
+    validate_target_managed_path(skills_root, target_root)
     if not skills_root.exists() or not skills_root.is_dir():
         return
     for child in sorted(skills_root.iterdir()):
+        validate_target_managed_path(child, target_root)
         skill_path = child / 'SKILL.md' if child.is_dir() else child
+        validate_target_managed_path(skill_path, target_root)
         owner = read_skill_owner(skill_path)
         if owner == ORCHESTRA_SKILL_OWNER:
-            remove_path(child, dry_run)
+            remove_path(child, target_root, dry_run)
 
 
 def replace_or_append_block(text: str, block: str, start_marker: str, end_marker: str) -> str:
@@ -450,31 +478,46 @@ def remove_block(text: str, start_marker: str, end_marker: str) -> str:
     return stripped + '\n' if stripped else ''
 
 
-def upsert_text_block(path: Path, block: str, start_marker: str, end_marker: str, dry_run: bool) -> None:
+def upsert_text_block(path: Path, block: str, start_marker: str, end_marker: str, target_root: Path, dry_run: bool) -> None:
+    validate_target_write_path(path, target_root)
     current = path.read_text(encoding='utf-8') if path.exists() else ''
     updated = replace_or_append_block(current, block, start_marker, end_marker)
     if updated != current:
-        write_text(path, updated, dry_run)
+        write_text(path, updated, target_root, dry_run)
 
 
-def prune_text_block(path: Path, start_marker: str, end_marker: str, dry_run: bool) -> None:
+def prune_text_block(path: Path, start_marker: str, end_marker: str, target_root: Path, dry_run: bool) -> None:
+    validate_target_write_path(path, target_root)
     if not path.exists():
         return
     current = path.read_text(encoding='utf-8')
     updated = remove_block(current, start_marker, end_marker)
     if updated != current:
-        write_text(path, updated, dry_run)
+        write_text(path, updated, target_root, dry_run)
+
+
+def iter_backup_candidates(target_root: Path) -> list[Path]:
+    candidates: list[Path] = []
+    for rel in BACKUP_REL_PATHS:
+        path = target_root / Path(rel)
+        validate_target_managed_path(path, target_root)
+        if path.exists() or path.is_symlink():
+            candidates.append(path)
+    return candidates
 
 
 def backup_existing(target_root: Path, dry_run: bool) -> None:
-    candidates = [target_root / rel for rel in BACKUP_REL_PATHS if (target_root / rel).exists()]
+    candidates = iter_backup_candidates(target_root)
     if not candidates:
         return
 
     stamp = dt.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
     backup_root = target_root / '.codex-guild-orchestra-backups' / stamp
+    validate_target_write_path(backup_root, target_root)
     for path in candidates:
+        validate_backup_candidate(path, target_root)
         destination = backup_root / path.relative_to(target_root)
+        validate_target_write_path(destination, target_root)
         log(f'backup {path} -> {destination}')
         if dry_run:
             continue
@@ -485,19 +528,28 @@ def backup_existing(target_root: Path, dry_run: bool) -> None:
             shutil.copy2(path, destination)
 
 
+def validate_backup_candidate(path: Path, target_root: Path) -> None:
+    if path.is_symlink():
+        raise SystemExit(f'backup 対象に symlink は使えません: {path.relative_to(target_root)}')
+    if path.is_dir():
+        for child in path.rglob('*'):
+            if child.is_symlink():
+                raise SystemExit(f'backup 対象に symlink は使えません: {child.relative_to(target_root)}')
+
+
 def clean_install_target(target_root: Path, prune_git_exclude: bool, dry_run: bool) -> None:
-    remove_path(target_root / '.agents' / 'orchestra', dry_run)
+    remove_path(target_root / '.agents' / 'orchestra', target_root, dry_run)
     clean_owner_scoped_skills(target_root, dry_run)
-    remove_path(target_root / '.codex', dry_run)
-    remove_path(target_root / '.orchestra', dry_run)
-    prune_text_block(target_root / 'AGENTS.md', AGENTS_START, AGENTS_END, dry_run)
+    remove_path(target_root / '.codex', target_root, dry_run)
+    remove_path(target_root / '.orchestra', target_root, dry_run)
+    prune_text_block(target_root / 'AGENTS.md', AGENTS_START, AGENTS_END, target_root, dry_run)
     if prune_git_exclude:
-        prune_text_block(target_root / '.git' / 'info' / 'exclude', EXCLUDE_START, EXCLUDE_END, dry_run)
+        prune_text_block(target_root / '.git' / 'info' / 'exclude', EXCLUDE_START, EXCLUDE_END, target_root, dry_run)
 
 
 def reset_runtime_state(target_root: Path, dry_run: bool) -> None:
-    remove_path(target_root / '.orchestra' / 'queue', dry_run)
-    remove_path(target_root / '.orchestra' / 'dashboard.md', dry_run)
+    remove_path(target_root / '.orchestra' / 'queue', target_root, dry_run)
+    remove_path(target_root / '.orchestra' / 'dashboard.md', target_root, dry_run)
 
 
 def runtime_schema_incompatibility_message(database: Path, detail: str) -> str:
@@ -528,6 +580,10 @@ def collect_runtime_schema_errors(connection: sqlite3.Connection) -> list[str]:
     legacy_tables = sorted(LEGACY_RUNTIME_TABLES & tables)
     if legacy_tables:
         errors.append('旧 table が残っています: ' + ', '.join(legacy_tables))
+    managed_tables = {table for table in tables if not table.startswith('sqlite_')}
+    unexpected_tables = sorted(managed_tables - REQUIRED_RUNTIME_TABLES - LEGACY_RUNTIME_TABLES)
+    if unexpected_tables:
+        errors.append('未知 table が残っています: ' + ', '.join(unexpected_tables))
     missing_tables = sorted(REQUIRED_RUNTIME_TABLES - tables)
     if missing_tables:
         errors.append('不足 table: ' + ', '.join(missing_tables))
@@ -541,6 +597,9 @@ def collect_runtime_schema_errors(connection: sqlite3.Connection) -> list[str]:
         legacy_columns = sorted(LEGACY_RUNTIME_COLUMNS.get(table, set()) & columns)
         if legacy_columns:
             errors.append(f'{table} の旧 column: ' + ', '.join(legacy_columns))
+        unexpected_columns = sorted(columns - required_columns - LEGACY_RUNTIME_COLUMNS.get(table, set()))
+        if unexpected_columns:
+            errors.append(f'{table} の未知 column: ' + ', '.join(unexpected_columns))
     return errors
 
 
@@ -630,9 +689,10 @@ def validate_runtime_physical_schema(database: Path) -> None:
 
 
 def validate_existing_runtime_schema(target_root: Path, reset_runtime: bool, clean_install: bool) -> None:
+    database = target_root / SQLITE_STATE_REL_PATH
+    validate_target_managed_path(database, target_root)
     if reset_runtime or clean_install:
         return
-    database = target_root / SQLITE_STATE_REL_PATH
     if not database.exists():
         return
     schema_version = read_runtime_schema_version(database)
@@ -644,6 +704,7 @@ def validate_existing_runtime_schema(target_root: Path, reset_runtime: bool, cle
 
 def initialize_sqlite_runtime(source_root: Path, target_root: Path, reset_runtime: bool, dry_run: bool) -> None:
     destination = target_root / SQLITE_STATE_REL_PATH
+    validate_target_write_path(destination, target_root)
     if destination.exists() and not reset_runtime:
         log(f'既存状態を保持 {destination}')
         return
@@ -685,17 +746,18 @@ def copy_template_files(source_root: Path, target_root: Path, reset_runtime: boo
         if rel.as_posix() == 'AGENTS.md':
             continue
         dst = target_root / map_template_path(rel)
+        validate_target_write_path(dst, target_root)
         if dst.exists() and is_runtime_state_file(rel) and not reset_runtime:
             log(f'既存状態を保持 {dst}')
             continue
-        copy_file(src, dst, dry_run)
+        copy_file(src, dst, target_root, dry_run)
 
 
 def prune_removed_template_files(source_root: Path, target_root: Path, dry_run: bool) -> None:
     for rel in REMOVED_TEMPLATE_REL_PATHS:
         if (source_root / rel).exists():
             continue
-        remove_path(target_root / rel, dry_run)
+        remove_path(target_root / rel, target_root, dry_run)
 
 
 def strip_limited_toml_comment(value: str) -> str:
@@ -987,33 +1049,65 @@ def validate_source_tree_trust(source_root: Path, allow_non_default_source: bool
             raise SystemExit(f'source template に symlink は使えません: {rel}')
         if rel.parts and rel.parts[0] not in TRUSTED_SOURCE_TOP_LEVELS:
             raise SystemExit(f'source template に許可外の top-level path が含まれています: {rel}')
-        parts = {part.casefold() for part in rel.parts}
-        risky = sorted(token for token in UNTRUSTED_SOURCE_PATH_TOKENS if token in parts or any(token in part for part in parts))
+        risky = risky_source_path_tokens(rel)
         if risky:
             raise SystemExit(f'source template に秘密情報または外部 tool 連携を疑う path が含まれています: {rel} ({", ".join(risky)})')
 
 
+def risky_source_path_tokens(rel: Path) -> list[str]:
+    parts = {part.casefold() for part in rel.parts}
+    split_terms = {
+        term
+        for part in parts
+        for term in PATH_TERM_RE.split(part.strip('.'))
+        if term
+    }
+    risky: list[str] = []
+    for token in sorted(UNTRUSTED_SOURCE_PATH_TOKENS):
+        normalized = token.casefold()
+        if normalized in parts:
+            risky.append(token)
+        elif any(token_matches_path_part(normalized, part) for part in parts):
+            risky.append(token)
+        elif normalized.isalnum() and normalized in split_terms:
+            risky.append(token)
+    return risky
+
+
+def token_matches_path_part(normalized_token: str, part: str) -> bool:
+    if not part.startswith(normalized_token):
+        return False
+    if normalized_token.startswith('.'):
+        return True
+    if len(part) == len(normalized_token):
+        return True
+    return not part[len(normalized_token)].isalnum()
+
+
 def ensure_repositories_root(target_root: Path, dry_run: bool) -> None:
-    ensure_directory(target_root / REPOSITORIES_REL_PATH, dry_run)
+    path = target_root / REPOSITORIES_REL_PATH
+    validate_target_write_path(path, target_root)
+    ensure_directory(path, dry_run)
 
 
 def update_git_exclude(target_root: Path, enabled: bool, dry_run: bool) -> None:
     exclude_path = target_root / '.git' / 'info' / 'exclude'
     if not enabled:
         return
+    validate_target_managed_path(exclude_path, target_root)
     if not exclude_path.parent.exists():
         return
 
     lines = [EXCLUDE_START, '.agents/orchestra/', '.codex/', '.orchestra/', '.codex-guild-orchestra-backups/']
     lines.append(EXCLUDE_END)
     block = '\n'.join(lines) + '\n'
-    upsert_text_block(exclude_path, block, EXCLUDE_START, EXCLUDE_END, dry_run)
+    upsert_text_block(exclude_path, block, EXCLUDE_START, EXCLUDE_END, target_root, dry_run)
 
 
 def update_agents_md(target_root: Path, source_root: Path, dry_run: bool) -> None:
     body = (source_root / 'AGENTS.md').read_text(encoding='utf-8').rstrip()
     block = f'{AGENTS_START}\n{body}\n{AGENTS_END}\n'
-    upsert_text_block(target_root / 'AGENTS.md', block, AGENTS_START, AGENTS_END, dry_run)
+    upsert_text_block(target_root / 'AGENTS.md', block, AGENTS_START, AGENTS_END, target_root, dry_run)
 
 
 def validate_target(target_root: Path) -> None:
