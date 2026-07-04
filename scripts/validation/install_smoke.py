@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import shutil
 import sqlite3
 import subprocess
@@ -292,6 +293,29 @@ def _write_duplicate_git_exclude(target: Path) -> None:
     )
 
 
+def _assert_incompatible_runtime_install_rejected(target: Path, label: str) -> None:
+    existing_database = target / ".orchestra/queue/state.sqlite"
+    existing_dashboard = target / ".orchestra/dashboard.md"
+    existing_dashboard.write_text(f"legacy dashboard {label}\n", encoding="utf-8")
+
+    incompatible = _run_install("--target", target, "--mode", "copy")
+    incompatible_output = incompatible.stdout + incompatible.stderr
+    require(incompatible.returncode != 0, f"install.py は既存 incompatible runtime DB の通常 install を拒否してください: {label}")
+    for token in ("--backup", "--reset-runtime", "--clean-install"):
+        require(token in incompatible_output, f"install.py の既存 incompatible runtime DB 拒否 message は `{token}` を示してください: {label}")
+    require(existing_database.exists(), f"install.py の拒否時は既存 runtime DB を削除しないでください: {label}")
+    require(
+        existing_dashboard.read_text(encoding="utf-8") == f"legacy dashboard {label}\n",
+        f"install.py の拒否時は既存 dashboard を変更しないでください: {label}",
+    )
+    require(not (target / "AGENTS.md").exists(), f"install.py の既存 incompatible runtime DB 拒否時は AGENTS.md を書かないでください: {label}")
+    require(
+        not (target / ".agents").exists() and not (target / ".codex").exists(),
+        f"install.py の既存 incompatible runtime DB 拒否時は static runtime を書かないでください: {label}",
+    )
+    require(not (target / "repositories").exists(), f"install.py の既存 incompatible runtime DB 拒否時は repositories/ を作らないでください: {label}")
+
+
 def validate_install_upgrade_smoke() -> None:
     _assert_managed_block_helper_matrix()
 
@@ -335,6 +359,56 @@ def validate_install_upgrade_smoke() -> None:
         _assert_git_exclude_block_idempotent(target)
         remaining = [str(path.relative_to(target)) for path in legacy_paths if path.exists()]
         require(not remaining, "install.py は削除済み旧 template を prune してください: " + ", ".join(remaining))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "guild"
+        existing_database = target / ".orchestra/queue/state.sqlite"
+        existing_database.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(existing_database) as connection:
+            connection.execute("CREATE TABLE queue_metadata(key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
+            connection.execute("INSERT INTO queue_metadata(key, value, updated_at) VALUES('schema_version', '2.0', 'legacy')")
+            connection.commit()
+
+        _assert_incompatible_runtime_install_rejected(target, "schema_version=2.0")
+        with sqlite3.connect(existing_database) as connection:
+            schema_version = connection.execute("SELECT value FROM queue_metadata WHERE key = 'schema_version'").fetchone()
+        require(schema_version is not None and schema_version[0] == "2.0", "install.py の拒否時は既存 runtime DB を変更しないでください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "guild"
+        existing_database = target / ".orchestra/queue/state.sqlite"
+        existing_database.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(existing_database) as connection:
+            connection.execute("CREATE TABLE queue_metadata(key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
+            connection.execute("INSERT INTO queue_metadata(key, value, updated_at) VALUES('schema_version', '3.0', 'legacy')")
+            connection.execute("CREATE TABLE assignments(task_id TEXT PRIMARY KEY, status TEXT)")
+            connection.commit()
+
+        _assert_incompatible_runtime_install_rejected(target, "v3 physical schema mismatch")
+        with sqlite3.connect(existing_database) as connection:
+            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(assignments)")}
+        require("assignments" in tables and "task_id" in columns, "install.py の拒否時は既存 physical schema を変更しないでください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "guild"
+        existing_database = target / ".orchestra/queue/state.sqlite"
+        existing_database.parent.mkdir(parents=True, exist_ok=True)
+        old_runtime_value = "invoke_" "meta" "cognitive_controller"
+        with sqlite3.connect(existing_database) as connection:
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.executescript((ROOT / "template/.agents/orchestra/scripts/queue_schema.sql").read_text(encoding="utf-8"))
+            connection.execute("INSERT INTO queue_metadata(key, value) VALUES('schema_version', '3.0')")
+            connection.execute(
+                "INSERT INTO quests(quest_id, workflow_id, rank, status, payload_json) VALUES(?, ?, ?, ?, ?)",
+                ("quest_legacy_value", "workflow_legacy_value", "solo_quest", "active", json.dumps({"control_decision": old_runtime_value})),
+            )
+            connection.commit()
+
+        _assert_incompatible_runtime_install_rejected(target, "v3 legacy runtime value")
+        with sqlite3.connect(existing_database) as connection:
+            payload = connection.execute("SELECT payload_json FROM quests WHERE quest_id = 'quest_legacy_value'").fetchone()
+        require(payload is not None and json.loads(payload[0]).get("control_decision") == old_runtime_value, "install.py の拒否時は既存 runtime 値を変更しないでください。")
 
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"
