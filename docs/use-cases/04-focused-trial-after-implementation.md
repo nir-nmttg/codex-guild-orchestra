@@ -43,7 +43,7 @@ focus:
 4. `quest_awareness`、`control_decision`、`validation_evidence` が Trial -> Ledger / final に足りるか確認します。
 5. 必要に応じて focus reviewer を追加し、使う場合は focus 分割、cost reason、finding disposition を残します。
 6. findings を Critical / Major / Minor などの重要度で整理します。
-6. 追加 Quest が必要か、完了扱いでよいかを判断します。
+7. 追加 Quest が必要か、完了扱いでよいかを判断します。
 
 ## 完了条件
 

@@ -7,7 +7,7 @@
 ## 正本の鎖
 
 この runtime の Quest Awareness は、別 runtime ではなく、既存 lifecycle の各 gate を通る構造化 field で表します。
-次は正規 field を増やす設計ではなく、既存 field に記録される control stage の読み方です。
+次は別 lifecycle や queue artifact を増やす設計ではなく、既存 lifecycle の field に記録される control stage の読み方です。
 
 ```text
 intent_analysis
