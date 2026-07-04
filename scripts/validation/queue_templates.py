@@ -8,6 +8,7 @@ from .rules import (
     INTENT_ALIGNMENT_KEYS,
     INTENT_ANALYSIS_KEYS,
     INTENT_COVERAGE_REPORT_KEYS,
+    QUEUE_TEMPLATE_PATHS,
     TRIAL_CONDITIONAL_CHECKS,
     TRIAL_DEPTH_GUARDRAILS,
     TRIAL_REQUIRED_CHECKS,
@@ -26,22 +27,7 @@ from .schema_helpers import (
 )
 
 def validate_queue_templates() -> None:
-    paths = [
-        "template/.agents/orchestra/queue/templates/advisor_assignment.yaml",
-        "template/.agents/orchestra/queue/templates/advisor_report.yaml",
-        "template/.agents/orchestra/queue/templates/adventurer_assignment.yaml",
-        "template/.agents/orchestra/queue/templates/cartographer_assignment.yaml",
-        "template/.agents/orchestra/queue/templates/cartographer_report.yaml",
-        "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
-        "template/.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml",
-        "template/.agents/orchestra/queue/templates/adventurer_report.yaml",
-        "template/.agents/orchestra/queue/templates/inquisitor_report.yaml",
-        "template/.agents/orchestra/queue/templates/request.yaml",
-        "template/.agents/orchestra/queue/templates/command.yaml",
-        "template/.agents/orchestra/queue/templates/adventurer_inbox.yaml",
-        "template/.agents/orchestra/queue/templates/role_inbox.yaml",
-    ]
-    for rel in paths:
+    for rel in QUEUE_TEMPLATE_PATHS:
         doc = mapping(load_yaml(rel), rel)
         validate_template_metadata(doc, rel)
         text = read(rel)

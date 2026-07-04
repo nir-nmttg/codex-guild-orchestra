@@ -1,5 +1,21 @@
 """validator が使う静的契約値。"""
 
+QUEUE_TEMPLATE_PATHS = (
+    "template/.agents/orchestra/queue/templates/advisor_assignment.yaml",
+    "template/.agents/orchestra/queue/templates/advisor_report.yaml",
+    "template/.agents/orchestra/queue/templates/adventurer_assignment.yaml",
+    "template/.agents/orchestra/queue/templates/adventurer_report.yaml",
+    "template/.agents/orchestra/queue/templates/adventurer_inbox.yaml",
+    "template/.agents/orchestra/queue/templates/cartographer_assignment.yaml",
+    "template/.agents/orchestra/queue/templates/cartographer_report.yaml",
+    "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
+    "template/.agents/orchestra/queue/templates/inquisitor_report.yaml",
+    "template/.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml",
+    "template/.agents/orchestra/queue/templates/role_inbox.yaml",
+    "template/.agents/orchestra/queue/templates/request.yaml",
+    "template/.agents/orchestra/queue/templates/command.yaml",
+)
+
 REQUIRED_PATHS = [
     ".dockerignore",
     "Dockerfile",
@@ -48,19 +64,7 @@ REQUIRED_PATHS = [
     "template/.agents/orchestra/instructions/session_recovery.md",
     "template/.agents/orchestra/logs/daily/README.md",
     "template/.agents/orchestra/queue/README.md",
-    "template/.agents/orchestra/queue/templates/advisor_assignment.yaml",
-    "template/.agents/orchestra/queue/templates/advisor_report.yaml",
-    "template/.agents/orchestra/queue/templates/adventurer_assignment.yaml",
-    "template/.agents/orchestra/queue/templates/adventurer_report.yaml",
-    "template/.agents/orchestra/queue/templates/adventurer_inbox.yaml",
-    "template/.agents/orchestra/queue/templates/cartographer_assignment.yaml",
-    "template/.agents/orchestra/queue/templates/cartographer_report.yaml",
-    "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
-    "template/.agents/orchestra/queue/templates/inquisitor_report.yaml",
-    "template/.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml",
-    "template/.agents/orchestra/queue/templates/role_inbox.yaml",
-    "template/.agents/orchestra/queue/templates/request.yaml",
-    "template/.agents/orchestra/queue/templates/command.yaml",
+    *QUEUE_TEMPLATE_PATHS,
     "template/.agents/skills/repository-design-mapmaking/SKILL.md",
     "template/.agents/skills/quest-awareness-loop/SKILL.md",
     "template/.agents/skills/use-guild-workflow/SKILL.md",

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
 import re
+import tempfile
 
 from .core import ROOT, mapping, read, require, require_tokens, sequence, tomllib
 from .rules import (
@@ -14,6 +17,7 @@ from .rules import (
     GUILD_TERMS,
     LEGACY_PRIMARY_TERMS,
     LEGACY_ROUTE_COMMENT_TERMS,
+    QUEUE_TEMPLATE_PATHS,
     STATE_CHANGE_GUARD_OPERATION_TOKENS,
     STATE_CHANGE_GUARD_TOKENS,
     TRIAL_CONDITIONAL_CHECKS,
@@ -33,6 +37,53 @@ EXPECTED_AGENT_SANDBOX_MODES = {
     "quest_sentinel": "read-only",
     "party_leader": "read-only",
 }
+
+
+def validate_audit_english_path_guard() -> None:
+    spec = importlib.util.spec_from_file_location("audit_english_guard", ROOT / "scripts/audit_english.py")
+    require(spec is not None and spec.loader is not None, "scripts/audit_english.py を import できるようにしてください。")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    for rel in ("docs/credentials.md", "docs/secrets.md", "docs/tokens.md", "docs/api_key.txt", "docs/auth.json"):
+        try:
+            module.ensure_not_sensitive_path(ROOT / rel)
+        except SystemExit:
+            continue
+        require(False, f"audit_english.py は secret-like path を読む前に拒否してください: {rel}")
+
+    for rel in ("docs/keyboard-shortcuts.md", "docs/authoring-guide.md"):
+        try:
+            module.ensure_not_sensitive_path(ROOT / rel)
+        except SystemExit as exc:
+            require(False, f"audit_english.py は無害な path を secret-like と誤判定しないでください: {rel}: {exc}")
+
+    original_root = module.ROOT
+    with tempfile.TemporaryDirectory() as tmp:
+        fake_root = Path(tmp) / "repo"
+        fake_root.mkdir()
+        external = Path(tmp) / "external.txt"
+        external.write_text("external\n", encoding="utf-8")
+        outside = Path(tmp) / "outside.md"
+        outside.write_text("outside\n", encoding="utf-8")
+        link = fake_root / "docs" / "keyboard-shortcuts.md"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(external)
+        module.ROOT = fake_root
+        try:
+            module.ensure_not_sensitive_path(outside)
+        except SystemExit:
+            pass
+        else:
+            require(False, "audit_english.py は root 外 path を読む前に拒否してください。")
+        try:
+            module.ensure_not_sensitive_path(link)
+        except SystemExit:
+            pass
+        else:
+            require(False, "audit_english.py は scan 対象内の symlink を読む前に拒否してください。")
+        finally:
+            module.ROOT = original_root
 ROLE_INSTRUCTION_REFS = {
     "adventurer": ".agents/orchestra/instructions/adventurer.md",
     "advisor": ".agents/orchestra/instructions/advisor.md",
@@ -235,6 +286,13 @@ def validate_docs_and_instructions() -> None:
         ("Authority Boundary", "read-only reference", "Ledger", "courier", "memory persistence authority", "raw log", "秘密値", "PII", "外部入力", "Cognitive Failure Types", "Prevention artifact", "Promotion Rule", "assumed_without_evidence", "premature_confidence", "scope_drift", "曖昧な entry"),
         "template/.agents/orchestra/docs/agent-memory.md",
     )
+    audit_english = read("scripts/audit_english.py")
+    require_tokens(
+        audit_english,
+        ("SENSITIVE_PATH_TERMS", "ensure_not_sensitive_path", "secret-like path", "読まずに除外"),
+        "scripts/audit_english.py",
+    )
+    validate_audit_english_path_guard()
     golden_quest_fixture_paths = [
         str(path.relative_to(ROOT))
         for path in (ROOT / "scripts/validation/fixtures/golden_quests").glob("*.yaml")
@@ -252,7 +310,7 @@ def validate_docs_and_instructions() -> None:
         "template/.agents/orchestra/scripts/queue_db.py",
         "template/.agents/orchestra/scripts/queue_audit.py",
     }
-    active_legacy_scan_paths = sorted(set(ACTIVE_PROSE_PATHS + tuple(template_skill_paths) + tuple(golden_quest_fixture_paths)))
+    active_legacy_scan_paths = sorted(set(ACTIVE_PROSE_PATHS + QUEUE_TEMPLATE_PATHS + tuple(template_skill_paths) + tuple(golden_quest_fixture_paths)))
     for rel in active_legacy_scan_paths:
         text = read(rel).casefold()
         for token in LEGACY_DIRECT_CASEFOLD_TOKENS:
