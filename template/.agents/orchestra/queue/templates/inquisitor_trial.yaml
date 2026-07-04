@@ -24,6 +24,26 @@ trial:
     ambiguities: []
     confirmation_needed: []
   success_criteria: []
+  quest_awareness:
+    goal: null
+    current_subgoal: null
+    known_facts: []
+    unknowns: []
+    assumptions: []
+    evidence: []
+    current_strategy: null
+    confidence_percent: null
+    risk_level: medium
+    verification_status: partially_checked
+    next_action: null
+    stop_condition: null
+  control_decision:
+    decision: run_tests
+    rationale: null
+    required_next_action: null
+    triggers: []
+    confidence_threshold_applied: null
+    escalation_required: false
   authority:
     read: true
     edit: false
@@ -38,6 +58,8 @@ trial:
   trial_checks:
     - intent_coverage
     - success_criteria
+    - quest_awareness
+    - control_decision
     - guild_law
     - authority_boundary
     - scope_boundary

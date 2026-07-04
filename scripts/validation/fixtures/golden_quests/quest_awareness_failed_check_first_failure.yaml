@@ -1,0 +1,15 @@
+id: quest_awareness_failed_check_first_failure
+fixture_mode: static_contract_example
+summary: "failed check は最初の failure に集中し、1つの focused fix 後に同じ check を再実行する。"
+input:
+  command_result: failed
+  failures:
+    - first_failure
+    - later_failure
+expected:
+  control_decision: run_tests
+  first_failure_required: true
+  rerun_same_check_required: true
+  forbidden:
+    multiple_speculative_fixes: true
+    skip_failure_explanation: true

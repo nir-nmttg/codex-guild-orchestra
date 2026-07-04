@@ -1,0 +1,17 @@
+id: quest_awareness_security_sensitive
+fixture_mode: static_contract_example
+summary: "security-sensitive area に触れたら high risk とし、security review と検証を要求する。"
+input:
+  touched_areas:
+    - authorization
+    - user_data
+expected:
+  risk_level: high
+  control_decision: invoke_security_review
+  security_review_route: existing_authority_security_focused_trial
+  security_review_owner: inquisitor
+  new_worker_allowed: false
+  tests_or_manual_verification_required: true
+  forbidden:
+    finalize_without_security_review: true
+    treat_as_low_risk: true

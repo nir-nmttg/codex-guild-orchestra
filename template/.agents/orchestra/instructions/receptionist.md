@@ -30,11 +30,17 @@
 - `boundaries`
 - `guild_law`
 - `known_context`
+- `quest_awareness`
 - `autonomy_budget`
 - `party_tactics`
 - `trial_plan`
 - `escalation_triggers`
 - `evidence_required`
+
+## Handoff Sufficiency
+
+Quest Charter へ渡すには、`intent_analysis.confirmation_needed` が空であるか、人間確認へ戻す判断が明示され、initial `quest_awareness` で goal、known facts、unknowns、assumptions、evidence、confidence、risk、verification status、next action、stop condition が整理されている必要があります。
+`target_repo_root`、authority、boundaries、success criteria、non-goals、evidence required が曖昧な場合は、実装担当へ渡さず needs_human とします。
 
 ## やらないこと
 

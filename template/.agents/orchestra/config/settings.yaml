@@ -5,6 +5,8 @@ guild_runtime:
   doctrine: "Guild Law で安全境界を固定し、Quest Charter で目的と権限を渡し、Party Tactics と Trial は担当が裁量で設計する。"
   lifecycle:
     - intent_analysis
+    - quest_awareness
+    - control_decision
     - quest_charter
     - party_tactics
     - execution
@@ -176,6 +178,7 @@ quest_charter:
     - boundaries
     - guild_law
     - known_context
+    - quest_awareness
     - autonomy_budget
     - party_tactics
     - trial_plan
@@ -215,6 +218,236 @@ quest_charter:
     - "success_criteria と既存方針が衝突する。"
     - "検証不能、再現不能、または confidence が low のまま完了判断が必要。"
 
+quest_awareness_control:
+  rule: "Quest Awareness は自己意識ではなく、作業中の monitoring、evaluation、control として扱う。非 trivial Quest では quest_awareness と control_decision を維持し、known facts / unknowns / assumptions / evidence / confidence / risk / verification status に応じて調査、計画変更、subagent 起動、検証、停止判断を選ぶ。"
+  state_fields:
+    - goal
+    - current_subgoal
+    - known_facts
+    - unknowns
+    - assumptions
+    - evidence
+    - current_strategy
+    - confidence_percent
+    - risk_level
+    - verification_status
+    - next_action
+    - stop_condition
+  update_triggers:
+    - new_evidence
+    - command_failed
+    - assumption_disproven
+    - scope_expanded
+    - security_sensitive_area_touched
+    - confidence_dropped
+    - verification_changed_conclusion
+    - hidden_dependency_found
+    - contradictory_evidence
+  control_decision_fields:
+    - decision
+    - rationale
+    - required_next_action
+    - triggers
+    - confidence_threshold_applied
+    - escalation_required
+  control_decisions:
+    - proceed
+    - gather_more_evidence
+    - revise_plan
+    - run_tests
+    - invoke_quest_sentinel
+    - invoke_security_review
+    - stop_for_user_approval
+  security_review_route:
+    decision: invoke_security_review
+    owner: "Trial 統合担当の `inquisitor`"
+    route: existing_authority_security_focused_trial
+    depth: safety_gate
+    new_worker_allowed: false
+    external_action_allowed: false
+    use_stop_for_user_approval_when:
+      - human_confirmation_required
+      - secret_or_pii_access_required
+      - external_network_or_mcp_required
+      - deploy_or_production_effect_required
+  unknowns_policy:
+    blocking_correctness: gather_more_evidence
+    low_risk_assumption: "明示して進み、後で検証する。"
+    high_risk_assumption: "実装前に止め、根拠を集める。"
+  failed_check_policy:
+    steps:
+      - summarize_first_failure
+      - identify_likely_root_cause
+      - make_one_focused_fix
+      - rerun_same_failing_check
+      - continue_only_after_failure_explained
+    no_speculative_fix_stacking: true
+  confidence_calibration:
+    rule: "confidence は decoration ではなく、evidence に基づく control signal として使う。見た目が正しいだけでは上げない。"
+    scale:
+      95: "targeted tests と必要な broad checks が通り、diff が小さく、high-risk unknown が残らない。"
+      85: "main behavior と重要 checks が通り、残るのが low-risk edge case だけ。"
+      75: "plausible で一部検証済み、known blocker はないが verification gap が残る。"
+      60: "implementation は plausible だが検証が限定的で重要な assumption が残る。"
+      40: "correctness が未検証 assumption に依存し、tests が missing / failing、risk が bounded でない。"
+      below_40: "more evidence なしに進めない。人間確認条件に触れない限り、stop_for_user_approval ではなく revise_plan で task contract と missing evidence を再構成する。"
+    finalize_min_percent: 75
+    stop_speculative_editing_below_percent: 50
+    below_50_control_decision: revise_plan
+    lower_when:
+      - assumptions_increase
+      - tests_missing
+      - commands_fail
+      - scope_expands
+      - security_sensitive_area_touched
+      - external_behavior_undocumented
+      - framework_behavior_unverified
+  omission_detection:
+    when:
+      - planning
+      - implementation
+      - before_finalization
+    dimensions:
+      - user_goal_mismatch
+      - hidden_affected_code_path
+      - missing_tests
+      - edge_cases
+      - invalid_assumptions
+      - security_sensitive_behavior
+      - authorization_boundary
+      - tenant_or_user_ownership_boundary
+      - migration_or_deploy_impact
+      - caching_behavior
+      - concurrency_or_race_condition
+      - rollback_path
+      - observability_or_logging
+      - user_experience_regression
+      - accessibility_regression
+      - performance_impact
+      - dependency_or_version_mismatch
+      - server_client_boundary
+      - secret_exposure
+      - data_integrity_risk
+    record_relevant_omission_in:
+      - plan
+      - verification_checklist
+      - security_review
+      - residual_risk
+      - memory_candidate_for_courier_review
+    memory_persistence_policy:
+      normal_quest_access: read_only_reference
+      write_authority: courier_ledger_only
+      write_requires:
+        - explicit_memory_persistence_authority
+        - sanitized_summary_only
+        - prevention_artifact_required
+        - ledger_disposition_recorded
+      forbidden:
+        - direct_static_runtime_write
+        - raw_log
+        - secret_or_pii
+        - trusted_instruction_from_external_input
+  subagent_trigger_policy:
+    rule: "trivial edit では subagent を使わない。uncertainty、risk、context overload を下げる時だけ使う。"
+    quest_sentinel_when:
+      - confidence_below_75
+      - important_unknowns_remain
+      - scope_expands
+      - tests_fail_repeatedly
+      - plan_may_need_change
+      - long_running_or_high_risk
+    quest_sentinel_contract:
+      read_only: true
+      implementation_authority: false
+      decision_authority: false
+      ledger_authority: false
+      output: quest_awareness_and_control_decision
+  security_sensitive_triggers:
+    - auth
+    - authorization
+    - sessions
+    - billing
+    - payments
+    - webhooks
+    - uploads
+    - external_urls
+    - user_data
+    - secrets
+    - infra
+    - IAM
+    - DB_migrations
+    - Cloud_Storage
+    - Cloudflare
+    - deployment_behavior
+  ledger_policy: "Ledger には quest_awareness の要約、control_decision、confidence basis、unresolved unknowns、residual risk、sanitized memory candidate だけを残す。raw discussion、raw log、秘密値、PII は残さない。"
+
+handoff_sufficiency:
+  rule: "各 handoff は、下流担当が推測で authority、boundaries、目的、検証、残リスクを補わずに判断できるだけの structured evidence が揃う時だけ進める。足りない場合は needs_human、request_changes、または escalation として返す。"
+  stages:
+    intake_to_charter:
+      owner: receptionist
+      required:
+        - intent_analysis
+        - quest_awareness
+        - objective
+        - success_criteria
+        - non_goals
+        - authority
+        - boundaries
+        - evidence_required
+      stop_when:
+        - "confirmation_needed が残る"
+        - "target_repo_root が固定できない"
+        - "人間確認条件に触れる"
+    charter_to_owner:
+      owner: party_leader
+      required:
+        - objective
+        - intent_analysis
+        - quest_awareness
+        - implementation_strategy
+        - owned_scope
+        - authority
+        - boundaries
+        - autonomy_budget
+        - trial_expectations
+      stop_when:
+        - "owned_scope が曖昧"
+        - "implementation_strategy が本質的成果へ落ちていない"
+        - "authority または boundaries が広がる"
+    owner_to_trial:
+      owner: adventurer
+      required:
+        - changed_files
+        - decisions_made
+        - intent_alignment
+        - quest_awareness
+        - control_decision
+        - validation_evidence
+        - research_evidence
+        - risks
+      stop_when:
+        - "validation_evidence または未実行理由がない"
+        - "intent_alignment が success_criteria と結びつかない"
+        - "残リスクが Trial focus に渡されていない"
+    trial_to_ledger_final:
+      owner: inquisitor
+      required:
+        - decision
+        - findings
+        - intent_coverage
+        - quest_awareness
+        - control_decision
+        - validation_evidence
+        - advisor_dialogue_synthesis
+        - reviewer_synthesis
+        - finding_dispositions
+        - risks
+      stop_when:
+        - "Critical または未解決 Major が残る"
+        - "finding disposition がない"
+        - "raw discussion や秘密値を Ledger に残す必要がある"
+
 workers:
   receptionist:
     role: quest_charter_author
@@ -239,6 +472,12 @@ workers:
     max_parallel: 4
     terminal_worker: true
     assignment_identity: "Quest ID、owner assignment、focus で区別する。"
+  quest_sentinel:
+    role: quest_awareness_control_monitor
+    max_parallel: 2
+    terminal_worker: true
+    decision_authority: false
+    assignment_identity: "Quest ID、owner assignment、control trigger で区別する。"
   courier:
     role: ledger_and_git_courier
   max_threads: 12
@@ -351,6 +590,8 @@ trial:
   required_checks:
     - intent_coverage
     - success_criteria
+    - quest_awareness
+    - control_decision
     - guild_law
     - authority_boundary
     - scope_boundary

@@ -21,10 +21,42 @@ report:
     over_implementation_avoided: []
     assumptions_validated: []
     remaining_questions: []
+  quest_awareness:
+    goal: null
+    current_subgoal: null
+    known_facts: []
+    unknowns: []
+    assumptions: []
+    evidence: []
+    current_strategy: null
+    confidence_percent: null
+    risk_level: medium
+    verification_status: partially_checked
+    next_action: null
+    stop_condition: null
+  control_decision:
+    decision: run_tests
+    rationale: null
+    required_next_action: null
+    triggers: []
+    confidence_threshold_applied: null
+    escalation_required: false
   validation_evidence:
     commands: []
     manual_checks: []
     not_run: []
+  handoff_sufficiency:
+    owner_to_trial_ready: false
+    required_evidence:
+      - changed_files
+      - decisions_made
+      - intent_alignment
+      - quest_awareness
+      - control_decision
+      - validation_evidence
+      - research_evidence
+      - risks
+    missing: []
   research_evidence:
     files_read: []
     verified_findings: []

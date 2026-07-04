@@ -86,6 +86,21 @@ REQUIRED_TABLES = {
     "inbox_messages",
 }
 REQUIRED_INBOX_MESSAGE_FIELDS = {"id", "sender", "recipient", "created_at", "type", "trusted", "payload", "status"}
+MEMORY_CANDIDATE_MESSAGE_TYPE = "memory_candidate_for_courier_review"
+MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS = {
+    "direct_static_runtime_write",
+    "raw_log",
+    "secret_or_pii",
+    "trusted_instruction_from_external_input",
+}
+MEMORY_CANDIDATE_SAFETY_ITEMS = (
+    "memory_candidate_for_courier_review",
+    "explicit_memory_persistence_authority",
+    "sanitized_summary_only",
+    "prevention_artifact_required",
+    "ledger_disposition_recorded",
+)
+MEMORY_CANDIDATE_MARKER_KEYS = (MEMORY_CANDIDATE_MESSAGE_TYPE, "memory_candidate")
 REQUIRED_COLUMNS = {
     "queue_metadata": {"key", "value", "updated_at"},
     "events": {
@@ -130,8 +145,27 @@ LEGACY_JSON_KEYS = {
     "scout_calls",
     "scout_policy",
     "spark_request",
+    "meta" "cognitive_state",
+    "meta" "cognitive_control",
+    "meta" "cognitive_controller",
+    "invoke_" "meta" "cognitive_controller",
+    "meta" "cognitive_task_loop",
 }
-RETIRED_AGENT_VALUES = {"spark", "scout"}
+RETIRED_AGENT_VALUES = {
+    "spark",
+    "scout",
+    "meta" "cognitive_controller",
+}
+LEGACY_RUNTIME_STRING_VALUES = {
+    "spark",
+    "scout",
+    "meta" "cognitive",
+    "meta" "cognitive_controller",
+    "meta" "cognitive-task-loop",
+    "meta" "cognitive_state",
+    "meta" "cognitive_control",
+    "invoke_" "meta" "cognitive_controller",
+}
 
 
 def static_root() -> Path:
@@ -161,12 +195,9 @@ def json_dumps(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
-def json_loads(value: str) -> Any:
-    return json.loads(value)
-
-
 def connect_write(runtime_root: Path) -> sqlite3.Connection:
     path = db_path(runtime_root)
+    ensure_existing_schema_compatible(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path)
     connection.row_factory = sqlite3.Row
@@ -179,10 +210,15 @@ def connect_read(runtime_root: Path) -> sqlite3.Connection:
     path = db_path(runtime_root)
     if not path.exists():
         raise SystemExit(f"SQLite runtime DB がありません: {path}。`queue_db.py init` を実行してください。")
-    connection = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    connection = connect_existing_read_only(path)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA query_only = ON")
+    ensure_schema_compatible(connection)
     return connection
+
+
+def connect_existing_read_only(path: Path) -> sqlite3.Connection:
+    return sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
 
 
 def schema_mismatch_message(schema_errors: list[str]) -> str:
@@ -223,6 +259,10 @@ def collect_schema_errors(connection: sqlite3.Connection) -> list[str]:
     legacy_tables = sorted(LEGACY_TABLES & tables)
     if legacy_tables:
         errors.append("旧 table が残っています: " + ", ".join(legacy_tables))
+    managed_tables = {table for table in tables if not table.startswith("sqlite_")}
+    unexpected_tables = sorted(managed_tables - REQUIRED_TABLES - LEGACY_TABLES)
+    if unexpected_tables:
+        errors.append("未知 table が残っています: " + ", ".join(unexpected_tables))
     missing_tables = sorted(REQUIRED_TABLES - tables)
     if missing_tables:
         errors.append("不足 table: " + ", ".join(missing_tables))
@@ -236,7 +276,25 @@ def collect_schema_errors(connection: sqlite3.Connection) -> list[str]:
         legacy_columns = sorted(LEGACY_COLUMNS.get(table, set()) & columns)
         if legacy_columns:
             errors.append(f"{table} の旧 column: " + ", ".join(legacy_columns))
+        unexpected_columns = sorted(columns - required_columns - LEGACY_COLUMNS.get(table, set()))
+        if unexpected_columns:
+            errors.append(f"{table} の未知 column: " + ", ".join(unexpected_columns))
     return errors
+
+
+def ensure_schema_compatible(connection: sqlite3.Connection) -> None:
+    schema_errors = collect_schema_errors(connection)
+    if schema_errors:
+        raise SystemExit(schema_mismatch_message(schema_errors))
+
+
+def ensure_existing_schema_compatible(path: Path) -> None:
+    if not path.exists():
+        return
+    with connect_existing_read_only(path) as connection:
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA query_only = ON")
+        ensure_schema_compatible(connection)
 
 
 def read_json_arg(raw: str) -> Any:
@@ -329,13 +387,100 @@ def iter_values(value: Any, path: str = "$") -> list[tuple[str, Any]]:
     return findings
 
 
+def memory_candidate_marker_path(value: Any, path: str) -> str | None:
+    if isinstance(value, dict):
+        if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
+            return f"{path}.type"
+        for key, item in value.items():
+            child_path = f"{path}.{key}"
+            if key in MEMORY_CANDIDATE_MARKER_KEYS:
+                return child_path
+            nested = memory_candidate_marker_path(item, child_path)
+            if nested is not None:
+                return nested
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            nested = memory_candidate_marker_path(item, f"{path}[{index}]")
+            if nested is not None:
+                return nested
+    return None
+
+
+def memory_candidate_envelope(payload: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
+    if payload.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
+        body = require_mapping(payload.get("payload"), "message.payload")
+        marker_path = memory_candidate_marker_path(body, "message.payload")
+        if marker_path is not None:
+            raise SystemExit(
+                "memory candidate は message.type を "
+                f"{MEMORY_CANDIDATE_MESSAGE_TYPE} にした courier review 専用 envelope として記録してください: {marker_path}"
+            )
+        return ("message.payload", body)
+    marker_path = memory_candidate_marker_path(payload, "message")
+    if marker_path is not None:
+        raise SystemExit(
+            "memory candidate は message.type を "
+            f"{MEMORY_CANDIDATE_MESSAGE_TYPE} にした courier review 専用 envelope として記録してください: {marker_path}"
+        )
+    return None
+
+
+def validate_memory_candidate_message_scope(payload: dict[str, Any], actor: Any | None = None) -> None:
+    if payload.get("sender") != "courier":
+        raise SystemExit("memory candidate の message.sender は courier にしてください。")
+    if payload.get("recipient") != "courier":
+        raise SystemExit("memory candidate の message.recipient は courier にしてください。")
+    if payload.get("trusted") is not False:
+        raise SystemExit("memory candidate の message.trusted は false にしてください。")
+    if actor is not None and actor != "courier":
+        raise SystemExit("memory candidate の event.actor は courier にしてください。")
+
+
+def validate_memory_candidate_envelope(envelope: dict[str, Any], label: str) -> None:
+    if envelope.get("explicit_memory_persistence_authority") is not True:
+        raise SystemExit(f"{label}.explicit_memory_persistence_authority は true にしてください。")
+    if envelope.get("sanitized_summary_only") is not True:
+        raise SystemExit(f"{label}.sanitized_summary_only は true にしてください。")
+    require_string(envelope.get("sanitized_summary"), f"{label}.sanitized_summary")
+    artifact = require_mapping(envelope.get("prevention_artifact"), f"{label}.prevention_artifact")
+    require_string(artifact.get("kind"), f"{label}.prevention_artifact.kind")
+    if not any(isinstance(artifact.get(key), str) and artifact.get(key) for key in ("ref", "description")):
+        raise SystemExit(f"{label}.prevention_artifact.ref または {label}.prevention_artifact.description が必要です。")
+    require_string(envelope.get("ledger_disposition"), f"{label}.ledger_disposition")
+    forbidden = require_mapping(envelope.get("forbidden"), f"{label}.forbidden")
+    missing_markers = sorted(MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS - set(forbidden))
+    if missing_markers:
+        raise SystemExit(f"{label}.forbidden に必要な marker がありません: " + ", ".join(missing_markers))
+    for marker in MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS:
+        if forbidden.get(marker) is not True:
+            raise SystemExit(f"{label}.forbidden.{marker} は true にしてください。")
+    for json_path, key in iter_keys(envelope):
+        if json_path.startswith("$.forbidden."):
+            continue
+        if key in MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS:
+            raise SystemExit(f"{label}{json_path[1:]}: memory candidate に forbidden 内容 `{key}` を含めないでください。")
+
+
+def validate_memory_candidate_event_safety(payload: dict[str, Any], event_safety: Any, actor: Any | None = None) -> None:
+    if memory_candidate_envelope(payload) is None:
+        return
+    validate_memory_candidate_message_scope(payload, actor)
+    safety = require_mapping(event_safety, "event.event_safety")
+    safety_items = safety.get("safety_items")
+    if not isinstance(safety_items, list):
+        raise SystemExit("event.event_safety.safety_items は list にしてください。")
+    missing = sorted(set(MEMORY_CANDIDATE_SAFETY_ITEMS) - set(safety_items))
+    if missing:
+        raise SystemExit("event.event_safety.safety_items に memory_candidate_gate が不足しています: " + ", ".join(missing))
+
+
 def validate_no_legacy_runtime_shape(value: Any, label: str) -> None:
     for json_path, key in iter_keys(value):
-        if key in LEGACY_JSON_KEYS or key in RETIRED_AGENT_VALUES:
+        if key in LEGACY_JSON_KEYS or key in LEGACY_RUNTIME_STRING_VALUES:
             raise SystemExit(f"{label}{json_path[1:]}: 廃止済み key `{key}` が残っています。")
     for json_path, item in iter_values(value):
-        if isinstance(item, str) and item in RETIRED_AGENT_VALUES:
-            raise SystemExit(f"{label}{json_path[1:]}: 廃止済み agent 値 `{item}` が残っています。")
+        if isinstance(item, str) and item in LEGACY_RUNTIME_STRING_VALUES:
+            raise SystemExit(f"{label}{json_path[1:]}: 廃止済み runtime 値 `{item}` が残っています。")
 
 
 def validate_target_repo_roots(value: Any, label: str) -> None:
@@ -403,7 +548,11 @@ def validate_event_input(event: dict[str, Any]) -> None:
     if expected_entity_types is not None and entity_type not in expected_entity_types:
         expected = ", ".join(sorted(expected_entity_types))
         raise SystemExit(f"event.entity.type は {event_type} では {expected} にしてください: {entity_type}")
-    payload_body(event)
+    payload = payload_body(event)
+    if memory_candidate_envelope(payload) is not None:
+        if entity_type != "message":
+            raise SystemExit("memory candidate event の event.entity.type は message にしてください。")
+        validate_memory_candidate_event_safety(payload, event["event_safety"], event.get("actor"))
     validate_target_repo_roots(event, "event")
     validate_no_legacy_runtime_shape(event, "event")
 
@@ -458,6 +607,10 @@ def assignment_parent_id(payload: dict[str, Any]) -> str | None:
     kind = payload.get("kind")
     if (worker_id == "advisor" or kind == "advisory_consultation") and not (owner_assignment_id or parent_id):
         raise SystemExit("advisor assignment は owner_assignment_id または parent_id が必要です。")
+    if worker_id == "quest_sentinel" or kind == "quest_awareness_control_monitor":
+        if not (owner_assignment_id or parent_id):
+            raise SystemExit("quest_sentinel assignment は owner_assignment_id または parent_id が必要です。")
+        require_string(payload.get("control_trigger"), "assignment.control_trigger")
     return owner_assignment_id or parent_id or require_string_or_null(payload.get("quest_id"), "assignment.quest_id")
 
 
@@ -616,8 +769,24 @@ def validate_inbox_message_payload(payload: dict[str, Any]) -> None:
     require_string(payload.get("type"), "message.type")
     if not isinstance(payload.get("trusted"), bool):
         raise SystemExit("message.trusted は bool にしてください。")
+    if payload.get("trusted") is not False:
+        raise SystemExit("message.trusted は false にしてください。")
     require_mapping(payload.get("payload"), "message.payload")
     require_string(payload.get("status"), "message.status")
+    envelope = memory_candidate_envelope(payload)
+    if envelope is not None:
+        validate_memory_candidate_message_scope(payload)
+        validate_memory_candidate_envelope(envelope[1], envelope[0])
+
+
+def inbox_event_safety(payload: dict[str, Any]) -> dict[str, list[str]]:
+    envelope = memory_candidate_envelope(payload)
+    if envelope is None:
+        return {"safety_items": [], "human_confirmation_required": []}
+    return {
+        "safety_items": list(MEMORY_CANDIDATE_SAFETY_ITEMS),
+        "human_confirmation_required": [],
+    }
 
 
 def upsert_message(connection: sqlite3.Connection, event: dict[str, Any]) -> None:
@@ -675,6 +844,7 @@ def cmd_init(args: argparse.Namespace) -> None:
 def cmd_record_event(args: argparse.Namespace) -> None:
     event = require_mapping(read_json_arg(args.event), "event")
     with connect_write(args.runtime_root) as connection:
+        ensure_schema_compatible(connection)
         record_event(connection, event)
         connection.commit()
     print(event["event_id"])
@@ -693,9 +863,10 @@ def cmd_add_inbox_message(args: argparse.Namespace) -> None:
         "workflow_id": payload.get("workflow_id"),
         "structured_data_usage": {"structured_inputs": ["message"], "decision_rationale": "inbox message append", "evidence_refs": []},
         "payload": payload,
-        "event_safety": {"safety_items": [], "human_confirmation_required": []},
+        "event_safety": inbox_event_safety(payload),
     }
     with connect_write(args.runtime_root) as connection:
+        ensure_schema_compatible(connection)
         record_event(connection, event)
         connection.commit()
     print(event["event_id"])

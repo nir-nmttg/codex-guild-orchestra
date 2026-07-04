@@ -17,6 +17,23 @@ SCAN_ROOTS = [
     ROOT / "template",
 ]
 SCAN_EXTENSIONS = {".md", ".toml", ".json", ".py", ".yaml", ".yml"}
+SENSITIVE_PATH_TERMS = {
+    ".ssh",
+    "api_key",
+    "auth",
+    "credential",
+    "credentials",
+    "key",
+    "password",
+    "passwords",
+    "pii",
+    "private_key",
+    "secret",
+    "secrets",
+    "token",
+    "tokens",
+}
+PATH_TERM_RE = re.compile(r"[^a-z0-9]+")
 
 WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9.+#/_-]*")
 NATURAL_WORD_RE = re.compile(r"[A-Za-z][A-Za-z'-]*")
@@ -114,12 +131,36 @@ def iter_scan_files() -> list[Path]:
     files: list[Path] = []
     for root in SCAN_ROOTS:
         if root.is_file():
+            ensure_not_sensitive_path(root)
             files.append(root)
             continue
         for path in sorted(root.rglob("*")):
             if path.is_file() and path.suffix in SCAN_EXTENSIONS:
+                ensure_not_sensitive_path(path)
                 files.append(path)
     return files
+
+
+def ensure_not_sensitive_path(path: Path) -> None:
+    try:
+        relative = path.relative_to(ROOT)
+    except ValueError as exc:
+        raise SystemExit(f"root 外の path は audit_english.py で読まずに除外してください: {path}") from exc
+    if path.is_symlink():
+        raise SystemExit(f"symlink path は audit_english.py で読まずに除外してください: {relative}")
+    try:
+        path.resolve(strict=False).relative_to(ROOT)
+    except ValueError as exc:
+        raise SystemExit(f"root 外へ解決される path は audit_english.py で読まずに除外してください: {relative}") from exc
+    parts = [part.casefold() for part in relative.parts]
+    split_terms = {
+        term
+        for part in parts
+        for term in PATH_TERM_RE.split(part.strip("."))
+        if term
+    }
+    if any(term in split_terms or term in parts for term in SENSITIVE_PATH_TERMS):
+        raise SystemExit(f"secret-like path は audit_english.py で読まずに除外してください: {relative}")
 
 
 def normalize_word(word: str) -> str:

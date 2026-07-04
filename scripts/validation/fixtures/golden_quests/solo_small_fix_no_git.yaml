@@ -1,0 +1,33 @@
+id: solo_small_fix_no_git
+fixture_mode: static_contract_example
+summary: "小さな修正は local git 書き込みなしで実装 report まで進める"
+input:
+  request: "小さな不具合を修正してください"
+expected:
+  rank: solo_quest
+  worker_id: adventurer
+  authority:
+    read: true
+    edit: true
+    validate: true
+    local_git: false
+    external_actions: false
+  handoff_sufficiency:
+    owner_to_trial_ready_requires:
+      - changed_files
+      - decisions_made
+      - intent_alignment
+      - quest_awareness
+      - control_decision
+      - validation_evidence
+      - research_evidence
+      - risks
+  report_required:
+    intent_alignment: true
+    validation_evidence: true
+    research_evidence: true
+    risks: true
+  forbidden:
+    commit: true
+    push: true
+    pull_request: true

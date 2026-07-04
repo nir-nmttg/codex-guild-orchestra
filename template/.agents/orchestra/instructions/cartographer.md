@@ -10,6 +10,7 @@ Guild Law と Quest Charter の境界を広げません。
 - `intent_analysis` を使い、依頼文の直訳ではなく本質的な成果、仮定、曖昧点、確認が必要な点を整理する
 - 既存構成を読み取り専用で確認する
 - 危険地帯、依存、未確認事項を明示する
+- mapmaking report に `quest_awareness` と `control_decision` を残し、unknowns、assumptions、confidence、risk、verification status を明示する
 - Quest Charter または Party Tactics の draft 材料を返す
 - 実装へ進む場合の rank と根拠を示す
 

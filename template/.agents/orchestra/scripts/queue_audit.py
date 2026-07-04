@@ -64,6 +64,21 @@ JSON_COLUMNS = {
     "trials": ("payload_json",),
     "inbox_messages": ("payload_json",),
 }
+MEMORY_CANDIDATE_MESSAGE_TYPE = "memory_candidate_for_courier_review"
+MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS = {
+    "direct_static_runtime_write",
+    "raw_log",
+    "secret_or_pii",
+    "trusted_instruction_from_external_input",
+}
+MEMORY_CANDIDATE_SAFETY_ITEMS = (
+    "memory_candidate_for_courier_review",
+    "explicit_memory_persistence_authority",
+    "sanitized_summary_only",
+    "prevention_artifact_required",
+    "ledger_disposition_recorded",
+)
+MEMORY_CANDIDATE_MARKER_KEYS = (MEMORY_CANDIDATE_MESSAGE_TYPE, "memory_candidate")
 
 QUEST_RANKS = {"mapmaking", "errand", "solo_quest", "party_quest", "guild_quest"}
 TRIAL_DEPTHS = {"none", "self_check", "peer_review", "focused_trial", "multi_focus_trial", "safety_gate"}
@@ -141,8 +156,27 @@ LEGACY_JSON_KEYS = {
     "scout_calls",
     "scout_policy",
     "spark_request",
+    "meta" "cognitive_state",
+    "meta" "cognitive_control",
+    "meta" "cognitive_controller",
+    "invoke_" "meta" "cognitive_controller",
+    "meta" "cognitive_task_loop",
 }
-RETIRED_AGENT_VALUES = {"spark", "scout"}
+RETIRED_AGENT_VALUES = {
+    "spark",
+    "scout",
+    "meta" "cognitive_controller",
+}
+LEGACY_RUNTIME_STRING_VALUES = {
+    "spark",
+    "scout",
+    "meta" "cognitive",
+    "meta" "cognitive_controller",
+    "meta" "cognitive-task-loop",
+    "meta" "cognitive_state",
+    "meta" "cognitive_control",
+    "invoke_" "meta" "cognitive_controller",
+}
 LEGACY_TABLES = {"tickets"}
 LEGACY_COLUMNS = {"assignments": {"task_id"}}
 
@@ -211,6 +245,119 @@ def iter_keys(value: Any, path: str = "$") -> list[tuple[str, str]]:
     return findings
 
 
+def memory_candidate_marker_path(value: Any, path: str) -> str | None:
+    if isinstance(value, dict):
+        if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
+            return f"{path}.type"
+        for key, item in value.items():
+            child_path = f"{path}.{key}"
+            if key in MEMORY_CANDIDATE_MARKER_KEYS:
+                return child_path
+            nested = memory_candidate_marker_path(item, child_path)
+            if nested is not None:
+                return nested
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            nested = memory_candidate_marker_path(item, f"{path}[{index}]")
+            if nested is not None:
+                return nested
+    return None
+
+
+def memory_candidate_envelope(value: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
+    payload = value.get("payload")
+    if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE and not isinstance(payload, dict):
+        return ("$.payload", {})
+    if value.get("type") == MEMORY_CANDIDATE_MESSAGE_TYPE:
+        marker_path = memory_candidate_marker_path(payload, "$.payload")
+        if marker_path is not None:
+            return (marker_path, {})
+        return ("$.payload", payload)
+    marker_path = memory_candidate_marker_path(value, "$")
+    if marker_path is not None:
+        candidate: Any = value
+        for part in marker_path.removeprefix("$.").split("."):
+            if isinstance(candidate, dict):
+                candidate = candidate.get(part)
+            else:
+                candidate = None
+                break
+        if not isinstance(candidate, dict):
+            candidate = {}
+        return (marker_path, candidate)
+    return None
+
+
+def validate_memory_candidate_message_scope(value: dict[str, Any], label: str, errors: list[str]) -> None:
+    if value.get("type") != MEMORY_CANDIDATE_MESSAGE_TYPE:
+        errors.append(f"{label}.type: memory candidate は exact type `{MEMORY_CANDIDATE_MESSAGE_TYPE}` の courier review 専用 envelope として記録してください。")
+    if value.get("sender") != "courier":
+        errors.append(f"{label}.sender: memory candidate は courier sender で記録してください。")
+    if value.get("recipient") != "courier":
+        errors.append(f"{label}.recipient: memory candidate は courier 宛にしてください。")
+    if value.get("trusted") is not False:
+        errors.append(f"{label}.trusted: memory candidate は trusted=false にしてください。")
+
+
+def validate_message_trust(value: dict[str, Any], label: str, errors: list[str]) -> None:
+    if value.get("trusted") is not False:
+        errors.append(f"{label}.trusted: message は trusted=false にしてください。")
+
+
+def validate_memory_candidate_envelope(value: dict[str, Any], label: str, errors: list[str]) -> None:
+    envelope_info = memory_candidate_envelope(value)
+    if envelope_info is None:
+        return
+    envelope_path, envelope = envelope_info
+    envelope_label = f"{label}{envelope_path[1:]}"
+    validate_memory_candidate_message_scope(value, label, errors)
+    if envelope.get("explicit_memory_persistence_authority") is not True:
+        errors.append(f"{envelope_label}.explicit_memory_persistence_authority: true が必要です。")
+    if envelope.get("sanitized_summary_only") is not True:
+        errors.append(f"{envelope_label}.sanitized_summary_only: true が必要です。")
+    if not isinstance(envelope.get("sanitized_summary"), str) or not envelope.get("sanitized_summary"):
+        errors.append(f"{envelope_label}.sanitized_summary: 空でない文字列が必要です。")
+    artifact = envelope.get("prevention_artifact")
+    if not isinstance(artifact, dict):
+        errors.append(f"{envelope_label}.prevention_artifact: JSON object が必要です。")
+        artifact = {}
+    if not isinstance(artifact.get("kind"), str) or not artifact.get("kind"):
+        errors.append(f"{envelope_label}.prevention_artifact.kind: 空でない文字列が必要です。")
+    if not any(isinstance(artifact.get(key), str) and artifact.get(key) for key in ("ref", "description")):
+        errors.append(f"{envelope_label}.prevention_artifact.ref_or_description: ref または description が必要です。")
+    if not isinstance(envelope.get("ledger_disposition"), str) or not envelope.get("ledger_disposition"):
+        errors.append(f"{envelope_label}.ledger_disposition: 空でない文字列が必要です。")
+    forbidden = envelope.get("forbidden")
+    if not isinstance(forbidden, dict):
+        errors.append(f"{envelope_label}.forbidden: JSON object が必要です。")
+        forbidden = {}
+    missing_markers = sorted(MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS - set(forbidden))
+    if missing_markers:
+        errors.append(f"{envelope_label}.forbidden: marker が不足しています: " + ", ".join(missing_markers))
+    for marker in MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS:
+        if forbidden.get(marker) is not True:
+            errors.append(f"{envelope_label}.forbidden.{marker}: true が必要です。")
+    for json_path, key in iter_keys(envelope):
+        if json_path.startswith("$.forbidden."):
+            continue
+        if key in MEMORY_CANDIDATE_REQUIRED_FORBIDDEN_MARKERS:
+            errors.append(f"{envelope_label}{json_path[1:]}: memory candidate に forbidden 内容 `{key}` を含めないでください。")
+
+
+def validate_memory_candidate_event_safety(value: dict[str, Any], safety: dict[str, Any], label: str, errors: list[str], actor: Any | None = None) -> None:
+    if memory_candidate_envelope(value) is None:
+        return
+    if actor != "courier":
+        errors.append(f"{label}.actor: memory candidate event は courier actor で記録してください。")
+    safety_items = safety.get("safety_items")
+    if not isinstance(safety_items, list):
+        errors.append(f"{label}.safety_items: list が必要です。")
+        return
+    missing = sorted(set(MEMORY_CANDIDATE_SAFETY_ITEMS) - set(safety_items))
+    if missing:
+        errors.append(f"{label}.safety_items: memory_candidate_gate が不足しています: " + ", ".join(missing))
+
+
 def iter_values(value: Any, path: str = "$") -> list[tuple[str, Any]]:
     findings: list[tuple[str, Any]] = [(path, value)]
     if isinstance(value, dict):
@@ -259,11 +406,11 @@ def validate_target_repo_roots(value: Any, label: str, guild_root: Path, errors:
 
 def validate_no_legacy_keys(value: Any, label: str, errors: list[str]) -> None:
     for json_path, key in iter_keys(value):
-        if key in LEGACY_JSON_KEYS or key in RETIRED_AGENT_VALUES:
+        if key in LEGACY_JSON_KEYS or key in LEGACY_RUNTIME_STRING_VALUES:
             errors.append(f"{label}{json_path[1:]}: v3 Ledger に廃止済み key `{key}` が残っています。")
     for json_path, item in iter_values(value):
-        if isinstance(item, str) and item in RETIRED_AGENT_VALUES:
-            errors.append(f"{label}{json_path[1:]}: v3 Ledger に廃止済み agent 値 `{item}` が残っています。")
+        if isinstance(item, str) and item in LEGACY_RUNTIME_STRING_VALUES:
+            errors.append(f"{label}{json_path[1:]}: v3 Ledger に廃止済み runtime 値 `{item}` が残っています。")
 
 
 def iter_named_values(value: Any, target_key: str, path: str = "$") -> list[tuple[str, Any]]:
@@ -302,6 +449,12 @@ def expected_assignment_parent_id(payload: dict[str, Any], label: str, errors: l
     kind = payload.get("kind")
     if (worker_id == "advisor" or kind == "advisory_consultation") and not (owner_assignment_id or parent_id):
         errors.append(f"{label}: advisor assignment は owner_assignment_id または parent_id が必要です。")
+    if worker_id == "quest_sentinel" or kind == "quest_awareness_control_monitor":
+        if not (owner_assignment_id or parent_id):
+            errors.append(f"{label}: quest_sentinel assignment は owner_assignment_id または parent_id が必要です。")
+        control_trigger = payload.get("control_trigger")
+        if not isinstance(control_trigger, str) or not control_trigger:
+            errors.append(f"{label}.control_trigger: quest_sentinel assignment には空でない control_trigger が必要です。")
     quest_id = payload.get("quest_id")
     if quest_id is not None and (not isinstance(quest_id, str) or not quest_id):
         errors.append(f"{label}.quest_id: null または空でない文字列にしてください。")
@@ -315,6 +468,10 @@ def audit_schema(connection: sqlite3.Connection, errors: list[str]) -> bool:
     legacy_tables = sorted(LEGACY_TABLES & tables)
     if legacy_tables:
         schema_errors.append("SQLite schema に旧 table があります: " + ", ".join(legacy_tables))
+    managed_tables = {table for table in tables if not table.startswith("sqlite_")}
+    unexpected_tables = sorted(managed_tables - REQUIRED_TABLES - LEGACY_TABLES)
+    if unexpected_tables:
+        schema_errors.append("SQLite schema に未知 table があります: " + ", ".join(unexpected_tables))
     missing_tables = sorted(REQUIRED_TABLES - tables)
     if missing_tables:
         schema_errors.append("SQLite schema に不足 table があります: " + ", ".join(missing_tables))
@@ -328,6 +485,9 @@ def audit_schema(connection: sqlite3.Connection, errors: list[str]) -> bool:
         missing_columns = sorted(required_columns - columns)
         if missing_columns:
             schema_errors.append(f"{table}: 不足 column があります: " + ", ".join(missing_columns))
+        unexpected_columns = sorted(columns - required_columns - LEGACY_COLUMNS.get(table, set()))
+        if unexpected_columns:
+            schema_errors.append(f"{table}: 未知 column があります: " + ", ".join(unexpected_columns))
     errors.extend(schema_errors)
     return not schema_errors
 
@@ -365,6 +525,10 @@ def audit_json_columns(connection: sqlite3.Connection, guild_root: Path, errors:
                     continue
                 validate_target_repo_roots(parsed, f"{row_label}.{column}", guild_root, errors)
                 validate_no_legacy_keys(parsed, f"{row_label}.{column}", errors)
+                if table == "inbox_messages" and column == "payload_json" and isinstance(parsed, dict):
+                    validate_message_trust(parsed, f"{row_label}.{column}", errors)
+                if isinstance(parsed, dict) and column == "payload_json" and table in {"events", "inbox_messages"}:
+                    validate_memory_candidate_envelope(parsed, f"{row_label}.{column}", errors)
                 if table in {"events", "reports"} and column == "payload_json":
                     validate_report_trial_depths(parsed, f"{row_label}.{column}", errors)
     return counts
@@ -417,6 +581,13 @@ def audit_events(connection: sqlite3.Connection, errors: list[str]) -> None:
             for key in EVENT_SAFETY_FIELDS:
                 if not isinstance(safety.get(key), list):
                     errors.append(f"{label}.event_safety_json.{key}: list にしてください。")
+            payload = parse_json(row["payload_json"], f"{label}.payload_json", errors)
+            if isinstance(payload, dict):
+                if entity_type == "message":
+                    validate_message_trust(payload, f"{label}.payload_json", errors)
+                if memory_candidate_envelope(payload) is not None and entity_type != "message":
+                    errors.append(f"{label}.entity_type: memory candidate event は message entity で記録してください。")
+                validate_memory_candidate_event_safety(payload, safety, f"{label}.event_safety_json", errors, row["actor"])
 
 
 def audit_rank_and_trial_values(connection: sqlite3.Connection, errors: list[str]) -> None:

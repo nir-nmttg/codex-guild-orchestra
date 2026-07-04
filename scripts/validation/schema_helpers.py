@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 from .core import mapping, require, sequence
-from .rules import ARTIFACT_REQUIRED_FIELDS, AUTHORITY_KEYS, AUTONOMY_KEYS, STRUCTURED_DATA_USAGE_FIELDS
+from .rules import (
+    ARTIFACT_REQUIRED_FIELDS,
+    AUTHORITY_KEYS,
+    AUTONOMY_KEYS,
+    CONTROL_DECISION_KEYS,
+    CONTROL_DECISIONS,
+    QUEST_AWARENESS_KEYS,
+    STRUCTURED_DATA_USAGE_FIELDS,
+)
 
 def validate_template_metadata(document: dict[str, object], rel: str) -> None:
     for key in ARTIFACT_REQUIRED_FIELDS:
@@ -35,6 +43,25 @@ def validate_autonomy_budget(value: object, label: str) -> None:
     for key in AUTONOMY_KEYS - {"timebox_minutes"}:
         require(isinstance(budget[key], int) and not isinstance(budget[key], bool) and budget[key] >= 0, f"{label}.{key} は 0 以上の整数にしてください。")
     require(budget["timebox_minutes"] is None or isinstance(budget["timebox_minutes"], int), f"{label}.timebox_minutes は null または整数にしてください。")
+
+
+def validate_quest_awareness(value: object, label: str) -> None:
+    state = mapping(value, label)
+    require(set(state) == QUEST_AWARENESS_KEYS, f"{label} は quest_awareness key と一致させてください。")
+    for key in ("known_facts", "unknowns", "assumptions", "evidence"):
+        sequence(state[key], f"{label}.{key}")
+    require(state.get("risk_level") in {"low", "medium", "high", None}, f"{label}.risk_level は low / medium / high / null にしてください。")
+    require(state.get("verification_status") in {"not_checked", "partially_checked", "verified", "failed", None}, f"{label}.verification_status が不正です。")
+    confidence = state.get("confidence_percent")
+    require(confidence is None or (isinstance(confidence, int) and not isinstance(confidence, bool) and 0 <= confidence <= 100), f"{label}.confidence_percent は null または 0..100 の整数にしてください。")
+
+
+def validate_control_decision(value: object, label: str) -> None:
+    decision = mapping(value, label)
+    require(set(decision) == CONTROL_DECISION_KEYS, f"{label} は control_decision key と一致させてください。")
+    require(decision.get("decision") in CONTROL_DECISIONS | {None}, f"{label}.decision が不正です。")
+    sequence(decision.get("triggers"), f"{label}.triggers")
+    require(isinstance(decision.get("escalation_required"), bool), f"{label}.escalation_required は bool にしてください。")
 
 
 def validate_percent(value: object, label: str) -> None:

@@ -1,0 +1,15 @@
+id: quest_awareness_scope_drift
+fixture_mode: static_contract_example
+summary: "scope drift が起きたら pause し、新 scope が original goal に必要か確認する。"
+input:
+  original_scope:
+    - runtime_contract
+  discovered_scope:
+    - unrelated_refactor
+expected:
+  control_decision: revise_plan
+  pause_required: true
+  required_next_action: restate_scope_and_check_goal_relevance
+  forbidden:
+    unrelated_refactor: true
+    silent_scope_expansion: true

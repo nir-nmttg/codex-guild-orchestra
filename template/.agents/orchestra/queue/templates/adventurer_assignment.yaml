@@ -26,6 +26,26 @@ assignment:
     alternatives_considered: []
     minimality_rationale: null
     scope_guardrails: []
+  quest_awareness:
+    goal: null
+    current_subgoal: null
+    known_facts: []
+    unknowns: []
+    assumptions: []
+    evidence: []
+    current_strategy: null
+    confidence_percent: null
+    risk_level: medium
+    verification_status: not_checked
+    next_action: null
+    stop_condition: null
+  control_decision:
+    decision: gather_more_evidence
+    rationale: null
+    required_next_action: null
+    triggers: []
+    confidence_threshold_applied: null
+    escalation_required: false
   owned_scope:
     read: []
     edit: []
@@ -68,6 +88,20 @@ assignment:
   trial_expectations:
     depth: self_check
     focus: []
+  handoff_sufficiency:
+    intake_to_charter_confirmed: false
+    charter_to_owner_confirmed: false
+    required_evidence:
+      - objective
+      - intent_analysis
+      - quest_awareness
+      - implementation_strategy
+      - owned_scope
+      - authority
+      - boundaries
+      - autonomy_budget
+      - trial_expectations
+    missing: []
   escalation_triggers: []
   evidence_required: []
   ledger:

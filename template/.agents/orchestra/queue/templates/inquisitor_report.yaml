@@ -56,6 +56,26 @@ report:
     missing_outcomes: []
     over_implementation_risks: []
     ambiguity_handling: []
+  quest_awareness:
+    goal: null
+    current_subgoal: null
+    known_facts: []
+    unknowns: []
+    assumptions: []
+    evidence: []
+    current_strategy: null
+    confidence_percent: null
+    risk_level: medium
+    verification_status: partially_checked
+    next_action: null
+    stop_condition: null
+  control_decision:
+    decision: proceed
+    rationale: null
+    required_next_action: null
+    triggers: []
+    confidence_threshold_applied: null
+    escalation_required: false
   advisor_reports: []
   reviewer_reports: []
   finding_dispositions:
@@ -81,6 +101,20 @@ report:
     continue_or_stop: null
     stop_reason: null
     raw_discussion_recorded: false
+  handoff_sufficiency:
+    trial_to_ledger_final_ready: false
+    required_evidence:
+      - decision
+      - findings
+      - intent_coverage
+      - quest_awareness
+      - control_decision
+      - validation_evidence
+      - advisor_dialogue_synthesis
+      - reviewer_synthesis
+      - finding_dispositions
+      - risks
+    missing: []
   validation_evidence:
     commands: []
     manual_checks: []

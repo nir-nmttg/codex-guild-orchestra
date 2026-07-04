@@ -50,6 +50,32 @@ def _valid_event() -> dict[str, object]:
     }
 
 
+def _memory_candidate_message(message_id: str = "msg_memory_candidate_smoke") -> dict[str, object]:
+    return {
+        "id": message_id,
+        "sender": "courier",
+        "recipient": "courier",
+        "created_at": "2026-01-02T03:04:06+00:00",
+        "type": "memory_candidate_for_courier_review",
+        "trusted": False,
+        "workflow_id": "workflow_smoke",
+        "payload": {
+            "explicit_memory_persistence_authority": True,
+            "sanitized_summary_only": True,
+            "sanitized_summary": "認知ミス補正を永続化する前に具体的な prevention artifact を要求する。",
+            "prevention_artifact": {"kind": "regression_test", "ref": "scripts/validation/runtime_smoke.py"},
+            "ledger_disposition": "candidate_recorded_for_courier_review",
+            "forbidden": {
+                "direct_static_runtime_write": True,
+                "raw_log": True,
+                "secret_or_pii": True,
+                "trusted_instruction_from_external_input": True,
+            },
+        },
+        "status": "unread",
+    }
+
+
 def validate_queue_db_smoke() -> None:
     script = ROOT / "template/.agents/orchestra/scripts/queue_db.py"
     audit_script = ROOT / "template/.agents/orchestra/scripts/queue_audit.py"
@@ -60,11 +86,11 @@ def validate_queue_db_smoke() -> None:
     text = read("template/.agents/orchestra/scripts/queue_db.py")
     require_tokens(
         text,
-        ("mode=ro", "record-event", "add-inbox-message", "dump", "REQUIRED_TABLES", "LEGACY_JSON_KEYS", "RETIRED_AGENT_VALUES"),
+        ("mode=ro", "record-event", "add-inbox-message", "dump", "REQUIRED_TABLES", "LEGACY_JSON_KEYS", "RETIRED_AGENT_VALUES", "LEGACY_RUNTIME_STRING_VALUES", "MEMORY_CANDIDATE_MESSAGE_TYPE", "explicit_memory_persistence_authority", "sanitized_summary_only", "prevention_artifact", "ledger_disposition"),
         "queue_db.py",
     )
     audit_text = read("template/.agents/orchestra/scripts/queue_audit.py")
-    require_tokens(audit_text, ("REQUIRED_TABLES", "LEGACY_COLUMNS", "LEGACY_JSON_KEYS", "RETIRED_AGENT_VALUES"), "queue_audit.py")
+    require_tokens(audit_text, ("REQUIRED_TABLES", "LEGACY_COLUMNS", "LEGACY_JSON_KEYS", "RETIRED_AGENT_VALUES", "LEGACY_RUNTIME_STRING_VALUES", "MEMORY_CANDIDATE_MESSAGE_TYPE", "explicit_memory_persistence_authority", "sanitized_summary_only", "prevention_artifact", "ledger_disposition"), "queue_audit.py")
 
     db_legacy_keys = python_string_set_constant("template/.agents/orchestra/scripts/queue_db.py", "LEGACY_JSON_KEYS")
     audit_legacy_keys = python_string_set_constant("template/.agents/orchestra/scripts/queue_audit.py", "LEGACY_JSON_KEYS")
@@ -76,9 +102,15 @@ def validate_queue_db_smoke() -> None:
     install_retired_values = python_string_set_constant("scripts/install.py", "RETIRED_AGENT_VALUES")
     require(db_retired_values == audit_retired_values == install_retired_values, "廃止済み agent 値を queue_db.py / queue_audit.py / install.py で一致させてください。")
 
+    db_legacy_values = python_string_set_constant("template/.agents/orchestra/scripts/queue_db.py", "LEGACY_RUNTIME_STRING_VALUES")
+    audit_legacy_values = python_string_set_constant("template/.agents/orchestra/scripts/queue_audit.py", "LEGACY_RUNTIME_STRING_VALUES")
+    install_legacy_values = python_string_set_constant("scripts/install.py", "LEGACY_RUNTIME_STRING_VALUES")
+    require(db_legacy_values == audit_legacy_values == install_legacy_values, "廃止済み runtime 値を queue_db.py / queue_audit.py / install.py で一致させてください。")
+
     inbox_script = ROOT / "template/.agents/orchestra/scripts/inbox_write.sh"
     docker_runner = ROOT / "template/.agents/orchestra/scripts/docker_python.sh"
     stop_hook_shell = ROOT / "template/.codex/hooks/stop_quality_gate.sh"
+    require("quest_sentinel" in read("template/.agents/orchestra/scripts/inbox_write.sh"), "inbox_write.sh は quest_sentinel を送受信 role として許可してください。")
     for executable_path in (script, audit_script, inbox_script, docker_runner, stop_hook_shell):
         require(executable_path.stat().st_mode & 0o111, f"{executable_path.relative_to(ROOT)} の executable bit を維持してください。")
     for shell_path in (inbox_script, docker_runner, stop_hook_shell):
@@ -94,6 +126,47 @@ def validate_queue_db_smoke() -> None:
         recorded = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(_valid_event()))
         require(recorded.returncode == 0, "queue_db.py record-event の smoke が失敗しました: " + recorded.stderr)
 
+        sentinel_assignment_event = {
+            "event_id": "evt_assignment_quest_sentinel_smoke",
+            "timestamp": "2026-01-02T03:04:04+00:00",
+            "actor": "validator",
+            "event_type": "assignment_created",
+            "entity": {"type": "assignment", "id": "assignment_quest_sentinel_smoke"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["assignment"], "decision_rationale": "quest_sentinel assignment linkage smoke", "evidence_refs": ["scripts/validation/runtime_smoke.py"]},
+            "payload": {
+                "assignment": {
+                    "id": "assignment_quest_sentinel_smoke",
+                    "quest_id": "quest_smoke",
+                    "owner_assignment_id": "assignment_owner_smoke",
+                    "worker_id": "quest_sentinel",
+                    "kind": "quest_awareness_control_monitor",
+                    "control_trigger": "confidence_below_75",
+                    "status": "idle",
+                }
+            },
+            "event_safety": {"safety_items": [], "human_confirmation_required": []},
+        }
+        sentinel_assignment = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(sentinel_assignment_event))
+        require(sentinel_assignment.returncode == 0, "queue_db.py は owner/control trigger 付き quest_sentinel assignment を受け付けてください: " + sentinel_assignment.stderr)
+
+        invalid_sentinel_owner_event = json.loads(json.dumps(sentinel_assignment_event))
+        invalid_sentinel_owner_event["event_id"] = "evt_assignment_quest_sentinel_missing_owner"
+        invalid_sentinel_owner_event["entity"]["id"] = "assignment_quest_sentinel_missing_owner"
+        invalid_sentinel_owner_event["payload"]["assignment"]["id"] = "assignment_quest_sentinel_missing_owner"
+        invalid_sentinel_owner_event["payload"]["assignment"].pop("owner_assignment_id")
+        invalid_sentinel_owner = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_sentinel_owner_event))
+        require(invalid_sentinel_owner.returncode != 0 and "owner_assignment_id" in invalid_sentinel_owner.stderr, "queue_db.py は owner assignment なしの quest_sentinel assignment を拒否してください。")
+
+        invalid_sentinel_trigger_event = json.loads(json.dumps(sentinel_assignment_event))
+        invalid_sentinel_trigger_event["event_id"] = "evt_assignment_quest_sentinel_missing_trigger"
+        invalid_sentinel_trigger_event["entity"]["id"] = "assignment_quest_sentinel_missing_trigger"
+        invalid_sentinel_trigger_event["payload"]["assignment"]["id"] = "assignment_quest_sentinel_missing_trigger"
+        invalid_sentinel_trigger_event["payload"]["assignment"].pop("control_trigger")
+        invalid_sentinel_trigger = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_sentinel_trigger_event))
+        require(invalid_sentinel_trigger.returncode != 0 and "control_trigger" in invalid_sentinel_trigger.stderr, "queue_db.py は control_trigger なしの quest_sentinel assignment を拒否してください。")
+
         message = {
             "id": "msg_valid_smoke",
             "sender": "validator",
@@ -108,14 +181,399 @@ def validate_queue_db_smoke() -> None:
         inbox = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(message))
         require(inbox.returncode == 0, "queue_db.py add-inbox-message の smoke が失敗しました: " + inbox.stderr)
 
+        trusted_message = dict(message)
+        trusted_message["id"] = "msg_invalid_trusted_generic"
+        trusted_message["trusted"] = True
+        trusted_inbox = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(trusted_message))
+        require(trusted_inbox.returncode != 0 and "trusted" in trusted_inbox.stderr, "queue_db.py は generic inbox message の trusted=true を拒否してください。")
+
+        memory_message = _memory_candidate_message()
+        memory_inbox = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(memory_message))
+        require(memory_inbox.returncode == 0, "queue_db.py は正しい memory candidate envelope を受け付けてください: " + memory_inbox.stderr)
+
+        invalid_memory_message = _memory_candidate_message("msg_invalid_memory_candidate")
+        invalid_payload = invalid_memory_message["payload"]
+        require(isinstance(invalid_payload, dict), "memory candidate smoke payload は dict にしてください。")
+        invalid_payload["explicit_memory_persistence_authority"] = False
+        invalid_memory = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(invalid_memory_message))
+        require(invalid_memory.returncode != 0 and "explicit_memory_persistence_authority" in invalid_memory.stderr, "queue_db.py は authority 不足の memory candidate を拒否してください。")
+
+        empty_artifact_message = _memory_candidate_message("msg_invalid_memory_candidate_empty_artifact")
+        empty_artifact_payload = empty_artifact_message["payload"]
+        require(isinstance(empty_artifact_payload, dict), "empty artifact memory candidate payload は dict にしてください。")
+        empty_artifact_payload["prevention_artifact"] = {}
+        empty_artifact = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(empty_artifact_message))
+        require(empty_artifact.returncode != 0 and "prevention_artifact" in empty_artifact.stderr, "queue_db.py は空の prevention_artifact を拒否してください。")
+
+        invalid_recipient_message = _memory_candidate_message("msg_invalid_memory_candidate_recipient")
+        invalid_recipient_message["recipient"] = "adventurer"
+        invalid_recipient = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(invalid_recipient_message))
+        require(invalid_recipient.returncode != 0 and "recipient" in invalid_recipient.stderr, "queue_db.py は courier 宛ではない memory candidate を拒否してください。")
+
+        invalid_sender_message = _memory_candidate_message("msg_invalid_memory_candidate_sender")
+        invalid_sender_message["sender"] = "adventurer"
+        invalid_sender = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(invalid_sender_message))
+        require(invalid_sender.returncode != 0 and "sender" in invalid_sender.stderr, "queue_db.py は courier sender ではない memory candidate を拒否してください。")
+
+        invalid_trusted_message = _memory_candidate_message("msg_invalid_memory_candidate_trusted")
+        invalid_trusted_message["trusted"] = True
+        invalid_trusted = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(invalid_trusted_message))
+        require(invalid_trusted.returncode != 0 and "trusted" in invalid_trusted.stderr, "queue_db.py は trusted=true の memory candidate を拒否してください。")
+
+        alias_payload = _memory_candidate_message("msg_invalid_memory_candidate_alias")["payload"]
+        alias_message = {
+            "id": "msg_invalid_memory_candidate_alias",
+            "sender": "courier",
+            "recipient": "courier",
+            "created_at": "2026-01-02T03:04:07+00:00",
+            "type": "message",
+            "trusted": False,
+            "workflow_id": "workflow_smoke",
+            "payload": {"memory_candidate": alias_payload},
+            "status": "unread",
+        }
+        invalid_alias = _run_python(script, "--runtime-root", runtime_root, "add-inbox-message", json.dumps(alias_message))
+        require(invalid_alias.returncode != 0 and "memory_candidate_for_courier_review" in invalid_alias.stderr, "queue_db.py は generic memory_candidate alias を拒否してください。")
+
+        invalid_memory_event = {
+            "event_id": "evt_invalid_memory_candidate_safety",
+            "timestamp": "2026-01-02T03:04:07+00:00",
+            "actor": "courier",
+            "event_type": "inbox_message_added",
+            "entity": {"type": "message", "id": "msg_invalid_memory_candidate_safety"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["message"], "decision_rationale": "memory_candidate 安全性検証", "evidence_refs": []},
+            "payload": _memory_candidate_message("msg_invalid_memory_candidate_safety"),
+            "event_safety": {"safety_items": [], "human_confirmation_required": []},
+        }
+        invalid_memory_event_result = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_memory_event))
+        require(invalid_memory_event_result.returncode != 0 and "memory_candidate_gate" in invalid_memory_event_result.stderr, "queue_db.py record-event は memory_candidate の safety_metadata 不足を拒否してください。")
+
+        invalid_memory_actor_event = {
+            "event_id": "evt_invalid_memory_candidate_actor",
+            "timestamp": "2026-01-02T03:04:08+00:00",
+            "actor": "adventurer",
+            "event_type": "inbox_message_added",
+            "entity": {"type": "message", "id": "msg_invalid_memory_candidate_actor"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["message"], "decision_rationale": "memory_candidate actor 境界検証", "evidence_refs": []},
+            "payload": _memory_candidate_message("msg_invalid_memory_candidate_actor"),
+            "event_safety": {
+                "safety_items": [
+                    "memory_candidate_for_courier_review",
+                    "explicit_memory_persistence_authority",
+                    "sanitized_summary_only",
+                    "prevention_artifact_required",
+                    "ledger_disposition_recorded",
+                ],
+                "human_confirmation_required": [],
+            },
+        }
+        invalid_memory_actor = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_memory_actor_event))
+        require(invalid_memory_actor.returncode != 0 and "actor" in invalid_memory_actor.stderr, "queue_db.py record-event は courier actor ではない memory candidate を拒否してください。")
+
+        invalid_memory_non_message_event = {
+            "event_id": "evt_invalid_memory_candidate_non_message",
+            "timestamp": "2026-01-02T03:04:09+00:00",
+            "actor": "courier",
+            "event_type": "quest_updated",
+            "entity": {"type": "quest", "id": "quest_smoke"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["quest"], "decision_rationale": "memory_candidate entity 境界検証", "evidence_refs": []},
+            "payload": _memory_candidate_message("msg_invalid_memory_candidate_non_message"),
+            "event_safety": {
+                "safety_items": [
+                    "memory_candidate_for_courier_review",
+                    "explicit_memory_persistence_authority",
+                    "sanitized_summary_only",
+                    "prevention_artifact_required",
+                    "ledger_disposition_recorded",
+                ],
+                "human_confirmation_required": [],
+            },
+        }
+        invalid_memory_non_message = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_memory_non_message_event))
+        require(invalid_memory_non_message.returncode != 0 and "message" in invalid_memory_non_message.stderr, "queue_db.py record-event は non-message entity の memory candidate payload を拒否してください。")
+
+        invalid_nested_memory_event = {
+            "event_id": "evt_invalid_nested_memory_candidate",
+            "timestamp": "2026-01-02T03:04:10+00:00",
+            "actor": "courier",
+            "event_type": "quest_updated",
+            "entity": {"type": "quest", "id": "quest_smoke"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["quest"], "decision_rationale": "nested memory_candidate 境界検証", "evidence_refs": []},
+            "payload": {"quest": {"id": "quest_smoke", "memory_candidate": _memory_candidate_message("msg_invalid_nested_memory_candidate")["payload"]}},
+            "event_safety": {
+                "safety_items": [
+                    "memory_candidate_for_courier_review",
+                    "explicit_memory_persistence_authority",
+                    "sanitized_summary_only",
+                    "prevention_artifact_required",
+                    "ledger_disposition_recorded",
+                ],
+                "human_confirmation_required": [],
+            },
+        }
+        invalid_nested_memory = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_nested_memory_event))
+        require(invalid_nested_memory.returncode != 0 and "memory_candidate_for_courier_review" in invalid_nested_memory.stderr, "queue_db.py record-event は nested memory_candidate payload を拒否してください。")
+
         database = runtime_root / "queue" / "state.sqlite"
         with sqlite3.connect(database) as connection:
             quest_count = connection.execute("SELECT COUNT(*) FROM quests WHERE quest_id = 'quest_smoke'").fetchone()[0]
             inbox_count = connection.execute("SELECT COUNT(*) FROM inbox_messages WHERE message_id = 'msg_valid_smoke'").fetchone()[0]
-        require(quest_count == 1 and inbox_count == 1, "queue_db.py smoke の DB 反映件数が不正です。")
+            memory_count = connection.execute("SELECT COUNT(*) FROM inbox_messages WHERE message_id = 'msg_memory_candidate_smoke'").fetchone()[0]
+            safety = connection.execute("SELECT event_safety_json FROM events WHERE event_id = 'evt_message_msg_memory_candidate_smoke'").fetchone()[0]
+        require(quest_count == 1 and inbox_count == 1 and memory_count == 1, "queue_db.py smoke の DB 反映件数が不正です。")
+        require("memory_candidate_for_courier_review" in safety and "ledger_disposition_recorded" in safety, "queue_db.py は memory candidate の safety metadata を記録してください。")
 
         audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
         require(audit.returncode == 0, "queue_audit.py の smoke が失敗しました: " + (audit.stderr or audit.stdout))
+
+        bad_generic_trusted_payload = dict(message)
+        bad_generic_trusted_payload["id"] = "msg_bad_audit_trusted_generic"
+        bad_generic_trusted_payload["trusted"] = True
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "INSERT INTO inbox_messages(message_id, recipient, workflow_id, status, payload_json, created_at) VALUES(?, ?, ?, ?, ?, ?)",
+                (
+                    bad_generic_trusted_payload["id"],
+                    bad_generic_trusted_payload["recipient"],
+                    bad_generic_trusted_payload["workflow_id"],
+                    bad_generic_trusted_payload["status"],
+                    json.dumps(bad_generic_trusted_payload),
+                    bad_generic_trusted_payload["created_at"],
+                ),
+            )
+            connection.commit()
+        bad_generic_trusted_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        bad_generic_trusted_output = bad_generic_trusted_audit.stdout + bad_generic_trusted_audit.stderr
+        require(bad_generic_trusted_audit.returncode != 0 and "trusted" in bad_generic_trusted_output, "queue_audit.py は generic inbox message の trusted=true を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute("DELETE FROM inbox_messages WHERE message_id = ?", (bad_generic_trusted_payload["id"],))
+            connection.commit()
+
+        bad_audit_payload = _memory_candidate_message("msg_bad_audit_memory_candidate")
+        bad_payload = bad_audit_payload["payload"]
+        require(isinstance(bad_payload, dict), "bad audit memory candidate payload は dict にしてください。")
+        bad_payload["raw_log"] = "生ログは永続化しない"
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "INSERT INTO inbox_messages(message_id, recipient, workflow_id, status, payload_json, created_at) VALUES(?, ?, ?, ?, ?, ?)",
+                (
+                    bad_audit_payload["id"],
+                    bad_audit_payload["recipient"],
+                    bad_audit_payload["workflow_id"],
+                    bad_audit_payload["status"],
+                    json.dumps(bad_audit_payload),
+                    bad_audit_payload["created_at"],
+                ),
+            )
+            connection.commit()
+        bad_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        bad_audit_output = bad_audit.stdout + bad_audit.stderr
+        require(bad_audit.returncode != 0 and "raw_log" in bad_audit_output, "queue_audit.py は raw_log を含む memory candidate を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute("DELETE FROM inbox_messages WHERE message_id = ?", (bad_audit_payload["id"],))
+            connection.commit()
+
+        bad_audit_recipient = _memory_candidate_message("msg_bad_audit_memory_candidate_recipient")
+        bad_audit_recipient["recipient"] = "adventurer"
+        bad_audit_sender = _memory_candidate_message("msg_bad_audit_memory_candidate_sender")
+        bad_audit_sender["sender"] = "adventurer"
+        bad_audit_trusted = _memory_candidate_message("msg_bad_audit_memory_candidate_trusted")
+        bad_audit_trusted["trusted"] = True
+        bad_audit_alias_payload = _memory_candidate_message("msg_bad_audit_memory_candidate_alias")["payload"]
+        bad_audit_alias = {
+            "id": "msg_bad_audit_memory_candidate_alias",
+            "sender": "courier",
+            "recipient": "courier",
+            "created_at": "2026-01-02T03:04:06+00:00",
+            "type": "message",
+            "trusted": False,
+            "workflow_id": "workflow_smoke",
+            "payload": {"memory_candidate": bad_audit_alias_payload},
+            "status": "unread",
+        }
+        for bad_scope_payload, expected_token in (
+            (bad_audit_recipient, "recipient"),
+            (bad_audit_sender, "sender"),
+            (bad_audit_trusted, "trusted"),
+            (bad_audit_alias, "memory_candidate_for_courier_review"),
+        ):
+            with sqlite3.connect(database) as connection:
+                connection.execute(
+                    "INSERT INTO inbox_messages(message_id, recipient, workflow_id, status, payload_json, created_at) VALUES(?, ?, ?, ?, ?, ?)",
+                    (
+                        bad_scope_payload["id"],
+                        bad_scope_payload["recipient"],
+                        bad_scope_payload["workflow_id"],
+                        bad_scope_payload["status"],
+                        json.dumps(bad_scope_payload),
+                        bad_scope_payload["created_at"],
+                    ),
+                )
+                connection.commit()
+            bad_scope_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+            bad_scope_audit_output = bad_scope_audit.stdout + bad_scope_audit.stderr
+            require(bad_scope_audit.returncode != 0 and expected_token in bad_scope_audit_output, f"queue_audit.py は scope 不正の memory candidate を拒否してください: {expected_token}")
+            with sqlite3.connect(database) as connection:
+                connection.execute("DELETE FROM inbox_messages WHERE message_id = ?", (bad_scope_payload["id"],))
+                connection.commit()
+
+        with sqlite3.connect(database) as connection:
+            connection.execute("UPDATE events SET actor = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'", ("adventurer",))
+            connection.commit()
+        bad_actor_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        bad_actor_output = bad_actor_audit.stdout + bad_actor_audit.stderr
+        require(bad_actor_audit.returncode != 0 and "actor" in bad_actor_output, "queue_audit.py は courier actor ではない memory candidate event を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute("UPDATE events SET actor = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'", ("courier",))
+            connection.commit()
+
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE events SET event_type = ?, entity_type = ?, entity_id = ?, payload_json = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'",
+                (
+                    "quest_updated",
+                    "quest",
+                    "quest_smoke",
+                    json.dumps({"quest": {"id": "quest_smoke", "memory_candidate": _memory_candidate_message("msg_bad_audit_nested_memory_candidate")["payload"]}}),
+                ),
+            )
+            connection.commit()
+        bad_nested_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        bad_nested_output = bad_nested_audit.stdout + bad_nested_audit.stderr
+        require(bad_nested_audit.returncode != 0 and "memory_candidate_for_courier_review" in bad_nested_output, "queue_audit.py は nested memory_candidate event を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE events SET event_type = ?, entity_type = ?, entity_id = ?, payload_json = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'",
+                ("inbox_message_added", "message", "msg_memory_candidate_smoke", json.dumps(memory_message)),
+            )
+            connection.commit()
+
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE events SET event_type = ?, entity_type = ?, entity_id = ?, payload_json = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'",
+                ("quest_updated", "quest", "quest_smoke", json.dumps(_memory_candidate_message("msg_bad_audit_memory_candidate_non_message"))),
+            )
+            connection.commit()
+        bad_entity_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        bad_entity_output = bad_entity_audit.stdout + bad_entity_audit.stderr
+        require(bad_entity_audit.returncode != 0 and "message entity" in bad_entity_output, "queue_audit.py は non-message entity の memory candidate event を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE events SET event_type = ?, entity_type = ?, entity_id = ?, payload_json = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'",
+                ("inbox_message_added", "message", "msg_memory_candidate_smoke", json.dumps(memory_message)),
+            )
+            connection.commit()
+
+        bad_empty_artifact_payload = _memory_candidate_message("msg_bad_audit_empty_artifact")
+        bad_empty_body = bad_empty_artifact_payload["payload"]
+        require(isinstance(bad_empty_body, dict), "bad audit empty artifact payload は dict にしてください。")
+        bad_empty_body["prevention_artifact"] = {}
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "INSERT INTO inbox_messages(message_id, recipient, workflow_id, status, payload_json, created_at) VALUES(?, ?, ?, ?, ?, ?)",
+                (
+                    bad_empty_artifact_payload["id"],
+                    bad_empty_artifact_payload["recipient"],
+                    bad_empty_artifact_payload["workflow_id"],
+                    bad_empty_artifact_payload["status"],
+                    json.dumps(bad_empty_artifact_payload),
+                    bad_empty_artifact_payload["created_at"],
+                ),
+            )
+            connection.commit()
+        bad_empty_artifact_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        bad_empty_artifact_output = bad_empty_artifact_audit.stdout + bad_empty_artifact_audit.stderr
+        require(bad_empty_artifact_audit.returncode != 0 and "prevention_artifact" in bad_empty_artifact_output, "queue_audit.py は空の prevention_artifact を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute("DELETE FROM inbox_messages WHERE message_id = ?", (bad_empty_artifact_payload["id"],))
+            connection.commit()
+
+        malformed_audit_payload = _memory_candidate_message("msg_malformed_audit_memory_candidate")
+        malformed_audit_payload.pop("payload")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "INSERT INTO inbox_messages(message_id, recipient, workflow_id, status, payload_json, created_at) VALUES(?, ?, ?, ?, ?, ?)",
+                (
+                    malformed_audit_payload["id"],
+                    malformed_audit_payload["recipient"],
+                    malformed_audit_payload["workflow_id"],
+                    malformed_audit_payload["status"],
+                    json.dumps(malformed_audit_payload),
+                    malformed_audit_payload["created_at"],
+                ),
+            )
+            connection.commit()
+        malformed_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        malformed_audit_output = malformed_audit.stdout + malformed_audit.stderr
+        require(malformed_audit.returncode != 0 and "explicit_memory_persistence_authority" in malformed_audit_output, "queue_audit.py は payload 欠落の memory candidate を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute("DELETE FROM inbox_messages WHERE message_id = ?", (malformed_audit_payload["id"],))
+            connection.commit()
+
+        malformed_event_payload = _memory_candidate_message("msg_malformed_event_memory_candidate")
+        malformed_event_payload.pop("payload")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE events SET payload_json = ?, event_safety_json = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'",
+                [json.dumps(malformed_event_payload), json.dumps({"safety_items": [], "human_confirmation_required": []})],
+            )
+            connection.commit()
+        malformed_event_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        malformed_event_output = malformed_event_audit.stdout + malformed_event_audit.stderr
+        require(malformed_event_audit.returncode != 0 and "memory_candidate_gate" in malformed_event_output, "queue_audit.py は payload 欠落 memory candidate event の safety metadata 不足を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE events SET payload_json = ?, event_safety_json = ? WHERE event_id = 'evt_message_msg_memory_candidate_smoke'",
+                [
+                    json.dumps(memory_message),
+                    json.dumps(
+                        {
+                            "safety_items": [
+                                "memory_candidate_for_courier_review",
+                                "explicit_memory_persistence_authority",
+                                "sanitized_summary_only",
+                                "prevention_artifact_required",
+                                "ledger_disposition_recorded",
+                            ],
+                            "human_confirmation_required": [],
+                        }
+                    ),
+                ],
+            )
+            connection.commit()
+
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE quests SET payload_json = ? WHERE quest_id = 'quest_smoke'",
+                [json.dumps({"quest": {"id": "quest_smoke", "meta" "cognitive_state": {"confidence_percent": 70}}})],
+            )
+            connection.commit()
+        legacy_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        legacy_output = legacy_audit.stdout + legacy_audit.stderr
+        require(legacy_audit.returncode != 0 and "廃止済み" in legacy_output, "queue_audit.py は旧 runtime JSON key を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE quests SET payload_json = ? WHERE quest_id = 'quest_smoke'",
+                [json.dumps({"quest": {"id": "quest_smoke", "control_decision": "invoke_" "meta" "cognitive_controller"}})],
+            )
+            connection.commit()
+        legacy_value_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        legacy_value_output = legacy_value_audit.stdout + legacy_value_audit.stderr
+        require(legacy_value_audit.returncode != 0 and "廃止済み" in legacy_value_output, "queue_audit.py は旧 runtime string value を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE quests SET payload_json = ? WHERE quest_id = 'quest_smoke'",
+                [json.dumps({"quest": {"id": "quest_smoke", "rank": "solo_quest", "status": "active", "workflow_id": "workflow_smoke"}})],
+            )
+            connection.commit()
 
         invalid_event = _valid_event()
         invalid_event["event_id"] = "evt_invalid_operation"
@@ -135,3 +593,47 @@ def validate_queue_db_smoke() -> None:
         legacy_init = _run_python(script, "--runtime-root", runtime_root, "init")
         output = legacy_init.stdout + legacy_init.stderr
         require(legacy_init.returncode != 0 and ("tickets" in output or "task_id" in output), "queue_db.py init は旧物理 schema を拒否してください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        runtime_root = Path(tmp) / ".orchestra"
+        init = _run_python(script, "--runtime-root", runtime_root, "init")
+        require(init.returncode == 0, "queue_db.py init の未知 schema smoke 準備が失敗しました: " + init.stderr)
+        database = runtime_root / "queue" / "state.sqlite"
+        for suffix in ("-wal", "-shm"):
+            sidecar = database.with_name(database.name + suffix)
+            if sidecar.exists():
+                sidecar.unlink()
+        with sqlite3.connect(database) as connection:
+            connection.execute("PRAGMA journal_mode=DELETE")
+            connection.execute("ALTER TABLE quests ADD COLUMN raw_log TEXT")
+            connection.execute("CREATE TABLE unsafe_runtime_payload(secret TEXT)")
+            connection.commit()
+
+        unexpected_init = _run_python(script, "--runtime-root", runtime_root, "init")
+        unexpected_init_output = unexpected_init.stdout + unexpected_init.stderr
+        require(
+            unexpected_init.returncode != 0 and ("raw_log" in unexpected_init_output or "unsafe_runtime_payload" in unexpected_init_output),
+            "queue_db.py init は未知 table/column を含む schema を拒否してください。",
+        )
+        unexpected_dump = _run_python(script, "--runtime-root", runtime_root, "dump", "quests")
+        unexpected_dump_output = unexpected_dump.stdout + unexpected_dump.stderr
+        require(
+            unexpected_dump.returncode != 0 and ("raw_log" in unexpected_dump_output or "unsafe_runtime_payload" in unexpected_dump_output),
+            "queue_db.py dump は未知 table/column を含む schema を拒否してください。",
+        )
+        unexpected_write = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(_valid_event()))
+        unexpected_write_output = unexpected_write.stdout + unexpected_write.stderr
+        require(
+            unexpected_write.returncode != 0 and ("raw_log" in unexpected_write_output or "unsafe_runtime_payload" in unexpected_write_output),
+            "queue_db.py record-event は未知 table/column を含む schema を拒否してください。",
+        )
+        require(
+            not any(database.with_name(database.name + suffix).exists() for suffix in ("-wal", "-shm")),
+            "queue_db.py record-event は schema mismatch DB を write open する前に拒否してください。",
+        )
+        unexpected_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        unexpected_audit_output = unexpected_audit.stdout + unexpected_audit.stderr
+        require(
+            unexpected_audit.returncode != 0 and ("raw_log" in unexpected_audit_output or "unsafe_runtime_payload" in unexpected_audit_output),
+            "queue_audit.py は未知 table/column を含む schema を拒否してください。",
+        )

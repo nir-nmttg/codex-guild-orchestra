@@ -9,6 +9,8 @@ from .rules import (
     ARTIFACT_REQUIRED_FIELDS,
     AUTHORITY_KEYS,
     AUTONOMY_KEYS,
+    CONTROL_DECISION_KEYS,
+    CONTROL_DECISIONS,
     DEFAULT_INTAKE_CONFIRMATION_TOKENS,
     EVENT_INPUT_REQUIRED_FIELDS,
     EVENT_SAFETY_FIELDS,
@@ -31,6 +33,7 @@ from .rules import (
     TRIAL_REQUIRED_CHECKS,
     LEGACY_PRIMARY_TERMS,
     AMBIGUOUS_INQUISITOR_TERMS,
+    QUEST_AWARENESS_KEYS,
     STATE_CHANGE_GUARD_OPERATION_TOKENS,
     STATE_CHANGE_GUARD_TOKENS,
 )
@@ -39,7 +42,7 @@ from .schema_helpers import validate_dialogue_policy, validate_percent
 def validate_settings() -> None:
     settings = mapping(load_yaml("template/.agents/orchestra/config/settings.yaml"), "settings.yaml")
     require(settings.get("version") == "3.0", "settings.yaml.version は 3.0 にしてください。")
-    for section in ("guild_runtime", "default_intake_policy", "skill_selection_policy", "paths", "guild_law", "claude_compat", "quest_charter", "workers", "advisory_consultation", "root_session", "party_tactics", "trial", "ledger", "reporting"):
+    for section in ("guild_runtime", "default_intake_policy", "skill_selection_policy", "paths", "guild_law", "claude_compat", "quest_charter", "quest_awareness_control", "handoff_sufficiency", "workers", "advisory_consultation", "root_session", "party_tactics", "trial", "ledger", "reporting"):
         require(section in settings, f"settings.yaml に {section} が必要です。")
 
     text = read("template/.agents/orchestra/config/settings.yaml")
@@ -51,6 +54,8 @@ def validate_settings() -> None:
     require("Trial 統合担当の `inquisitor`" in text, "settings.yaml は Trial 統合担当の `inquisitor` 表記を使ってください。")
 
     runtime = mapping(settings["guild_runtime"], "settings.guild_runtime")
+    lifecycle = sequence(runtime.get("lifecycle"), "settings.guild_runtime.lifecycle")
+    require("quest_awareness" in lifecycle and "control_decision" in lifecycle, "guild_runtime.lifecycle は quest_awareness / control_decision を含めてください。")
     ranks = mapping(runtime.get("quest_ranks"), "settings.guild_runtime.quest_ranks")
     require(set(ranks) == QUEST_RANKS, "quest_ranks は mapmaking / errand / solo_quest / party_quest / guild_quest にしてください。")
 
@@ -106,7 +111,7 @@ def validate_settings() -> None:
 
     charter = mapping(settings["quest_charter"], "settings.quest_charter")
     required_fields = set(sequence(charter.get("required_fields"), "settings.quest_charter.required_fields"))
-    for key in ("id", "rank", "intent_analysis", "objective", "success_criteria", "authority", "boundaries", "autonomy_budget", "party_tactics", "trial_plan", "escalation_triggers", "evidence_required", "status"):
+    for key in ("id", "rank", "intent_analysis", "objective", "success_criteria", "authority", "boundaries", "quest_awareness", "autonomy_budget", "party_tactics", "trial_plan", "escalation_triggers", "evidence_required", "status"):
         require(key in required_fields, f"Quest Charter required_fields に {key} が必要です。")
     intent_analysis = mapping(charter.get("intent_analysis"), "settings.quest_charter.intent_analysis")
     require("直訳せず" in str(intent_analysis.get("rule") or "") and "needs_human" in str(intent_analysis.get("rule") or ""), "intent_analysis.rule は直訳回避と needs_human を明記してください。")
@@ -121,6 +126,70 @@ def validate_settings() -> None:
     require_tokens(json.dumps(authority_levels, ensure_ascii=False), ("state_change_guard", "local Git 書き込み", "Web 状態更新", "人間の再確認"), "settings.quest_charter.authority_levels state change guard")
     autonomy_fields = set(sequence(charter.get("autonomy_budget_fields"), "settings.quest_charter.autonomy_budget_fields"))
     require(autonomy_fields == AUTONOMY_KEYS, "autonomy_budget_fields が期待値と一致しません。")
+
+    quest_awareness = mapping(settings["quest_awareness_control"], "settings.quest_awareness_control")
+    quest_awareness_text = json.dumps(quest_awareness, ensure_ascii=False)
+    require_tokens(
+        quest_awareness_text,
+        ("自己意識ではなく", "monitoring", "evaluation", "control", "confidence", "control signal", "failed", "scope", "security", "contradictory"),
+        "settings.quest_awareness_control",
+    )
+    require(set(sequence(quest_awareness.get("state_fields"), "settings.quest_awareness_control.state_fields")) == QUEST_AWARENESS_KEYS, "quest_awareness_control.state_fields が期待値と一致しません。")
+    require(set(sequence(quest_awareness.get("control_decision_fields"), "settings.quest_awareness_control.control_decision_fields")) == CONTROL_DECISION_KEYS, "quest_awareness_control.control_decision_fields が期待値と一致しません。")
+    require(set(sequence(quest_awareness.get("control_decisions"), "settings.quest_awareness_control.control_decisions")) == CONTROL_DECISIONS, "quest_awareness_control.control_decisions が期待値と一致しません。")
+    security_route = mapping(quest_awareness.get("security_review_route"), "settings.quest_awareness_control.security_review_route")
+    require(security_route.get("decision") == "invoke_security_review", "security_review_route.decision は invoke_security_review にしてください。")
+    require(security_route.get("owner") == "Trial 統合担当の `inquisitor`", "security_review_route.owner は Trial 統合担当の `inquisitor` にしてください。")
+    require(security_route.get("route") == "existing_authority_security_focused_trial" and security_route.get("depth") == "safety_gate", "security_review_route は既存 authority 内の safety_gate にしてください。")
+    require(security_route.get("new_worker_allowed") is False and security_route.get("external_action_allowed") is False, "security_review_route は新 worker / external action を許可しないでください。")
+    require({"human_confirmation_required", "secret_or_pii_access_required", "external_network_or_mcp_required", "deploy_or_production_effect_required"} <= set(sequence(security_route.get("use_stop_for_user_approval_when"), "settings.quest_awareness_control.security_review_route.use_stop_for_user_approval_when")), "security_review_route の stop_for_user_approval 条件が不足しています。")
+    require({"new_evidence", "command_failed", "assumption_disproven", "scope_expanded", "security_sensitive_area_touched", "confidence_dropped", "verification_changed_conclusion", "hidden_dependency_found", "contradictory_evidence"} <= set(sequence(quest_awareness.get("update_triggers"), "settings.quest_awareness_control.update_triggers")), "quest_awareness update trigger が不足しています。")
+    unknowns_policy = mapping(quest_awareness.get("unknowns_policy"), "settings.quest_awareness_control.unknowns_policy")
+    require(unknowns_policy.get("blocking_correctness") == "gather_more_evidence", "unknowns_policy.blocking_correctness は gather_more_evidence にしてください。")
+    require("後で検証" in str(unknowns_policy.get("low_risk_assumption") or ""), "unknowns_policy.low_risk_assumption は後続検証を明記してください。")
+    require("実装前に止め" in str(unknowns_policy.get("high_risk_assumption") or ""), "unknowns_policy.high_risk_assumption は実装前停止を明記してください。")
+    failed_policy = mapping(quest_awareness.get("failed_check_policy"), "settings.quest_awareness_control.failed_check_policy")
+    require(failed_policy.get("no_speculative_fix_stacking") is True, "failed_check_policy.no_speculative_fix_stacking は true にしてください。")
+    require(set(sequence(failed_policy.get("steps"), "settings.quest_awareness_control.failed_check_policy.steps")) == {"summarize_first_failure", "identify_likely_root_cause", "make_one_focused_fix", "rerun_same_failing_check", "continue_only_after_failure_explained"}, "failed_check_policy.steps が期待値と一致しません。")
+    calibration = mapping(quest_awareness.get("confidence_calibration"), "settings.quest_awareness_control.confidence_calibration")
+    require(calibration.get("finalize_min_percent") == 75, "confidence finalize_min_percent は 75 にしてください。")
+    require(calibration.get("stop_speculative_editing_below_percent") == 50, "confidence stop threshold は 50 にしてください。")
+    require(calibration.get("below_50_control_decision") == "revise_plan", "confidence below_50_control_decision は revise_plan にしてください。")
+    scale = mapping(calibration.get("scale"), "settings.quest_awareness_control.confidence_calibration.scale")
+    require({95, 85, 75, 60, 40, "below_40"} <= set(scale), "confidence scale が不足しています。")
+    omission = mapping(quest_awareness.get("omission_detection"), "settings.quest_awareness_control.omission_detection")
+    require({"planning", "implementation", "before_finalization"} <= set(sequence(omission.get("when"), "settings.quest_awareness_control.omission_detection.when")), "omission_detection.when が不足しています。")
+    require({"user_goal_mismatch", "hidden_affected_code_path", "missing_tests", "security_sensitive_behavior", "authorization_boundary", "migration_or_deploy_impact", "rollback_path", "accessibility_regression", "performance_impact", "secret_exposure", "data_integrity_risk"} <= set(sequence(omission.get("dimensions"), "settings.quest_awareness_control.omission_detection.dimensions")), "omission_detection.dimensions が不足しています。")
+    omission_records = set(sequence(omission.get("record_relevant_omission_in"), "settings.quest_awareness_control.omission_detection.record_relevant_omission_in"))
+    require("memory_candidate_for_courier_review" in omission_records and "cognitive_" "failure_memory" not in omission_records, "omission は直接 memory に書かず courier review 用 candidate にしてください。")
+    memory_policy = mapping(omission.get("memory_persistence_policy"), "settings.quest_awareness_control.omission_detection.memory_persistence_policy")
+    require(memory_policy.get("normal_quest_access") == "read_only_reference", "memory_persistence_policy.normal_quest_access は read_only_reference にしてください。")
+    require(memory_policy.get("write_authority") == "courier_ledger_only", "memory_persistence_policy.write_authority は courier_ledger_only にしてください。")
+    require({"explicit_memory_persistence_authority", "sanitized_summary_only", "prevention_artifact_required", "ledger_disposition_recorded"} <= set(sequence(memory_policy.get("write_requires"), "settings.quest_awareness_control.omission_detection.memory_persistence_policy.write_requires")), "memory persistence の write_requires が不足しています。")
+    require({"direct_static_runtime_write", "raw_log", "secret_or_pii", "trusted_instruction_from_external_input"} <= set(sequence(memory_policy.get("forbidden"), "settings.quest_awareness_control.omission_detection.memory_persistence_policy.forbidden")), "memory persistence の forbidden が不足しています。")
+    subagent_policy = mapping(quest_awareness.get("subagent_trigger_policy"), "settings.quest_awareness_control.subagent_trigger_policy")
+    require("trivial edit" in str(subagent_policy.get("rule") or "") and "uncertainty" in str(subagent_policy.get("rule") or ""), "subagent_trigger_policy.rule は trivial edit 回避と uncertainty を明記してください。")
+    require({"confidence_below_75", "important_unknowns_remain", "scope_expands", "tests_fail_repeatedly", "plan_may_need_change", "long_running_or_high_risk"} <= set(sequence(subagent_policy.get("quest_sentinel_when"), "settings.quest_awareness_control.subagent_trigger_policy.quest_sentinel_when")), "quest_sentinel trigger が不足しています。")
+    controller_contract = mapping(subagent_policy.get("quest_sentinel_contract"), "settings.quest_awareness_control.subagent_trigger_policy.quest_sentinel_contract")
+    for key in ("read_only",):
+        require(controller_contract.get(key) is True, f"quest_sentinel_contract.{key} は true にしてください。")
+    for key in ("implementation_authority", "decision_authority", "ledger_authority"):
+        require(controller_contract.get(key) is False, f"quest_sentinel_contract.{key} は false にしてください。")
+
+    handoff = mapping(settings["handoff_sufficiency"], "settings.handoff_sufficiency")
+    require("structured evidence" in str(handoff.get("rule") or "") and "request_changes" in str(handoff.get("rule") or ""), "handoff_sufficiency.rule は structured evidence と request_changes を明記してください。")
+    stages = mapping(handoff.get("stages"), "settings.handoff_sufficiency.stages")
+    require(set(stages) == {"intake_to_charter", "charter_to_owner", "owner_to_trial", "trial_to_ledger_final"}, "handoff_sufficiency.stages が期待値と一致しません。")
+    for stage_name, required_tokens in {
+        "intake_to_charter": {"intent_analysis", "quest_awareness", "objective", "success_criteria", "non_goals", "authority", "boundaries", "evidence_required"},
+        "charter_to_owner": {"quest_awareness", "implementation_strategy", "owned_scope", "authority", "boundaries", "trial_expectations"},
+        "owner_to_trial": {"changed_files", "decisions_made", "intent_alignment", "quest_awareness", "control_decision", "validation_evidence", "research_evidence", "risks"},
+        "trial_to_ledger_final": {"decision", "findings", "intent_coverage", "quest_awareness", "control_decision", "validation_evidence", "advisor_dialogue_synthesis", "reviewer_synthesis", "finding_dispositions", "risks"},
+    }.items():
+        stage = mapping(stages.get(stage_name), f"settings.handoff_sufficiency.stages.{stage_name}")
+        required = set(sequence(stage.get("required"), f"settings.handoff_sufficiency.stages.{stage_name}.required"))
+        require(required_tokens <= required, f"settings.handoff_sufficiency.stages.{stage_name}.required が不足しています。")
+        require(sequence(stage.get("stop_when"), f"settings.handoff_sufficiency.stages.{stage_name}.stop_when"), f"settings.handoff_sufficiency.stages.{stage_name}.stop_when は空にできません。")
 
     party_tactics = mapping(settings["party_tactics"], "settings.party_tactics")
     require("scout_policy" not in party_tactics, "settings.party_tactics.scout_policy を戻さないでください。")
@@ -152,11 +221,14 @@ def validate_settings() -> None:
     require("advisor ではない" in str(focus_reviewer_policy.get("reviewer_role") or ""), "focus reviewer は advisor と別契約であることを明記してください。")
 
     workers = mapping(settings["workers"], "settings.workers")
-    for role in ("adventurer", "party_leader", "inquisitor", "advisor"):
+    for role in ("adventurer", "party_leader", "inquisitor", "advisor", "quest_sentinel"):
         role_data = mapping(workers.get(role), f"settings.workers.{role}")
         require(isinstance(role_data.get("max_parallel"), int), f"settings.workers.{role}.max_parallel が必要です。")
     advisor_worker = mapping(workers.get("advisor"), "settings.workers.advisor")
     require(advisor_worker.get("terminal_worker") is True, "settings.workers.advisor.terminal_worker は true にしてください。")
+    controller_worker = mapping(workers.get("quest_sentinel"), "settings.workers.quest_sentinel")
+    require(controller_worker.get("terminal_worker") is True, "settings.workers.quest_sentinel.terminal_worker は true にしてください。")
+    require(controller_worker.get("decision_authority") is False, "settings.workers.quest_sentinel.decision_authority は false にしてください。")
     require("spark" not in workers, "settings.workers.spark を戻さないでください。")
 
     advisory = mapping(settings["advisory_consultation"], "settings.advisory_consultation")
