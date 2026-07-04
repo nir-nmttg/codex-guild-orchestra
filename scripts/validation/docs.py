@@ -61,6 +61,7 @@ LEGACY_DIRECT_CASEFOLD_TOKENS = (
     "meta " "recognition",
     "meta_" "recognition",
     "cognitive_" "failure_memory",
+    "メタ認" "知",
     "メタ認" "識",
 )
 
