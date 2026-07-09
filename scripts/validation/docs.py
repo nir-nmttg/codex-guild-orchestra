@@ -40,12 +40,12 @@ EXPECTED_AGENT_SANDBOX_MODES = {
 EXPECTED_AGENT_MODEL_CONFIGS = {
     "adventurer": ("gpt-5.6-terra", "high"),
     "advisor": ("gpt-5.6-luna", "high"),
-    "cartographer": ("gpt-5.6-sol", "high"),
+    "cartographer": ("gpt-5.6-terra", "high"),
     "courier": ("gpt-5.3-codex-spark", "xhigh"),
     "guildmaster": ("gpt-5.6-sol", "xhigh"),
     "inquisitor": ("gpt-5.6-sol", "high"),
-    "quest_sentinel": ("gpt-5.6-luna", "medium"),
-    "party_leader": ("gpt-5.6-terra", "high"),
+    "quest_sentinel": ("gpt-5.6-luna", "high"),
+    "party_leader": ("gpt-5.6-sol", "high"),
 }
 
 
@@ -156,9 +156,19 @@ def validate_agents() -> None:
             require((ROOT / "template" / SETTINGS_REF).exists(), f"{SETTINGS_REF} が存在しません。")
     config = tomllib.loads(read("template/.codex/config.toml"))
     config_text = read("template/.codex/config.toml")
+    deployment_text = read("docs/agent-deployment.md")
+    evaluation_text = read("docs/model-selection-evaluation.md")
     require(config.get("model") == "gpt-5.6-sol", "template/.codex/config.toml の model は gpt-5.6-sol にしてください。")
     require("model_context_window" not in config, "model_context_window は model catalog に追随させ、Root config で固定しないでください。")
-    require("model_reasoning_effort" not in config, "Root の model_reasoning_effort は config で固定しないでください。")
+    require(config.get("model_reasoning_effort") == "high", "Root の model_reasoning_effort は high に固定してください。")
+    require("Root の reasoning effort は `high` に固定" in deployment_text, "docs/agent-deployment.md は Root の high 固定を説明してください。")
+    require("| Root | `gpt-5.6-sol` | `high` |" in evaluation_text, "docs/model-selection-evaluation.md は Root の固定 pair を記録してください。")
+    for role, (expected_model, expected_effort) in EXPECTED_AGENT_MODEL_CONFIGS.items():
+        expected_sandbox = EXPECTED_AGENT_SANDBOX_MODES[role]
+        deployment_row = f"| `{role}` | `.codex/agents/{role}.toml` | `{expected_model}` | `{expected_sandbox}` | `{expected_effort}` |"
+        evaluation_row = f"| `{role}` | `{expected_model}` | `{expected_effort}` |"
+        require(deployment_row in deployment_text, f"docs/agent-deployment.md の {role} model / effort を固定設定と一致させてください。")
+        require(evaluation_row in evaluation_text, f"docs/model-selection-evaluation.md の {role} model / effort を固定設定と一致させてください。")
     require(config.get("sandbox_mode") == "read-only", "Root sandbox は read-only にしてください。")
     require(config.get("approval_policy") == "on-request", "template/.codex/config.toml の approval_policy は on-request にしてください。")
     require(config.get("approvals_reviewer") == "auto_review", "template/.codex/config.toml の approvals_reviewer は auto_review にしてください。")

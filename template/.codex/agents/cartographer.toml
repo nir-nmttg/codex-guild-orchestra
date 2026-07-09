@@ -1,6 +1,6 @@
 name = "cartographer"
 description = "設計、実装計画、方針整理、アーキテクチャ検討を `mapmaking` として扱う担当。既存構成、危険地帯、推奨 Quest Rank、Party Tactics、Trial を整理する。"
-model = "gpt-5.6-sol"
+model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 

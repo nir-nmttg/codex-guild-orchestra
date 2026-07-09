@@ -264,19 +264,21 @@ flowchart TB
 | --- | --- | --- | --- | --- | --- |
 | `adventurer` | `.codex/agents/adventurer.toml` | `gpt-5.6-terra` | `workspace-write` | `high` | Quest Charter の範囲内で調査、実装、検証を自律遂行する |
 | `advisor` | `.codex/agents/advisor.toml` | `gpt-5.6-luna` | `read-only` | `high` | focus 限定の読み取り助言を返す terminal worker |
-| `cartographer` | `.codex/agents/cartographer.toml` | `gpt-5.6-sol` | `read-only` | `high` | 設計、実装計画、方針整理、アーキテクチャ検討を `mapmaking` として扱い、地図、危険地帯、推奨 rank、Trial 方針を整理する |
+| `cartographer` | `.codex/agents/cartographer.toml` | `gpt-5.6-terra` | `read-only` | `high` | 設計、実装計画、方針整理、アーキテクチャ検討を `mapmaking` として扱い、地図、危険地帯、推奨 rank、Trial 方針を整理する |
 | `courier` | `.codex/agents/courier.toml` | `gpt-5.3-codex-spark` | `workspace-write` | `xhigh` | Ledger 反映と Root が明示した local Git 操作だけを扱う |
 | `guildmaster` | `.codex/agents/guildmaster.toml` | `gpt-5.6-sol` | `read-only` | `xhigh` | `guild_quest` の戦略、Party 境界、authority、Trial 方針を設計する |
 | `inquisitor` | `.codex/agents/inquisitor.toml` | `gpt-5.6-sol` | `read-only` | `high` | risk-based Trial を行い、重大度と残リスクを分類する |
-| `quest_sentinel` | `.codex/agents/quest_sentinel.toml` | `gpt-5.6-luna` | `read-only` | `medium` | quest_awareness、confidence、unknowns、verification status を監視し、次アクションだけを推薦する |
-| `party_leader` | `.codex/agents/party_leader.toml` | `gpt-5.6-terra` | `read-only` | `high` | Party Tactics、割り当て、Trial depth を設計する |
+| `quest_sentinel` | `.codex/agents/quest_sentinel.toml` | `gpt-5.6-luna` | `read-only` | `high` | quest_awareness、confidence、unknowns、verification status を監視し、次アクションだけを推薦する |
+| `party_leader` | `.codex/agents/party_leader.toml` | `gpt-5.6-sol` | `read-only` | `high` | Party Tactics、割り当て、Trial depth を設計する |
 
 Root の既定設定は `template/.codex/config.toml` で管理します。
 現在は Root の model を `gpt-5.6-sol`、sandbox を `read-only`、approval を `on-request`、workspace-write 時の network を無効、web search を `cached` とし、`agents.max_threads = 12`、`agents.max_depth = 4`、`job_max_runtime_seconds = 1200` を設定します。
-Root の reasoning effort は config では固定せず、Sol の既定値または Codex 起動時のユーザー指定・上位設定を使います。
+Root の reasoning effort は `high` に固定します。全 subagent も role ごとの固定値を持ち、Quest の難度に応じた動的な effort 切り替えは行いません。
 `model_context_window` も固定せず、5.6 系と `gpt-5.3-codex-spark` それぞれの model catalog 値を使います。
 
-モデルは責務ごとに使い分けます。横断設計、guild strategy、Trial 統合には frontier model の `gpt-5.6-sol`、継続的な実装と Party 編成には balanced model の `gpt-5.6-terra`、focus 限定の助言と制御監視には高速で cost-aware な `gpt-5.6-luna` を使います。固定 effort は通常 `medium` または `high` とし、最も複雑な guild strategy だけを `xhigh` にします。`max` と `ultra` は常用せず、個別 Quest の難度と委譲要件に応じて明示的に上書きします。
+モデルは責務の失敗コストと並列頻度から固定します。意図と境界を全体へ伝播する Root、複数 worker の assignment を設計する `party_leader`、guild strategy、安全性と採否材料を扱う `guildmaster` / `inquisitor` には frontier model の `gpt-5.6-sol` を使います。read-heavy な mapmaking と、上流で scope を限定された実装には balanced model の `gpt-5.6-terra` を使います。owner が根拠を再確認する focus 限定助言と、狭い構造化制御には高速な `gpt-5.6-luna` を使います。
+
+固定 effort は、通常の複雑な判断、edge case、検証を扱う role を `high`、guild-scale の境界、sequencing、safety gate に限定される `guildmaster` を `xhigh` とします。`max` は今回の代表比較に含めておらず、固定常用を正当化する根拠がないため採用しません。`ultra` は自動委譲が明示 assignment と terminal worker 契約に干渉し得るため採用しません。評価条件、隣接候補の代表 stress case、観測結果は [GPT-5.6 role model selection](model-selection-evaluation.md) に記録します。
 
 ## workers 設定
 
@@ -386,6 +388,7 @@ rm -rf "$tmp"
 
 - `docs/agent-deployment.md` が存在し、現行 agent 一覧と一致している
 - `.codex/agents` に旧 worker 定義が戻っていない
+- Root が `gpt-5.6-sol`、`model_reasoning_effort = "high"` に固定されている
 - `advisor` が `read-only`、`model_reasoning_effort = "high"`、terminal worker 契約を持つ
 - `agents.max_depth = 4` を維持している
 - `settings.yaml` の worker 並列数と advisory consultation が壊れていない

@@ -142,12 +142,12 @@ EXPECTED_AGENT_SANDBOX_MODES = {
 EXPECTED_AGENT_MODEL_CONFIGS = {
     'adventurer': ('gpt-5.6-terra', 'high'),
     'advisor': ('gpt-5.6-luna', 'high'),
-    'cartographer': ('gpt-5.6-sol', 'high'),
+    'cartographer': ('gpt-5.6-terra', 'high'),
     'courier': ('gpt-5.3-codex-spark', 'xhigh'),
     'guildmaster': ('gpt-5.6-sol', 'xhigh'),
     'inquisitor': ('gpt-5.6-sol', 'high'),
-    'quest_sentinel': ('gpt-5.6-luna', 'medium'),
-    'party_leader': ('gpt-5.6-terra', 'high'),
+    'quest_sentinel': ('gpt-5.6-luna', 'high'),
+    'party_leader': ('gpt-5.6-sol', 'high'),
 }
 EXPECTED_ORCHESTRA_SKILL_DIRS = {
     'branch-implementation-final-review',
@@ -951,6 +951,7 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
     config = read_toml_document(config_path)
     required_config_values = {
         'model': 'gpt-5.6-sol',
+        'model_reasoning_effort': 'high',
         'sandbox_mode': 'read-only',
         'approval_policy': 'on-request',
         'approvals_reviewer': 'auto_review',
@@ -960,8 +961,6 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
     for key, expected in required_config_values.items():
         if config.get(key) != expected:
             raise SystemExit(f'template/.codex/config.toml の {key} は {expected} にしてください。')
-    if 'model_reasoning_effort' in config:
-        raise SystemExit('Root の model_reasoning_effort は config で固定しないでください。')
     if 'model_context_window' in config:
         raise SystemExit('model_context_window は model catalog に追随させ、Root config で固定しないでください。')
     sandbox_workspace_write = config.get('sandbox_workspace_write')

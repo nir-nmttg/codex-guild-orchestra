@@ -1,5 +1,5 @@
 model = "gpt-5.6-sol"
-# Root の reasoning effort はここでは固定せず、Sol の既定値または Codex 起動時のユーザー指定・上位設定を使う。
+model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 approval_policy = "on-request"
 approvals_reviewer = "auto_review"
