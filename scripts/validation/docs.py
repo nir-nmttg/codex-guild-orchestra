@@ -37,6 +37,16 @@ EXPECTED_AGENT_SANDBOX_MODES = {
     "quest_sentinel": "read-only",
     "party_leader": "read-only",
 }
+EXPECTED_AGENT_MODEL_CONFIGS = {
+    "adventurer": ("gpt-5.6-terra", "high"),
+    "advisor": ("gpt-5.6-luna", "high"),
+    "cartographer": ("gpt-5.6-sol", "high"),
+    "courier": ("gpt-5.3-codex-spark", "xhigh"),
+    "guildmaster": ("gpt-5.6-sol", "xhigh"),
+    "inquisitor": ("gpt-5.6-sol", "high"),
+    "quest_sentinel": ("gpt-5.6-luna", "medium"),
+    "party_leader": ("gpt-5.6-terra", "high"),
+}
 
 
 def validate_audit_english_path_guard() -> None:
@@ -131,6 +141,9 @@ def validate_agents() -> None:
         role = rel.stem
         require(data.get("name") == role, f"{rel.relative_to(ROOT)} の name は filename と一致させてください。")
         require(data.get("sandbox_mode") == EXPECTED_AGENT_SANDBOX_MODES[role], f"{rel.relative_to(ROOT)} の sandbox_mode は {EXPECTED_AGENT_SANDBOX_MODES[role]} にしてください。")
+        expected_model, expected_effort = EXPECTED_AGENT_MODEL_CONFIGS[role]
+        require(data.get("model") == expected_model, f"{rel.relative_to(ROOT)} の model は {expected_model} にしてください。")
+        require(data.get("model_reasoning_effort") == expected_effort, f"{rel.relative_to(ROOT)} の model_reasoning_effort は {expected_effort} にしてください。")
         require("Guild Law" in raw, f"{rel.relative_to(ROOT)} は Guild Law を参照してください。")
         require(COMMON_INSTRUCTION_REF.removeprefix(".agents/orchestra/") in raw, f"{rel.relative_to(ROOT)} は実在する common instruction path を参照してください。")
         require((ROOT / "template" / COMMON_INSTRUCTION_REF).exists(), f"{COMMON_INSTRUCTION_REF} が存在しません。")
@@ -143,7 +156,9 @@ def validate_agents() -> None:
             require((ROOT / "template" / SETTINGS_REF).exists(), f"{SETTINGS_REF} が存在しません。")
     config = tomllib.loads(read("template/.codex/config.toml"))
     config_text = read("template/.codex/config.toml")
-    require(config.get("model") == "gpt-5.5", "template/.codex/config.toml の model は gpt-5.5 にしてください。")
+    require(config.get("model") == "gpt-5.6-sol", "template/.codex/config.toml の model は gpt-5.6-sol にしてください。")
+    require("model_context_window" not in config, "model_context_window は model catalog に追随させ、Root config で固定しないでください。")
+    require("model_reasoning_effort" not in config, "Root の model_reasoning_effort は config で固定しないでください。")
     require(config.get("sandbox_mode") == "read-only", "Root sandbox は read-only にしてください。")
     require(config.get("approval_policy") == "on-request", "template/.codex/config.toml の approval_policy は on-request にしてください。")
     require(config.get("approvals_reviewer") == "auto_review", "template/.codex/config.toml の approvals_reviewer は auto_review にしてください。")
@@ -164,12 +179,10 @@ def validate_agents() -> None:
     advisor = tomllib.loads(read("template/.codex/agents/advisor.toml"))
     advisor_text = read("template/.codex/agents/advisor.toml")
     require(advisor.get("sandbox_mode") == "read-only", "advisor.toml の sandbox_mode は read-only にしてください。")
-    require(advisor.get("model_reasoning_effort") == "xhigh", "advisor.toml の model_reasoning_effort は xhigh にしてください。")
     require_tokens(advisor_text, ("terminal worker", "追加 subagent", "実装", "採否", "Ledger", "owner synthesis", "Guild Law", "confidence-based", "confidence delta", "同じ unknown", "owner が根拠確認"), "template/.codex/agents/advisor.toml")
     controller = tomllib.loads(read("template/.codex/agents/quest_sentinel.toml"))
     controller_text = read("template/.codex/agents/quest_sentinel.toml")
     require(controller.get("sandbox_mode") == "read-only", "quest_sentinel.toml の sandbox_mode は read-only にしてください。")
-    require(controller.get("model_reasoning_effort") == "high", "quest_sentinel.toml の model_reasoning_effort は high にしてください。")
     require_tokens(
         controller_text,
         ("quest_awareness", "unknowns", "assumptions", "confidence", "verification status", "control signal", "実装", "採否", "Ledger", "Git 操作", "外部送信", "75%", "50%", "first failure", "security-sensitive", "control_decision", "rationale", "required_next_action", "escalation_required"),
@@ -186,8 +199,6 @@ def validate_agents() -> None:
     inquisitor = read("template/.codex/agents/inquisitor.toml")
     courier = tomllib.loads(read("template/.codex/agents/courier.toml"))
     courier_text = read("template/.codex/agents/courier.toml")
-    require(courier.get("model") == "gpt-5.3-codex-spark", "courier.toml の model は gpt-5.3-codex-spark にしてください。")
-    require(courier.get("model_reasoning_effort") == "xhigh", "courier.toml の model_reasoning_effort は xhigh にしてください。")
     require_tokens(
         courier_text,
         STATE_CHANGE_GUARD_TOKENS

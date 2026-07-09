@@ -1,6 +1,6 @@
 name = "adventurer"
 description = "Quest Charter の範囲内で調査、実装、検証を自律遂行する senior IC。"
-model = "gpt-5.5"
+model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 sandbox_mode = "workspace-write"
 

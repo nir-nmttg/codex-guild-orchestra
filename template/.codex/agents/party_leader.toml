@@ -1,7 +1,7 @@
 name = "party_leader"
 description = "Quest Charter から Party Tactics、割り当て（assignment）、Trial depth を裁量設計する実行管理担当。"
-model = "gpt-5.5"
-model_reasoning_effort = "xhigh"
+model = "gpt-5.6-terra"
+model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
 developer_instructions = """

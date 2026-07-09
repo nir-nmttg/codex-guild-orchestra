@@ -1,6 +1,5 @@
-model = "gpt-5.5"
-# Root の reasoning effort はここでは固定せず、Codex 起動時のユーザー指定または上位設定を使う。
-model_context_window = 1_000_000
+model = "gpt-5.6-sol"
+# Root の reasoning effort はここでは固定せず、Sol の既定値または Codex 起動時のユーザー指定・上位設定を使う。
 sandbox_mode = "read-only"
 approval_policy = "on-request"
 approvals_reviewer = "auto_review"
