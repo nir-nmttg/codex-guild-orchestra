@@ -54,8 +54,8 @@ snapshot:
 2. `adventurer` が snapshot の一致と既存のユーザー変更を確認してから、対象範囲を読みます。
 3. `adventurer` が `implementation_strategy` に沿って、空行だけを扱う最小十分な差分を選びます。
 4. 変更に見合う検証を実行し、self-check は Trial decision ではなく owner の validation evidence として残します。
-5. `adventurer` が変更点、`intent_alignment`、`quest_awareness`、`control_decision`、`validation_evidence`、未検証範囲、残リスク、owned scope の `working_tree_content` result snapshot を report にまとめます。
-6. Root が owner -> Trial handoff と `self_check` eligibility gate を機械的に確認します。`errand` または low-risk `solo_quest`、単一 owned scope、低 uncertainty / coupling、限定 blast radius、safety / confirmation / public API・data compatibility change / scope drift / blocking unknown なし、targeted validation 成功、成功条件の直接 evidence、snapshot 一致をすべて満たす場合だけ independent Trial を省略できます。owner は validation attestation と skip reason を残しますが、`accept`、重大度、requested changes は決めず、Root も品質判断を補いません。
+5. `adventurer` が変更点、`intent_alignment`、`validation_evidence`、変化した`evidence_state`、未検証範囲、残リスク、owned scopeのresult snapshotをreportにまとめます。
+6. Rootがscope、安全条件、targeted validation、成功条件の直接evidence、snapshot一致を機械的に確認します。低リスク・単一scope・blockerなしならowner validationで完了し、定型的な省略理由は要求しません。
 7. 独立確認が必要なrisk、曖昧なintent coverage、検証不足、scope driftがある場合だけ、Rootが`inquisitor`へ`peer_review`以上を割り当てます。`inquisitor`は`intent_coverage`、成功条件、回帰リスク、decision、finding dispositionを返します。
 8. self-check eligibility と owner attestation、または`inquisitor`のaccept後に、`courier`がTrial -> Ledger handoffの要約だけを記録し、Rootがfinal reportを集約します。local Git操作は人間が具体的に指示した別assignmentがない限り行いません。
 
@@ -63,7 +63,7 @@ snapshot:
 
 - 成功条件を満たす差分がある
 - `intent_analysis` の本質的な成果を満たし、過剰実装を避けた根拠がある
-- `quest_awareness` と `control_decision` が owner から Trial へ渡せる形で整理されている
+- blockerやfailed checkがある場合は`evidence_state`がTrialへ渡せる
 - 変更理由が既存設計と矛盾しない
 - 実行した検証と未検証範囲が明示されている
 - 人間確認が必要な操作を勝手に進めていない

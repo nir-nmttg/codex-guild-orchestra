@@ -35,7 +35,7 @@ cartographer がやらないこと:
 - 推奨 Quest Rank
 - Trial 方針
 - 人間確認が必要な点
-- quest_awareness と control_decision
+- `evidence_state` のblocker、未確認リスク、検証状況
 - evidence refs と advisor synthesis
 - `subject_snapshot`（clean なら `revision_only`。dirty な subject 内容が必要な時だけ限定 scope の `working_tree_content`）
 ```
@@ -47,7 +47,7 @@ cartographer がやらないこと:
 3. Root が依頼文を直訳せず、推定意図、本質的な成果、仮定、曖昧点、`confirmation_needed` を `intent_analysis` に整理します。
 4. Root が共通 snapshot 契約に従って `subject_snapshot` を固定し、`cartographer` は開始時に一致を確認します。clean な read-only mapmaking は `revision_only` を再利用し、空 global diff の hash を毎回作りません。
 5. `cartographer` が対象領域を調べ、実装しない前提で地図と `implementation_strategy` 候補を返します。advisor を使った場合は根拠を再確認し、採用、却下、未解決の disposition を advisor synthesis に残します。
-6. report には `quest_awareness`、`control_decision`、evidence refs、残る仮定、snapshot 契約を含めます。
+6. report にはevidence refs、重要な未確認事項、検証状況、snapshot参照を含めます。
 7. 必要なら Root が別の `solo_quest`、`party_quest`、`safety_gate` として intake をやり直し、mapmaking の仮定を事実扱いせず新しい Charter へ handoff します。
 8. 次 Quest の開始時に snapshot が変わっていた場合は `stale_evidence` とし、影響する地図と危険箇所を再確認します。
 
@@ -57,7 +57,7 @@ cartographer がやらないこと:
 - 触るべきファイル、触らないファイル、未確認リスクが分かる
 - 本質的な成果と、実装前に人間確認が必要な点が分かる
 - 次に取るべき Quest Rank と Trial depth が明示されている
-- `quest_awareness`、`control_decision`、根拠、advisor synthesis、snapshot が次の Quest へ渡せる
+- `evidence_state`、根拠、必要なadvisor synthesis、snapshotが次のQuestへ渡せる
 
 ## 注意点
 

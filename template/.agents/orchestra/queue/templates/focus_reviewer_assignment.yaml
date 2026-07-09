@@ -11,14 +11,18 @@ assignment:
   trial_id: null
   worker_id: focus_reviewer
   owner_worker_id: inquisitor
+  role: bounded_trial_focus_reviewer
+  terminal_worker: true
+  decision_authority: false
+  severity_authority: false
+  objective: null
+  # queueはLedger上のTrialを検証した後、verificationを上書きする。
   caller_lineage:
-    enforcement: policy_only_with_queue_lineage
     required_parent_role: inquisitor
     trial_owner_worker_id: inquisitor
     trial_ref: null
     verification: null
-  reviewer_index: null
-  role: bounded_trial_focus_reviewer
+  risk_trigger: null
   focus: null
   subject_snapshot:
     snapshot_id: null
@@ -31,10 +35,6 @@ assignment:
     untracked_paths: []
     diff_hash: null
     dirty_state: null
-  terminal_worker: true
-  decision_authority: false
-  severity_authority: false
-  owner_synthesis_required: true
   authority:
     read: true
     edit: false
@@ -46,19 +46,12 @@ assignment:
     read_deny: []
     edit_deny: []
     safety_items: []
-  autonomy_budget:
-    subassignments: 0
-    extra_file_reads: 0
-    validation_iterations: 1
-    timebox_minutes: null
   evidence_required: []
   forbidden:
     - focus_expansion
     - implementation
     - final_decision
     - final_severity
-    - requested_changes
-    - owner_synthesis
     - recursive_subagent
     - ledger_write
     - git_write

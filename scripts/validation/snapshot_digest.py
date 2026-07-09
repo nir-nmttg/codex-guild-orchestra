@@ -68,8 +68,20 @@ def validate_snapshot_digest() -> None:
                 "GIT_CONFIG_COUNT": "1",
                 "GIT_CONFIG_KEY_0": "core.fsmonitor",
                 "GIT_CONFIG_VALUE_0": "command-that-must-not-run",
+                "GIT_CONFIG": str(Path(tmp) / "outside-git-config"),
+                "GIT_COMMON_DIR": str(Path(tmp) / "outside-common-dir"),
+                "GIT_GRAFT_FILE": str(Path(tmp) / "outside-grafts"),
+                "GIT_SHALLOW_FILE": str(Path(tmp) / "outside-shallow"),
+                "GIT_TRACE": str(Path(tmp) / "outside-git-trace"),
             }
         )
+        fake_bin = Path(tmp) / "fake-bin"
+        fake_bin.mkdir()
+        fake_marker = Path(tmp) / "fake-git-executed"
+        fake_git = fake_bin / "git"
+        fake_git.write_text(f"#!/bin/sh\ntouch '{fake_marker}'\nexit 99\n", encoding="utf-8")
+        fake_git.chmod(0o755)
+        injected_environment["PATH"] = str(fake_bin) + os.pathsep + injected_environment.get("PATH", "")
         injected_env_snapshot = _snapshot(
             repo,
             "--kind",
@@ -79,6 +91,8 @@ def validate_snapshot_digest() -> None:
             env=injected_environment,
         )
         require(injected_env_snapshot.returncode == 0, "snapshot digest はhost Git environment注入を無視してください。")
+        require(not (Path(tmp) / "outside-git-trace").exists(), "snapshot digest はGIT_TRACEでrepo外へ書き込まないでください。")
+        require(not fake_marker.exists(), "snapshot digest はhost PATH上の偽gitを実行しないでください。")
         _git(repo, "config", "--unset", "core.fsmonitor")
         _git(repo, "add", "src/owned.txt")
         after_stage = _snapshot(repo, "--kind", "working_tree_content", "--scope", "src")
@@ -140,6 +154,14 @@ def validate_snapshot_digest() -> None:
         require(revision_only.returncode == 0, f"revision-only snapshot が失敗しました: {revision_only.stderr}")
         revision = json.loads(revision_only.stdout)
         require(revision["diff_hash"] is None and revision["snapshot_id"].startswith("sha256:"), "revision-only snapshot の identity が不正です。")
+
+        linked = Path(tmp) / "linked-worktree"
+        _git(repo, "worktree", "add", "--quiet", "--detach", str(linked), "HEAD")
+        linked_snapshot = _snapshot(linked, "--kind", "revision_only")
+        require(linked_snapshot.returncode == 0, f"検証可能なlinked worktree snapshotが失敗しました: {linked_snapshot.stderr}")
+        linked_revision = json.loads(linked_snapshot.stdout)
+        require(linked_revision["revision_id"] == revision["revision_id"], "linked worktree snapshotは同じrevisionを参照してください。")
+        _git(repo, "worktree", "remove", "--force", str(linked))
 
         (repo / "src/link.txt").symlink_to("owned.txt")
         _git(repo, "add", "src/link.txt")

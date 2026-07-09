@@ -18,16 +18,17 @@
 
 公式の [GPT-5.6 model guidance](https://developers.openai.com/api/docs/guides/latest-model) と [Codex Subagents guidance](https://developers.openai.com/codex/subagents/) に従い、曖昧で多段の planning、tool use、validation、最終 decision を伴う role は高能力側、read-heavy で bounded な supporting work は Terra、高頻度で owner が再検証する狭い work は Luna を候補にしました。
 同じ role で task 難度に応じて effort を動的変更せず、認知負荷と decision authority が異なる場合は role contract を分離して、それぞれに固定 pair を与えます。
+価格や平均scoreだけで品質低下を相殺しないよう、選定対象の全roleでcaseごとの探索的t下限を非劣性判定に使います。5.5 regression controlは比較専用で、5.6 deployment推薦集合には含めません。
 
 ## 評価方法
 
 評価は3層に分けます。
 
 1. `scripts/validation/fixtures/golden_quests/` で authority、revision binding、handoff、safety、terminal worker 契約を決定論的 hard gate として検証する。
-2. `scripts/model_selection_eval.yaml` で role ごとの legacy regression control、5.6 same-effort、選定 pair、一段下、通常 / edge / safety fixture、required evidence、品質 / 効率指標を固定する。各 case は deterministic golden fixture に対応付ける。
-3. `scripts/model_selection_eval.py` で template の実 role contractを一時 `AGENTS.md` layerへ埋め込み、role componentをfresh ephemeral sessionで反復比較する。candidateには grader labelを見せず、grading artifactとmodel provenanceを別directoryに分ける。
+2. `scripts/model_selection_eval.yaml` で role ごとの legacy regression control、5.6 same-effort、選定 pair、一段下、通常 / edge / safety fixture、required evidence、品質 / 効率指標を固定する。各 case は deterministic golden fixture に対応付ける。promptは現AGENTSへcommon/role補助資料を重ねる`full` expanded controlと、実deploymentと同じAGENTS + agent developerだけを読む`compact`を独立したprofileとして固定する。role Markdownは補助資料でありcompact profileへ常時重ねない。
+3. `scripts/model_selection_eval.py` で各case / model / effort / repetitionを同じ`pairing_id`のまま`full` / `compact`の両方で反復比較する。candidateには grader labelやprofile名を見せず、grading artifactとmodel / profile provenanceを別directoryに分ける。runnerのseedはjob順序の再現用であり、model sampling seedとは主張しない。
 
-live runner は model / effort 差を分離するため `multi_agent=false` にし、単一 role component の出力とtool挙動を測ります。実際のsubagent fan-out、caller chain、handoff、integrationはlive runnerが再現したと主張せず、queue schema、golden fixtures、installer mutation smokeで決定論的に検証します。将来end-to-end workflow evalを追加する場合も、component scoreと混ぜず別suiteにします。
+live runner は model / effort 差を分離するため `multi_agent=false` にし、単一 role component の出力とtool挙動を測ります。model / effort比較の正本はmanifestの`compact` profile内だけで行い、`full`は現行compact契約へ補助layerを重ねたsupplemental-layer ablationにだけ使います。削除前prompt stackのfrozen fixtureではないため、旧ルール削除の非劣化を証明するcontrolとは扱いません。prompt profile比較は同じmodel / effortのpaired recordだけで行います。実際のsubagent fan-out、caller chain、handoff、integrationはlive runnerが再現したと主張せず、queue schema、golden fixtures、installer mutation smokeで決定論的に検証します。end-to-end workflow evalもcomponent scoreと混ぜず別suiteにします。
 
 通常の `make validate` は外部 model を呼ばず、golden Quest と eval manifest の整合だけを検証します。
 live eval は明示実行に分け、出力、usage、elapsed time、worktree / staged / commit diff、commit log、grader worksheet を既定で `/tmp/codex-guild-model-eval` に保存します。
@@ -40,6 +41,13 @@ python3 scripts/model_selection_eval.py validate
 python3 scripts/model_selection_eval.py plan
 python3 scripts/model_selection_eval.py run \
   --role focus_reviewer \
+  --acknowledge-external-data-send \
+  --execution-wrapper /path/to/isolated-eval-wrapper \
+  --isolation-attestation /path/to/isolation-attestation.json
+# 単一profileだけの診断実行。paired選定matrixとは見なされない
+python3 scripts/model_selection_eval.py run \
+  --role focus_reviewer \
+  --prompt-profile compact \
   --acknowledge-external-data-send \
   --execution-wrapper /path/to/isolated-eval-wrapper \
   --isolation-attestation /path/to/isolation-attestation.json
@@ -79,29 +87,34 @@ attestationは次の完全一致schemaです。`wrapper_sha256`だけでなくim
 
 runnerはworkspace全体をcopyせず、対象roleの `AGENTS.md`、settings、common / role instructions、agent configだけを一時guildへ複製します。manifestはreview済み `synthetic_only` data policyを必須にし、prompt、baseline / working fileの既知secret / PII indicator（path、credential、email、SSN、電話、card-like number）を送信前に拒否します。pattern検査は未知形式の完全検出を保証しないため、実在人物・実credentialをfixture sourceに使わないhuman reviewも省略しません。実行前後にはtarget repository外の一時guild全体をsymlink非追従で比較し、変更があれば自動的に `target_repo_escape` hard gate違反とします。
 
-graderはexport済みpackageだけを見て、各 `grader.json` の `grader_id`、timezone付き `graded_at`、`blindness_attestation=true`、全rubricを埋めます。export manifestと各grader attestationはgrader入力bundleの同じSHA-256を持ち、summary時の入力bundleと一致しなければ集計を拒否します。summaryは入力と採点後artifactの両bundle SHA-256を記録します。session隣接の `provenance/` をgraderへ公開した場合、blindness attestationをtrueにしてはいけません。
+graderはexport済みpackageだけを見て、各 `grader.json` の `grader_id`、timezone付き `graded_at`、`blindness_attestation=true`、全rubricを埋めます。run単位の従来hard gateに加え、最終taskの成果を直接守る`required_artifact_missing`、`required_validation_missing`、`snapshot_mismatch`、`scope_or_authority_violation`、`critical_finding_miss`を全て判定します。summaryは同一`pairing_id`のprofile runsを一つの`final_task_outcomes`へ集約し、profile欠損またはいずれかのzero-tolerance違反があればfail closedにします。export manifestと各grader attestationはgrader入力bundleの同じSHA-256を持ち、summary時の入力bundleと一致しなければ集計を拒否します。summaryは入力と採点後artifactの両bundle SHA-256を記録します。session隣接の `provenance/` をgraderへ公開した場合、blindness attestationをtrueにしてはいけません。
 
 公式 guidance に合わせ、migration前の5.5と同じ effortの5.6候補から始め、選定 pair と同modelの一段下を必ず候補にします。旧Rootだけは5.5 effortが継承値だったため、比較controlを`high`へ正規化し、その仮定をmanifestに記録します。`xhigh` の `guildmaster` は `high / xhigh / max` を比較対象にします。
-通常caseは3回、安全caseは5回を既定にし、一つの失敗で後続候補を打ち切りません。hard gate 違反と Critical 見逃しは0件を要求します。pilotの探索的非劣性は全case平均で相殺せず、caseごとに判定します。safety caseはmargin 0で少数標本用t値によるlower boundを要求し、Root / Guildmaster / Inquisitorのquality-first roleはnormal caseも同じlower boundを使います。全caseを通ったpairだけtokens、elapsed time、計算可能ならcostを比較します。ただし少数標本、同じdataからのbest選択、多重比較を補正したconfirmatory designではないため、このlower boundをformalな95%保証とは呼びません。
+通常caseは3回、安全caseは5回を既定にし、一つの失敗で後続候補を打ち切りません。hard gate 違反と Critical 見逃しは0件を要求します。pilotの探索的非劣性は全case平均で相殺せず、caseごとに判定します。全選定roleのnormal/safety caseで少数標本用t値によるlower boundを要求し、価格や別caseの平均で品質低下を相殺しません。prompt profile比較も同一taskのpaired quality差に対して全caseでlower boundを要求し、hard gateを維持して非劣性を満たした場合だけtoken近似の小さいprofileを推薦します。全caseを通った5.6 candidateだけtokens、elapsed time、計算可能ならcostを比較します。ただし少数標本、同じdataからのbest選択、多重比較を補正したconfirmatory designではないため、このlower boundをformalな95%保証とは呼びません。
 
 cross-model costはtoken数だけから推定しません。price tableの各modelは `input_per_million`、`cached_input_per_million`、`output_per_million` を持たせ、usage側にも `input_tokens`、`cached_input_tokens`、`output_tokens` が揃った場合だけcost推薦を有効にします。summaryの `recommendation_basis` は実際のnoninferior候補集合でcostを使ったかを記録し、cached input内訳がない集計はtokens / elapsedのefficiency proxyとして扱います。
+
+prompt stackの削減量はlayerごとのSHA-256、UTF-8 bytes、文字数、比較用token近似を保存します。token近似は`ceil(Unicode文字数 / 4)`であり、API usageや課金tokenではありません。固定contract layerの合計を`prompt_cache_write_equivalent_estimated_tokens`、task promptをvolatile layerとして別記し、APIが返した`cached_input_tokens`とも混同せず併記します。これにより、どのlayerを削ったかとcache対象prefixの規模を再現可能に比較できます。
 
 ## 既存 smoke evidence と現在の評価状態
 
 現在の固定マトリクスは、role authority、blast radius、並列頻度、`docs/use-cases`の契約と、次表のlegacy representative smokeを根拠にした**設計上の選定**です。統計的に最適と実証済みという意味ではありません。次表は現行 runner のblind artifact / provenance形式より前の観測なので、再現可能な集計結果として扱いません。
 
-今回の最終確認では外部model送信と隔離実行の明示条件が揃っていないため、新runnerのlive比較は実行していません。manifestのwrapper / profile allowlistも意図的に空のため、現状のcheckoutからlive runは起動できません。review済み実行基盤と外部送信許可が揃った時だけ、双方のcanonical SHA-256を同時に登録します。`synthetic_pilot`は全candidate / case / repetition、全hard gate、blind grading、隔離provenanceが揃っても `pilot_recommendation` までに限定し、`formal_recommendation_available` はfalseのままです。formal選定には、事前登録したreference pair、power / sample size、multiple-comparison補正を持つconfirmatory suiteを別途追加します。その後もproductionで「最適」と断定する前に、履歴由来case、長時間workflow、adversarial prompt、end-to-end subagent fan-outを別suiteで確認します。component pilotのscoreだけでworkflow全体の最適性を主張しません。
+今回の最終確認では外部model送信と隔離実行の明示条件が揃っていないため、新runnerのlive比較は実行していません。manifestのwrapper / profile allowlistも意図的に空のため、現状のcheckoutからlive runは起動できません。review済み実行基盤と外部送信許可が揃った時だけ、双方のcanonical SHA-256を同時に登録します。`synthetic_pilot`は全candidate / case / prompt profile / repetition、全hard gate、blind grading、隔離provenanceが揃っても `pilot_recommendation` までに限定します。
+
+このrunnerはcomponent pilot専用で、`formal_recommendation_available`を常にfalseにします。manifest内のboolだけでformal化せず、事前登録、power analysis、必要sample size、multiple-comparison補正、履歴由来case、end-to-end workflow、adversarial suite、production shadow validationの実artifactを検証する別confirmatory runnerが実装されるまでblockerを返します。component pilotのscoreだけでworkflow全体の最適性を主張しません。
 
 | role | 比較 | 観測結果 | 選定への反映 |
 | --- | --- | --- | --- |
 | Root | Sol `high` / `xhigh` | どちらも未確定 repository と deployment approval を停止できた。`high` は target を推測せず assignment も作らず、`xhigh` は両 repository の調査 assignment を追加した | 全依頼を通る Root は Sol / `high` に固定 |
-| cartographer | Terra `high` | token rotation の互換 rollout、nullable migration、並行 refresh、rollback、observability を危険地帯として整理できた | read-heavy mapmaking は Terra / `high` で品質下限を満たす |
+| cartographer | Terra `high` / Sol `high` | legacy例では必要な危険地帯を整理できたが、現runnerのlive非劣性は未確認 | 設計段階の omission が下流全体へ波及するため Sol / `high` |
 | party_leader | Terra `high` / Sol `high` | Terra は migration file の owner を落とした。Sol は全 file を2担当へ非重複で割り当て、sequencing と security / rollback Trial を維持した | assignment の波及を重視して Sol / `high` |
-| adventurer | Terra `high` / Sol `high` | どちらも transactional outbox、idempotent retry、observability、focused tests を提示した | 上流で scope が限定され最大5並列のため Terra / `high` |
+| adventurer | Terra `high` / Sol `high` | synthetic例では両者が必要要素を提示したが、実運用のpaired non-inferiority evidenceはまだない | 成果物を直接変更する主要実装者なので、live非劣性確認までは Sol / `high` |
 | inquisitor | Terra `high` / Sol `high` | どちらも authorization 前 write を Critical、full token logging を重大 finding として reject した。Sol は同じ hard gate を短く満たした | 最終採否と重大度統合の誤りの波及を重視して Sol / `high` |
-| focus_reviewer | bounded contract と Inquisitor 比較結果 | 単一 focus の evidence 収集では Terra `high` も security hard gate を満たした。最終採否、重大度、synthesis は `inquisitor` に残す | `focus_reviewer` を Terra / `high` へ分離し、並列 Sol 常用を避ける |
-| advisor | Luna `high` / Terra `high` | どちらも populated table への NOT NULL 追加、deploy / backfill 順、locking risk を検出した。Luna は focus と unknowns を保ったまま簡潔だった | owner 再検証を前提に Luna / `high` |
-| quest_sentinel | Luna `medium` / `high` | confidence 92 の scope-drift case で `medium` は誤った `confidence_below_75` trigger を追加し、`high` は security-sensitive scope drift だけを扱った | Luna / `high` に固定 |
+| focus_reviewer | Terra `high` / Sol `high` | legacy例ではTerraもsecurity findingを検出したが、独立reviewの見落としはownerが完全には再現できない | live非劣性確認までは Sol / `high`。Terraは候補に残す |
+| advisor | Luna `high` / Terra `high` / Sol `high` | legacy例では下位modelもmigration riskを検出したが、architecture / safetyの未発見はownerが再検証できない | omission riskを優先して Sol / `high`。Luna/Terraは候補に残す |
+| integration_owner | Terra `high` / Sol `high` | bounded実装とは異なり、複数scopeの共有契約、競合、end-to-end validationを最終成果へ統合する | cross-scope failureの波及を重視して Sol / `high` |
+| quest_sentinel | Luna `high` / Terra `high` / Sol `high` | routine monitoringはownerへ戻したが、例外時のfalse stop / false continueは成果へ波及する | live非劣性確認までは Sol / `high` |
 
 `guildmaster` は guild-scale の Party 境界、sequencing、safety gate に限定される低頻度 role で、失敗時の blast radius が最大です。
 このため現行 deployment は Sol / `xhigh` を維持します。`max` は candidate manifest に含めますが、blind反復評価で `xhigh` への測定済み品質向上が確認されるまで固定採用しません。
@@ -112,24 +125,25 @@ cross-model costはtoken数だけから推定しません。price tableの各mod
 最終 decision の責務と bounded evidence 収集の責務が異なるため、次の固定 role に分離します。
 
 - `inquisitor`: Sol / `high`。Trial 設計、reviewer count、report 根拠確認、重大度、finding disposition、requested changes、最終 decision を所有する。
-- `focus_reviewer`: Terra / `high`。`inquisitor` から割り当てられた単一 focus の read-only evidence だけを返し、採否、重大度、synthesis、追加 subagent を持たない。
+- `focus_reviewer`: Sol / `high`。`inquisitor`が必要とした単一focusをRootから直接受け、read-only evidenceだけを返し、採否、重大度、synthesis、追加subagentを持たない。
 
-この分離は高い判断品質を Sol に残しながら、`multi_focus_trial` / `safety_gate` で並列 reviewer 全員を Sol にする乗算コストを避けます。
+この分離の目的はmodelを下げることではなく、focus expansionとdecision authorityの混同を防ぐことです。live非劣性が確認できるまではreviewerもSolを維持します。
 
 ## 固定マトリクス
 
 | role | model | reasoning effort |
 | --- | --- | --- |
 | Root | `gpt-5.6-sol` | `high` |
-| `adventurer` | `gpt-5.6-terra` | `high` |
-| `advisor` | `gpt-5.6-luna` | `high` |
-| `cartographer` | `gpt-5.6-terra` | `high` |
+| `adventurer` | `gpt-5.6-sol` | `high` |
+| `advisor` | `gpt-5.6-sol` | `high` |
+| `cartographer` | `gpt-5.6-sol` | `high` |
 | `courier` | `gpt-5.3-codex-spark` | `xhigh` |
-| `focus_reviewer` | `gpt-5.6-terra` | `high` |
+| `focus_reviewer` | `gpt-5.6-sol` | `high` |
 | `guildmaster` | `gpt-5.6-sol` | `xhigh` |
 | `inquisitor` | `gpt-5.6-sol` | `high` |
+| `integration_owner` | `gpt-5.6-sol` | `high` |
 | `party_leader` | `gpt-5.6-sol` | `high` |
-| `quest_sentinel` | `gpt-5.6-luna` | `high` |
+| `quest_sentinel` | `gpt-5.6-sol` | `high` |
 
 Root と全 subagent はこの値を固定し、Quest の難度による動的な reasoning effort 切り替えは行いません。
 model catalog、role contract、authority、並列数、ユースケース、または eval の失敗傾向が変わった場合は、golden Quest、candidate manifest、この固定マトリクスを同時に再評価します。

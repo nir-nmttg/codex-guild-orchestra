@@ -12,13 +12,16 @@ report:
   assignment_id: null
   worker_id: focus_reviewer
   owner_worker_id: inquisitor
+  terminal_worker: true
+  decision_authority: false
+  severity_authority: false
   caller_lineage_check:
-    enforcement: policy_only_with_queue_lineage
     required_parent_role: inquisitor
     trial_owner_worker_id: inquisitor
     trial_ref: null
     verified: null
     status: null # verified / invalid_assignment / unverifiable
+  risk_trigger: null
   focus: null
   subject_snapshot:
     snapshot_id: null
@@ -35,23 +38,10 @@ report:
     start_match: null
     report_match: null
     status: null # matched / stale_evidence / invalid_assignment
-  terminal_worker: true
-  decision_authority: false
-  severity_authority: false
-  synthesis_authority: false
   summary: null
   finding_candidates: []
-  evidence:
-    files_read: []
-    commands: []
-    observations: []
-  unknowns: []
-  residual_risks: []
-  authority_compliance:
-    focus_stayed_bounded: true
-    read_only: true
-    budget_respected: true
-    recursive_subagent_spawned: false
   evidence_refs: []
+  important_unknowns: []
+  residual_risks: []
   status: draft
   timestamp: null

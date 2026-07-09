@@ -11,7 +11,7 @@ input:
     - report_backend
     - report_frontend
     - report_migration
-  integration_owner: adventurer_integration
+  integration_owner: integration_owner
   base_snapshot_id: "sha256:base"
   owned_scope_results:
     - assignment_id: assignment_backend
@@ -39,7 +39,7 @@ expected:
       - report_migration
     all_required_reports_complete: true
     single_integration_owner_required: true
-    integration_owner: adventurer_integration
+    integration_owner: integration_owner
     integration_before_barrier_allowed: false
   stable_snapshot:
     required: true

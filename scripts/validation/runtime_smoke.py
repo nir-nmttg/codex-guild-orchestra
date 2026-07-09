@@ -35,6 +35,46 @@ def _run_python(script: Path, *args: object) -> subprocess.CompletedProcess[str]
     )
 
 
+def _run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+
+def _init_target_repo(path: Path) -> None:
+    path.mkdir(parents=True)
+    init = _run_git(path, "init", "--initial-branch=main")
+    require(init.returncode == 0, "runtime smoke target repoのgit initに失敗しました: " + init.stderr)
+    (path / "app.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (path / "other.py").write_text("OTHER = 2\n", encoding="utf-8")
+    add = _run_git(path, "add", "app.py", "other.py")
+    require(add.returncode == 0, "runtime smoke target repoのgit addに失敗しました: " + add.stderr)
+    commit = _run_git(
+        path,
+        "-c",
+        "user.name=Runtime Smoke",
+        "-c",
+        "user.email=runtime-smoke@example.invalid",
+        "commit",
+        "-m",
+        "initial fixture",
+    )
+    require(commit.returncode == 0, "runtime smoke target repoのcommitに失敗しました: " + commit.stderr)
+
+
+def _snapshot(helper: Path, repo: Path, kind: str = "revision_only", *args: str) -> dict[str, object]:
+    result = _run_python(helper, "--repo", repo, "--kind", kind, *args)
+    require(result.returncode == 0, "snapshot helper fixture生成に失敗しました: " + result.stderr)
+    value = json.loads(result.stdout)
+    require(isinstance(value, dict), "snapshot helper fixtureはJSON objectにしてください。")
+    return value
+
+
 def _valid_event() -> dict[str, object]:
     return {
         "event_id": "evt_smoke_quest_created",
@@ -118,13 +158,73 @@ def validate_queue_db_smoke() -> None:
         require(shell.returncode == 0, f"{shell_path.relative_to(ROOT)} の shell syntax check が失敗しました: " + shell.stderr)
 
     with tempfile.TemporaryDirectory() as tmp:
-        runtime_root = Path(tmp) / ".orchestra"
+        guild_root = Path(tmp) / "guild"
+        runtime_root = guild_root / ".orchestra"
+        target_repo = guild_root / "repositories/example-app"
+        snapshot_helper = ROOT / "template/.agents/orchestra/scripts/snapshot_digest.py"
+        _init_target_repo(target_repo)
+        revision_snapshot = _snapshot(snapshot_helper, target_repo)
+        app_result_snapshot = _snapshot(snapshot_helper, target_repo, "working_tree_content", "--scope", "app.py")
+        other_result_snapshot = _snapshot(snapshot_helper, target_repo, "working_tree_content", "--scope", "other.py")
 
         init = _run_python(script, "--runtime-root", runtime_root, "init")
         require(init.returncode == 0, "queue_db.py init が失敗しました: " + init.stderr)
 
         recorded = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(_valid_event()))
         require(recorded.returncode == 0, "queue_db.py record-event の smoke が失敗しました: " + recorded.stderr)
+
+        mismatched_identity_event = json.loads(json.dumps(_valid_event()))
+        mismatched_identity_event["event_id"] = "evt_smoke_mismatched_entity"
+        mismatched_identity_event["entity"]["id"] = "quest_other"
+        mismatched_identity = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(mismatched_identity_event))
+        require(mismatched_identity.returncode != 0 and "canonical id" in mismatched_identity.stderr, "queue_db.py はentity.idとpayload idの不一致を拒否してください。")
+
+        mismatched_workflow_event = json.loads(json.dumps(_valid_event()))
+        mismatched_workflow_event["event_id"] = "evt_smoke_mismatched_workflow"
+        mismatched_workflow_event["payload"]["quest"]["workflow_id"] = "workflow_other"
+        mismatched_workflow = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(mismatched_workflow_event))
+        require(mismatched_workflow.returncode != 0 and "workflow_id" in mismatched_workflow.stderr, "queue_db.py はevent/payload workflow不一致を拒否してください。")
+
+        owner_assignment_event = {
+            "event_id": "evt_assignment_owner_smoke",
+            "timestamp": "2026-01-02T03:04:03+00:00",
+            "actor": "validator",
+            "event_type": "assignment_created",
+            "entity": {"type": "assignment", "id": "assignment_owner_smoke"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["assignment"], "decision_rationale": "owner assignment smoke", "evidence_refs": []},
+            "payload": {
+                "assignment": {
+                    "id": "assignment_owner_smoke",
+                    "quest_id": "quest_smoke",
+                    "worker_id": "adventurer",
+                    "role": "bounded_implementation_owner",
+                    "terminal_worker": True,
+                    "objective": "app.pyのbounded変更を検証可能な形で完了する",
+                    "success_criteria": ["app.pyの対象条件を満たす"],
+                    "owned_scope": {"read": ["app.py"], "edit": ["app.py"], "validate": ["app.py"]},
+                    "integration_barrier": None,
+                    "authority": {"read": True, "edit": True, "validate": True, "local_git": False, "external_actions": False},
+                    "boundaries": {"target_repo_root": str(target_repo), "read_deny": [], "edit_deny": [], "safety_items": []},
+                    "subject_snapshot": revision_snapshot,
+                    "status": "done",
+                }
+            },
+            "event_safety": {"safety_items": [], "human_confirmation_required": []},
+        }
+        owner_assignment = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(owner_assignment_event))
+        require(owner_assignment.returncode == 0, "queue_db.py は成功条件とowned scope付きowner assignmentを受け付けてください: " + owner_assignment.stderr)
+
+        second_owner_event = json.loads(json.dumps(owner_assignment_event))
+        second_owner_event["event_id"] = "evt_assignment_owner_second_smoke"
+        second_owner_event["entity"]["id"] = "assignment_owner_second_smoke"
+        second_owner = second_owner_event["payload"]["assignment"]
+        second_owner["id"] = "assignment_owner_second_smoke"
+        second_owner["objective"] = "other.pyのbounded変更を検証可能な形で完了する"
+        second_owner["owned_scope"] = {"read": ["other.py"], "edit": ["other.py"], "validate": ["other.py"]}
+        second_owner_result = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(second_owner_event))
+        require(second_owner_result.returncode == 0, "queue_db.py second owner assignment fixtureの記録に失敗しました: " + second_owner_result.stderr)
 
         sentinel_assignment_event = {
             "event_id": "evt_assignment_quest_sentinel_smoke",
@@ -141,8 +241,26 @@ def validate_queue_db_smoke() -> None:
                     "quest_id": "quest_smoke",
                     "owner_assignment_id": "assignment_owner_smoke",
                     "worker_id": "quest_sentinel",
-                    "kind": "quest_awareness_control_monitor",
-                    "control_trigger": "confidence_below_75",
+                    "role": "exceptional_control_diagnostician",
+                    "kind": "evidence_state_monitor",
+                    "terminal_worker": True,
+                    "control_trigger": "security",
+                    "objective": "security triggerの矛盾と停止条件を診断する",
+                    "evidence_required": ["trigger根拠と次の最小行動"],
+                    "authority": {
+                        "read": True,
+                        "edit": False,
+                        "validate": False,
+                        "local_git": False,
+                        "external_actions": False,
+                    },
+                    "boundaries": {
+                        "target_repo_root": str(target_repo),
+                        "read_deny": [],
+                        "edit_deny": [],
+                        "safety_items": [],
+                    },
+                    "subject_snapshot": revision_snapshot,
                     "status": "idle",
                 }
             },
@@ -166,6 +284,262 @@ def validate_queue_db_smoke() -> None:
         invalid_sentinel_trigger_event["payload"]["assignment"].pop("control_trigger")
         invalid_sentinel_trigger = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_sentinel_trigger_event))
         require(invalid_sentinel_trigger.returncode != 0 and "control_trigger" in invalid_sentinel_trigger.stderr, "queue_db.py は control_trigger なしの quest_sentinel assignment を拒否してください。")
+
+        invalid_authority_event = json.loads(json.dumps(sentinel_assignment_event))
+        invalid_authority_event["event_id"] = "evt_assignment_missing_authority"
+        invalid_authority_event["entity"]["id"] = "assignment_missing_authority"
+        invalid_authority_event["payload"]["assignment"]["id"] = "assignment_missing_authority"
+        invalid_authority_event["payload"]["assignment"].pop("authority")
+        invalid_authority = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_authority_event))
+        require(invalid_authority.returncode != 0 and "authority" in invalid_authority.stderr, "queue_db.py は machine-bound authority なしの assignment を拒否してください。")
+
+        invalid_edit_event = json.loads(json.dumps(sentinel_assignment_event))
+        invalid_edit_event["event_id"] = "evt_assignment_readonly_edit"
+        invalid_edit_event["entity"]["id"] = "assignment_readonly_edit"
+        invalid_edit_event["payload"]["assignment"]["id"] = "assignment_readonly_edit"
+        invalid_edit_event["payload"]["assignment"]["authority"]["edit"] = True
+        invalid_edit = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_edit_event))
+        require(invalid_edit.returncode != 0 and "read-only" in invalid_edit.stderr, "queue_db.py は read-only worker の edit authority を拒否してください。")
+
+        invalid_snapshot_event = json.loads(json.dumps(sentinel_assignment_event))
+        invalid_snapshot_event["event_id"] = "evt_assignment_missing_snapshot"
+        invalid_snapshot_event["entity"]["id"] = "assignment_missing_snapshot"
+        invalid_snapshot_event["payload"]["assignment"]["id"] = "assignment_missing_snapshot"
+        invalid_snapshot_event["payload"]["assignment"].pop("subject_snapshot")
+        invalid_snapshot = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_snapshot_event))
+        require(invalid_snapshot.returncode != 0 and "subject_snapshot" in invalid_snapshot.stderr, "queue_db.py は helper-generated snapshot なしの assignment を拒否してください。")
+
+        invalid_snapshot_id_event = json.loads(json.dumps(sentinel_assignment_event))
+        invalid_snapshot_id_event["event_id"] = "evt_assignment_invalid_snapshot_id"
+        invalid_snapshot_id_event["entity"]["id"] = "assignment_invalid_snapshot_id"
+        invalid_snapshot_id_event["payload"]["assignment"]["id"] = "assignment_invalid_snapshot_id"
+        invalid_snapshot_id_event["payload"]["assignment"]["subject_snapshot"]["snapshot_id"] = "sha256:invented"
+        invalid_snapshot_id = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_snapshot_id_event))
+        require(invalid_snapshot_id.returncode != 0 and "helper形式" in invalid_snapshot_id.stderr, "queue_db.py は不正形式のsnapshot idを拒否してください。")
+
+        invented_snapshot_event = json.loads(json.dumps(sentinel_assignment_event))
+        invented_snapshot_event["event_id"] = "evt_assignment_invented_snapshot"
+        invented_snapshot_event["entity"]["id"] = "assignment_invented_snapshot"
+        invented_snapshot_event["payload"]["assignment"]["id"] = "assignment_invented_snapshot"
+        invented_snapshot_event["payload"]["assignment"]["subject_snapshot"]["snapshot_id"] = "sha256:" + "c" * 64
+        invented_snapshot = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invented_snapshot_event))
+        require(invented_snapshot.returncode != 0 and "helper出力" in invented_snapshot.stderr, "queue_db.py は形式だけ正しい自己申告snapshotを拒否してください。")
+
+        missing_objective_event = json.loads(json.dumps(sentinel_assignment_event))
+        missing_objective_event["event_id"] = "evt_assignment_missing_objective"
+        missing_objective_event["entity"]["id"] = "assignment_missing_objective"
+        missing_objective_event["payload"]["assignment"]["id"] = "assignment_missing_objective"
+        missing_objective_event["payload"]["assignment"].pop("objective")
+        missing_objective = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(missing_objective_event))
+        require(missing_objective.returncode != 0 and "objective" in missing_objective.stderr, "queue_db.py は成果条件のないassignmentを拒否してください。")
+
+        trial_event = {
+            "event_id": "evt_trial_focus_smoke",
+            "timestamp": "2026-01-02T03:04:04+00:00",
+            "actor": "validator",
+            "event_type": "trial_recorded",
+            "entity": {"type": "trial", "id": "trial_focus_smoke"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["trial"], "decision_rationale": "focus lineage smoke", "evidence_refs": []},
+            "payload": {"trial": {
+                "id": "trial_focus_smoke",
+                "quest_id": "quest_smoke",
+                "worker_id": "inquisitor",
+                "role": "trial_lead",
+                "depth": "focused_trial",
+                "objective": "完了済みbounded resultのauthorization focusを判定する",
+                "success_criteria": ["authorization focusの根拠とdecisionを返す"],
+                "subject_assignment_ids": ["assignment_owner_smoke"],
+                "subject_report_ids": [],
+                "subject_snapshot": revision_snapshot,
+                "authority": {"read": True, "edit": False, "validate": True, "local_git": False, "external_actions": False},
+                "boundaries": {"target_repo_root": str(target_repo), "read_deny": [], "edit_deny": [], "safety_items": []},
+                "status": "active",
+            }},
+            "event_safety": {"safety_items": [], "human_confirmation_required": []},
+        }
+        trial_result = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(trial_event))
+        require(trial_result.returncode == 0, "queue_db.py Trial fixtureの記録に失敗しました: " + trial_result.stderr)
+
+        invalid_trial_worker_event = json.loads(json.dumps(trial_event))
+        invalid_trial_worker_event["event_id"] = "evt_trial_invalid_worker"
+        invalid_trial_worker_event["entity"]["id"] = "trial_invalid_worker"
+        invalid_trial_worker_event["payload"]["trial"]["id"] = "trial_invalid_worker"
+        invalid_trial_worker_event["payload"]["trial"]["worker_id"] = "advisor"
+        invalid_trial_worker = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_trial_worker_event))
+        require(invalid_trial_worker.returncode != 0 and "inquisitor" in invalid_trial_worker.stderr, "queue_db.py はinquisitor以外のTrial ownerを拒否してください。")
+
+        focus_assignment_event = {
+            "event_id": "evt_assignment_focus_smoke",
+            "timestamp": "2026-01-02T03:04:04+00:00",
+            "actor": "validator",
+            "event_type": "assignment_created",
+            "entity": {"type": "assignment", "id": "assignment_focus_smoke"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["assignment", "trial"], "decision_rationale": "verified Trial lineage smoke", "evidence_refs": ["trial_focus_smoke"]},
+            "payload": {"assignment": {
+                "id": "assignment_focus_smoke",
+                "quest_id": "quest_smoke",
+                "trial_id": "trial_focus_smoke",
+                "worker_id": "focus_reviewer",
+                "owner_worker_id": "inquisitor",
+                "role": "bounded_trial_focus_reviewer",
+                "terminal_worker": True,
+                "objective": "authorization focusの根拠を独立確認する",
+                "focus": "authorization before write",
+                "evidence_required": ["file/lineと再現可能な根拠"],
+                "caller_lineage": {"required_parent_role": "inquisitor", "trial_owner_worker_id": "inquisitor", "trial_ref": "trial_focus_smoke", "verification": None},
+                "authority": {"read": True, "edit": False, "validate": True, "local_git": False, "external_actions": False},
+                "boundaries": {"target_repo_root": str(target_repo), "read_deny": [], "edit_deny": [], "safety_items": []},
+                "subject_snapshot": revision_snapshot,
+                "status": "idle",
+            }},
+            "event_safety": {"safety_items": [], "human_confirmation_required": []},
+        }
+        focus_assignment = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(focus_assignment_event))
+        require(focus_assignment.returncode == 0, "queue_db.py は実在Trialと一致するfocus assignmentを受け付けてください: " + focus_assignment.stderr)
+
+        invalid_focus_event = json.loads(json.dumps(focus_assignment_event))
+        invalid_focus_event["event_id"] = "evt_assignment_focus_fake_trial"
+        invalid_focus_event["entity"]["id"] = "assignment_focus_fake_trial"
+        invalid_focus_event["payload"]["assignment"]["id"] = "assignment_focus_fake_trial"
+        invalid_focus_event["payload"]["assignment"]["trial_id"] = "trial_missing"
+        invalid_focus_event["payload"]["assignment"]["caller_lineage"]["trial_ref"] = "trial_missing"
+        invalid_focus = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_focus_event))
+        require(invalid_focus.returncode != 0 and "Trial" in invalid_focus.stderr, "queue_db.py は自己申告だけのfocus reviewer lineageを拒否してください。")
+
+        inquisitor_report_event = {
+            "event_id": "evt_report_inquisitor_smoke",
+            "timestamp": "2026-01-02T03:04:04+00:00",
+            "actor": "validator",
+            "event_type": "report_recorded",
+            "entity": {"type": "report", "id": "report_inquisitor_smoke"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["report", "trial"], "decision_rationale": "Trial decision lineage smoke", "evidence_refs": ["trial_focus_smoke"]},
+            "payload": {"report": {
+                "id": "report_inquisitor_smoke",
+                "quest_id": "quest_smoke",
+                "trial_id": "trial_focus_smoke",
+                "worker_id": "inquisitor",
+                "target_repo_root": str(target_repo),
+                "status": "recorded",
+                "decision": "accept",
+                "trial_depth": "focused_trial",
+                "subject_snapshot": revision_snapshot,
+            }},
+            "event_safety": {"safety_items": [], "human_confirmation_required": []},
+        }
+        inquisitor_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(inquisitor_report_event))
+        require(inquisitor_report.returncode == 0, "queue_db.py はTrialにbindしたinquisitor reportを受け付けてください: " + inquisitor_report.stderr)
+
+        invalid_inquisitor_report_event = json.loads(json.dumps(inquisitor_report_event))
+        invalid_inquisitor_report_event["event_id"] = "evt_report_inquisitor_fake_trial"
+        invalid_inquisitor_report_event["entity"]["id"] = "report_inquisitor_fake_trial"
+        invalid_inquisitor_report_event["payload"]["report"]["id"] = "report_inquisitor_fake_trial"
+        invalid_inquisitor_report_event["payload"]["report"]["trial_id"] = "trial_missing"
+        invalid_inquisitor_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_inquisitor_report_event))
+        require(invalid_inquisitor_report.returncode != 0 and "Trial" in invalid_inquisitor_report.stderr, "queue_db.py は参照Trialのないinquisitor reportを拒否してください。")
+
+        upstream_report_event = {
+            "event_id": "evt_report_upstream_smoke",
+            "timestamp": "2026-01-02T03:04:04+00:00",
+            "actor": "validator",
+            "event_type": "report_recorded",
+            "entity": {"type": "report", "id": "report_upstream_smoke"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["report"], "decision_rationale": "integration barrier smoke", "evidence_refs": []},
+            "payload": {"report": {
+                "id": "report_upstream_smoke",
+                "quest_id": "quest_smoke",
+                "assignment_id": "assignment_owner_smoke",
+                "worker_id": "adventurer",
+                "target_repo_root": str(target_repo),
+                "base_snapshot": revision_snapshot,
+                "result_snapshot": app_result_snapshot,
+                "status": "recorded",
+            }},
+            "event_safety": {"safety_items": [], "human_confirmation_required": []},
+        }
+        upstream_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(upstream_report_event))
+        require(upstream_report.returncode == 0, "queue_db.py upstream report fixtureの記録に失敗しました: " + upstream_report.stderr)
+
+        second_report_event = json.loads(json.dumps(upstream_report_event))
+        second_report_event["event_id"] = "evt_report_upstream_second_smoke"
+        second_report_event["entity"]["id"] = "report_upstream_second_smoke"
+        second_report_event["payload"]["report"]["id"] = "report_upstream_second_smoke"
+        second_report_event["payload"]["report"]["assignment_id"] = "assignment_owner_second_smoke"
+        second_report_event["payload"]["report"]["result_snapshot"] = other_result_snapshot
+        second_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(second_report_event))
+        require(second_report.returncode == 0, "queue_db.py second upstream report fixtureの記録に失敗しました: " + second_report.stderr)
+
+        integration_command_event = {
+            "event_id": "evt_command_integration_smoke",
+            "timestamp": "2026-01-02T03:04:04+00:00",
+            "actor": "validator",
+            "event_type": "command_created",
+            "entity": {"type": "command", "id": "cmd_integration_smoke"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["command", "reports"], "decision_rationale": "required report setを統合前に固定", "evidence_refs": []},
+            "payload": {"command": {
+                "id": "cmd_integration_smoke",
+                "quest_id": "quest_smoke",
+                "status": "issued",
+                "integration_contract": {
+                    "integration_owner": "integration_owner",
+                    "mutation_barrier_required": True,
+                    "required_assignment_ids": ["assignment_owner_smoke", "assignment_owner_second_smoke"],
+                    "required_report_refs": ["report_upstream_smoke", "report_upstream_second_smoke"],
+                    "integration_scope": {
+                        "read": ["app.py", "other.py"],
+                        "edit": ["app.py"],
+                        "validate": ["app.py", "other.py"],
+                    },
+                },
+            }},
+            "event_safety": {"safety_items": [], "human_confirmation_required": []},
+        }
+        integration_command = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(integration_command_event))
+        require(integration_command.returncode == 0, "queue_db.py integration command fixtureの記録に失敗しました: " + integration_command.stderr)
+
+        integration_assignment_event = json.loads(json.dumps(owner_assignment_event))
+        integration_assignment_event["event_id"] = "evt_assignment_integration_smoke"
+        integration_assignment_event["entity"]["id"] = "assignment_integration_smoke"
+        integration_payload = integration_assignment_event["payload"]["assignment"]
+        integration_payload["id"] = "assignment_integration_smoke"
+        integration_payload["worker_id"] = "integration_owner"
+        integration_payload["role"] = "cross_scope_integration_owner"
+        integration_payload["objective"] = "完了済みbounded resultを共有契約へ統合する"
+        integration_payload["owned_scope"] = {
+            "read": ["app.py", "other.py"],
+            "edit": ["app.py"],
+            "validate": ["app.py", "other.py"],
+        }
+        integration_payload["integration_barrier"] = {
+            "status": "complete",
+            "mutation_stopped": True,
+            "contract_ref": "cmd_integration_smoke",
+            "upstream_report_refs": ["report_upstream_smoke", "report_upstream_second_smoke"],
+        }
+        integration_assignment = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(integration_assignment_event))
+        require(integration_assignment.returncode == 0, "queue_db.py は完了reportに裏付けられたintegration barrierを受け付けてください: " + integration_assignment.stderr)
+
+        invalid_integration_event = json.loads(json.dumps(integration_assignment_event))
+        invalid_integration_event["event_id"] = "evt_assignment_integration_fake_report"
+        invalid_integration_event["entity"]["id"] = "assignment_integration_fake_report"
+        invalid_integration_event["payload"]["assignment"]["id"] = "assignment_integration_fake_report"
+        invalid_integration_event["payload"]["assignment"]["integration_barrier"] = {
+            "status": "complete",
+            "mutation_stopped": True,
+            "contract_ref": "cmd_integration_smoke",
+            "upstream_report_refs": ["report_upstream_smoke"],
+        }
+        invalid_integration = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_integration_event))
+        require(invalid_integration.returncode != 0 and "required_report_refs" in invalid_integration.stderr, "queue_db.py はrequired reportを省いた不完全barrierを拒否してください。")
 
         message = {
             "id": "msg_valid_smoke",
@@ -333,6 +707,30 @@ def validate_queue_db_smoke() -> None:
 
         audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
         require(audit.returncode == 0, "queue_audit.py の smoke が失敗しました: " + (audit.stderr or audit.stdout))
+
+        with sqlite3.connect(database) as connection:
+            connection.execute("UPDATE events SET entity_id = ? WHERE event_id = 'evt_smoke_quest_created'", ("quest_other",))
+            connection.commit()
+        bad_entity_identity_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        require(bad_entity_identity_audit.returncode != 0 and "payload id" in bad_entity_identity_audit.stdout, "queue_audit.py はevent entity/payload id不一致を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute("UPDATE events SET entity_id = ? WHERE event_id = 'evt_smoke_quest_created'", ("quest_smoke",))
+            connection.execute("UPDATE events SET workflow_id = ? WHERE event_id = 'evt_smoke_quest_created'", ("workflow_other",))
+            connection.commit()
+        bad_workflow_identity_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        require(bad_workflow_identity_audit.returncode != 0 and "workflow_id" in bad_workflow_identity_audit.stdout, "queue_audit.py はevent/payload workflow不一致を拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute("UPDATE events SET workflow_id = ? WHERE event_id = 'evt_smoke_quest_created'", ("workflow_smoke",))
+            connection.commit()
+
+        with sqlite3.connect(database) as connection:
+            connection.execute("UPDATE assignments SET status = ? WHERE assignment_id = 'assignment_owner_smoke'", ("active",))
+            connection.commit()
+        bad_materialized_status_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        require(bad_materialized_status_audit.returncode != 0 and "materialized value" in bad_materialized_status_audit.stdout, "queue_audit.py はassignment row/payload status driftを拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute("UPDATE assignments SET status = ? WHERE assignment_id = 'assignment_owner_smoke'", ("done",))
+            connection.commit()
 
         bad_generic_trusted_payload = dict(message)
         bad_generic_trusted_payload["id"] = "msg_bad_audit_trusted_generic"

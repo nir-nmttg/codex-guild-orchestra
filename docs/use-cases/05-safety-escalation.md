@@ -42,7 +42,7 @@ snapshot:
 
 ## 期待される流れ
 
-1. Root が safety-sensitive な条件と snapshot を Quest Charter に入れ、`control_decision = invoke_security_review` として `inquisitor` を owner にした read-only `safety_gate` を割り当てます。新しい実装 worker や外部操作は起動しません。
+1. Rootが`evidence_state.high_risk_triggers`とsnapshotをtask contractに入れ、`inquisitor`のread-only `safety_gate`を割り当てます。新しい実装workerや外部操作は起動しません。
 2. `inquisitor` は既存 authority 内の read-only 調査だけで、必要な変更、危険箇所、確認可能な evidence を整理します。
 3. 人間確認が必要な操作を発見したら停止し、実行を伴う tool call や secret / PII 参照を試しません。
 4. `needs_human` には選択肢、影響、推奨 next step に加えて、次の approval scope を含めます。

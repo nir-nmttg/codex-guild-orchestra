@@ -6,61 +6,26 @@ structured_data_usage:
   decision_rationale: null
   evidence_refs: []
 assignment:
+  # identity、authority、snapshotはqueue/snapshot helperから受け取り、
+  # validatorがfail-closedで確認する。workerは推測しない。
   id: null
   quest_id: null
-  worker_id: adventurer
-  role: autonomous_senior_ic
-  rank: null
+  worker_id: adventurer # adventurer / integration_owner
+  role: bounded_implementation_owner # bounded_implementation_owner / cross_scope_integration_owner
+  terminal_worker: true
   objective: null
-  intent_analysis:
-    request_summary: null
-    inferred_intent: null
-    essential_outcomes: []
-    assumptions: []
-    ambiguities: []
-    confirmation_needed: []
   success_criteria: []
-  implementation_strategy:
-    approach: null
-    essential_outcomes_addressed: []
-    alternatives_considered: []
-    minimality_rationale: null
-    scope_guardrails: []
-  quest_awareness:
-    goal: null
-    current_subgoal: null
-    known_facts: []
-    unknowns: []
-    assumptions: []
-    evidence: []
-    current_strategy: null
-    confidence_percent: null
-    risk_level: medium
-    verification_status: not_checked
-    next_action: null
-    stop_condition: null
-  control_decision:
-    decision: gather_more_evidence
-    rationale: null
-    required_next_action: null
-    triggers: []
-    confidence_threshold_applied: null
-    escalation_required: false
-  subject_snapshot:
-    snapshot_id: null
-    digest_version: cgo-snapshot-v1
-    kind: null # revision_only / working_tree_content / commit_range
-    revision_id: null
-    base_ref: null
-    head_ref: null
-    scope_paths: []
-    untracked_paths: []
-    dirty_state: null
-    diff_hash: null
   owned_scope:
     read: []
     edit: []
     validate: []
+  # integration_ownerだけが使用する。queueは参照reportの完了とlineageを検証する。
+  integration_barrier: null
+  # integration_barrier:
+  #   status: complete
+  #   mutation_stopped: true
+  #   contract_ref: cmd_001
+  #   upstream_report_refs: []
   authority:
     read: true
     edit: true
@@ -68,56 +33,31 @@ assignment:
     local_git: false
     external_actions: false
   boundaries:
-    target_repo_root: null # 実 assignment では `<guild_root>/repositories/<repo>` の実パスへ置換する
+    target_repo_root: null
     read_deny: []
     edit_deny: []
     safety_items: []
-  known_context:
-    evidence_refs: []
-    notes: []
-    compat_context:
-      - source_type: claude
-        path: null
-        sha256: null
-        trust: untrusted
-        applies_to: []
-        status: null
-        disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
-        skip_reason: null
-  autonomy_budget:
-    subassignments: 0
-    extra_file_reads: 0
-    validation_iterations: 1
-    timebox_minutes: null
-  research_plan:
-    questions: []
-    target_paths: []
-    stop_conditions: []
-  validation_expectations:
-    commands: []
-    manual_checks: []
-  trial_expectations:
-    depth: self_check
-    focus: []
-  handoff_sufficiency:
-    intake_to_charter_confirmed: false
-    charter_to_owner_confirmed: false
-    required_evidence:
-      - objective
-      - intent_analysis
-      - quest_awareness
-      - implementation_strategy
-      - owned_scope
-      - authority
-      - boundaries
-      - autonomy_budget
-      - trial_expectations
-      - subject_snapshot
-    missing: []
-  escalation_triggers: []
-  evidence_required: []
-  ledger:
-    event_id: null
-    report_expected: true
+  subject_snapshot:
+    snapshot_id: null
+    digest_version: cgo-snapshot-v1
+    kind: null
+    revision_id: null
+    base_ref: null
+    head_ref: null
+    scope_paths: []
+    untracked_paths: []
+    dirty_state: null
+    diff_hash: null
+  evidence_state:
+    blocking_unknowns: []
+    failed_checks: []
+    scope_drift: false
+    high_risk_triggers: []
+    verification_status: not_checked
+    next_action: null
+    stop_reason: null
+  validation_expectations: []
+  risks: []
+  evidence_refs: []
   status: idle
   timestamp: null

@@ -7,43 +7,16 @@ structured_data_usage:
   evidence_refs: []
 commands: []
 
-# 例:
 # commands:
 #   - id: cmd_001
 #     quest_id: quest_001
-#     rank: guild_quest
-#     objective: "`guild_quest` の目的"
-#     intent_analysis:
-#       request_summary: "依頼文の短い要約"
-#       inferred_intent: "依頼の背景にある推定意図"
-#       essential_outcomes: []
-#       assumptions: []
-#       ambiguities: []
-#       confirmation_needed: []
-#     strategy:
-#       summary: "Party 分割と安全方針"
-#       implementation_strategy:
-#         approach: null
-#         essential_outcomes_addressed: []
-#         alternatives_considered: []
-#         minimality_rationale: null
-#         scope_guardrails: []
-#       main_risks: []
-#       advisory_plan:
-#         consideration_required: true
-#         focus: []
-#         owner_synthesis_required: true
-#         skip_reason_required_when_not_used: true
-#         skip_reason: null
-#       advisor_synthesis:
-#         adopted: []
-#         rejected: []
-#         unresolved: []
+#     objective: "Guild Quest の目的"
+#     success_criteria: []
 #     parties:
 #       - id: party_001
-#         lead: party_leader
+#         owner_role: party_leader
 #         objective: "担当範囲"
-#         owned_scope:
+#         scope:
 #           read: []
 #           edit: []
 #           validate: []
@@ -53,9 +26,16 @@ commands: []
 #           validate: true
 #           local_git: false
 #           external_actions: false
-#         trial_plan:
-#           depth: multi_focus_trial
-#           focus: []
+#     # 並列mutationがある時だけ、assignment作成前に完全なreport集合を固定する。
+#     integration_contract:
+#       integration_owner: integration_owner
+#       mutation_barrier_required: true
+#       required_assignment_ids: []
+#       required_report_refs: []
+#       integration_scope:
+#         read: []
+#         edit: []
+#         validate: []
 #     boundaries:
 #       target_repo_root: "<guild_root>/repositories/<repo>"
 #       read_deny: []
@@ -72,14 +52,6 @@ commands: []
 #       untracked_paths: []
 #       dirty_state: clean
 #       diff_hash: null
-#     autonomy_budget:
-#       subassignments: 5
-#       extra_file_reads: 100
-#       validation_iterations: 3
-#       timebox_minutes: null
-#     escalation_triggers: []
-#     evidence_required: []
-#     ledger:
-#       workflow_id: "wf_001"
-#       event_id: "evt_002"
+#     risks: []
+#     evidence_refs: []
 #     status: drafted

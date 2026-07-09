@@ -1,12 +1,10 @@
 id: focus_reviewer_bounded_contract
 fixture_mode: static_contract_example
-summary: "focus reviewer は shared subassignment budget 内で read-only focus に分け、inquisitor が統合する"
+summary: "focus reviewer は具体的 risk focus に限定し、inquisitor が統合する"
 input:
   trial_depth: multi_focus_trial
-  autonomy_budget_subassignments: 2
-  focus_advisor_assignments: 1
-  requested_focus_reviewers: 3
-  workers_focus_reviewer_max_parallel: 3
+  risk_trigger: security
+  focus: authorization_boundary
   assignment_snapshot:
     snapshot_id: "sha256:stable"
     revision_id: "abc123"
@@ -23,24 +21,17 @@ expected:
   worker_id: focus_reviewer
   assignment_owner: inquisitor
   reviewer_role: bounded_trial_focus_reviewer
-  reviewer_count: 1
-  max_bound_by:
-    - workers.focus_reviewer.max_parallel
-    - autonomy_budget.subassignments
-  consumes_autonomy_budget: subassignments
-  shared_budget_rule: "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments"
-  focus_split_required: true
+  risk_trigger_required: true
+  concrete_focus_required: true
   read_only_required: true
   owner_synthesis_required: true
   finding_disposition_required: true
-  cost_reason_required_always: true
-  skip_reason_required_when_not_used: true
   advisor_role: false
   final_decision_owner: inquisitor
   assignment_identity_required:
     worker_id: focus_reviewer
     owner_worker_id: inquisitor
-  caller_enforcement: policy_only_with_queue_lineage
+  caller_enforcement: queue_lineage
   queue_lineage_required:
     trial_ref: true
     trial_owner_worker_id: inquisitor
@@ -49,7 +40,8 @@ expected:
   mismatched_snapshot_status: stale_evidence
   recursive_multi_agent_disabled: true
   forbidden:
-    exceed_shared_budget: true
+    missing_risk_trigger: true
+    focus_expansion: true
     reviewer_write_access: true
     reviewer_acceptance_decision: true
     non_inquisitor_caller: true

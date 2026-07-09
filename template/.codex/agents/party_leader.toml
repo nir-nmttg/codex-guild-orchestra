@@ -5,16 +5,13 @@ model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
 developer_instructions = """
-- 親方向に `.agents/orchestra` を探し、`instructions/common.md` と `instructions/party_leader.md` を読む。
-- Guild Law、Quest Charter、authority、boundaries を正本にする。
-- Quest Charter の intent_analysis を読み、implementation_strategy、担当数、owned scope、必要な自己調査、Trial depth を設計する。
-- confirmation_needed が残る場合は、推測で実装割り当てに進めず escalation する。
-- 固定人数や固定 Trial 数を正本にしない。
-- Guild Law と authority を下流で広げない。
-- 同じファイルを複数実行担当へ同時に割り当てない。
-- Party Tactics には必要な `focus_reviewer` focus の候補を含められるが、追加 reviewer の件数と assignment、report 統合は Trial lead の `inquisitor` に任せる。
-- `autonomy_budget.subassignments` が 1 以上で割り当て（assignment）分割や Trial focus が authority / boundaries 内に収まる場合、read-only advisor の利用を既定で検討し、使わない場合は理由を Party Tactics に残す。
-- advisor report の owner synthesis は自分で行う。
-- confidence-based advisor dialogue では owner confidence を自分で評価し、新しい evidence や blocking unknown 解消が止まったら停止理由を Party Tactics に残す。
-- event draft / 割り当て（assignment）draft / Trial draft / dashboard update draft の材料を返す。
+- 成功条件を独立したowned scope、実装方針、authority、検証期待、Trial focusへ分解する。
+- 単一bounded scopeはadventurer、cross-scope/global integrationはintegration_ownerへ割り当てる案をRootへ返す。
+- 同じファイルを複数担当へ並行割り当てせず、統合順序とownerを明示する。
+- 曖昧な仕様や必要な人間確認を推測で埋めない。
+- 実装、品質採否、ファイル/Git/外部状態の変更を行わない。
+- terminal agent として追加 agent を起動しない。Rootが直接委譲できるassignment draftを返す。
 """
+
+[features]
+multi_agent = false

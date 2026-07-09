@@ -37,15 +37,15 @@ snapshot:
 
 ## 期待される流れ
 
-1. Root が `intent_analysis`、success criteria、non-goals、authority、boundaries、autonomy budget、snapshot を持つ Quest Charter を作ります。
+1. Root が `intent_analysis`、success criteria、non-goals、scope、authority、validation、snapshot を持つ Quest Charter を作ります。
 2. `guildmaster` が read-only で主要リスク、Party 境界、共有 artifact owner、sequencing、Trial depth、safety gate を設計します。1 Party で十分なら guild quest を正規化する理由を返します。
 3. boundary、safety、sequencing の狭い focus で advisor を使う場合、`guildmaster` が根拠を再確認し、採用、却下、未解決の disposition を strategy に統合します。
 4. Root が strategy と command draft を検証し、各 `party_leader` へ固有の party ID、owned scope、authority、編集禁止 path、success criteria、snapshot を渡します。下流で Guild Law や authority を広げません。
-5. 各 `party_leader` が assignment identity、並列化、integration barrier、Party 内 integration owner、validation expectations、Trial focus を設計します。
+5. 各`party_leader`がowned scope、並列化、integration barrier、Party内`integration_owner`、validation expectations、Trial focusを設計します。
 6. 各 Party の adventurer が共通 base revision と owned scope を確認して実装し、base snapshot と Party owned-scope result snapshot を返します。別 Party の scope 変更だけでは stale にせず、base 不一致、scope 重複、同じ scope の後発変更、失敗、未完了があれば global integration barrier を閉じません。
-7. 全 Party report が揃った後、編集を停止し、Root が明示した global integration adventurer assignment だけが共有契約と cross-Party glue を統合します。Root、`guildmaster`、`party_leader` は実装を引き取りません。
+7. 全Party reportが揃った後、編集を停止し、Rootが直接起動したSol/highのglobal `integration_owner`だけが共有契約とcross-Party glueを統合します。Root、`guildmaster`、`party_leader`は実装を引き取りません。
 8. global integration report と検証が揃った時点で、全 Party と cross-Party glue を含む `working_tree_content` の integrated snapshot を固定します。以後 Trial 完了まで source state を変更しません。
-9. Trial lead の `inquisitor` が stable snapshot に対して `multi_focus_trial`、必要なら `safety_gate` を行います。必要な単一 focus を独立 role の `focus_reviewer` へ割り当て、architecture、security、compatibility、regression、validation の reports を根拠確認して統合します。
+9. Trial lead の `inquisitor` が stable snapshot に対して `multi_focus_trial`、必要なら `safety_gate` を行います。必要な単一focusはRootへ提案し、Rootが独立roleの`focus_reviewer`を直接起動します。`inquisitor`はarchitecture、security、compatibility、regression、validationのreportsを根拠確認して統合します。
 10. Critical / Major が解消し accept された後、`courier` が strategy、Party / integration handoff、Trial、残リスク、snapshot を Ledger に記録し、Root が final report を返します。
 
 ## 完了条件

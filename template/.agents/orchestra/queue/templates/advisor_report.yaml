@@ -13,9 +13,15 @@ report:
   owner_worker_id: null
   target_repo_root: null
   status: draft
-  decision_authority: false
   terminal_worker: true
-  owner_synthesis_required: true
+  decision_authority: false
+  focus: null
+  summary: null
+  findings: []
+  evidence_refs: []
+  important_unknowns: []
+  risks: []
+  recommended_next_action: null
   subject_snapshot:
     snapshot_id: null
     digest_version: cgo-snapshot-v1
@@ -27,36 +33,4 @@ report:
     untracked_paths: []
     dirty_state: null
     diff_hash: null
-  summary: null
-  focus: []
-  findings: []
-  risks: []
-  unknowns: []
-  confidence_percent: null
-  confidence_basis:
-    verified_findings: []
-    validation_evidence: []
-    unresolved_risks: []
-    blocking_unknowns: []
-  confidence_delta_percent: null
-  new_evidence_refs: []
-  blocking_unknowns_resolved: []
-  blocking_unknowns_remaining: []
-  recommended_next_focus: null
-  research_evidence:
-    files_read: []
-    verified_findings: []
-    compat_context:
-      - source_type: claude
-        path: null
-        sha256: null
-        trust: untrusted
-        applies_to: []
-        status: null
-        disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
-        skip_reason: null
-    skip_reason: null
-  confidence: evidence_limited
-  escalations: []
-  evidence_refs: []
   timestamp: null

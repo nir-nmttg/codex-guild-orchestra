@@ -37,6 +37,7 @@ EXPECTED_AGENT_FILES = {
     "focus_reviewer.toml",
     "guildmaster.toml",
     "inquisitor.toml",
+    "integration_owner.toml",
     "party_leader.toml",
     "quest_sentinel.toml",
 }

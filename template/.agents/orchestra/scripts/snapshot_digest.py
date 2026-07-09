@@ -48,31 +48,19 @@ class SnapshotError(RuntimeError):
 
 
 def _git_safe_environment() -> dict[str, str]:
-    environment = dict(os.environ)
-    denied_exact = {
-        "GIT_DIR",
-        "GIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "GIT_EXTERNAL_DIFF",
-        "GIT_DIFF_OPTS",
-        "GIT_CONFIG_PARAMETERS",
-        "GIT_CONFIG_COUNT",
-        "GIT_SSH",
-        "GIT_SSH_COMMAND",
-        "GIT_ASKPASS",
-        "SSH_ASKPASS",
-    }
-    for key in list(environment):
-        if key in denied_exact or key.startswith("GIT_CONFIG_KEY_") or key.startswith("GIT_CONFIG_VALUE_"):
-            environment.pop(key, None)
+    # Gitは環境変数でrepo、pathspec、config、trace、replace object等を広く上書きできる。
+    # deny listでは将来追加分を取りこぼすため、全GIT_*を除去して必要な固定値だけを戻す。
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     environment.update(
         {
+            "PATH": os.defpath,
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_ATTR_NOSYSTEM": "1",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_GRAFT_FILE": os.devnull,
             "GIT_PAGER": "cat",
+            "GIT_OPTIONAL_LOCKS": "0",
         }
     )
     return environment
@@ -130,7 +118,14 @@ def _assert_internal_git_tree(git_directory: Path) -> None:
     for entry in os.scandir(git_directory):
         if entry.is_symlink() or not (entry.is_file(follow_symlinks=False) or entry.is_dir(follow_symlinks=False)):
             raise SnapshotError(f".git直下にsymlink / special entryがあります: {entry.name}")
-    for relative in ("commondir", "objects/info/alternates", "objects/info/http-alternates", "config.worktree"):
+    for relative in (
+        "commondir",
+        "objects/info/alternates",
+        "objects/info/http-alternates",
+        "info/grafts",
+        "refs/replace",
+        "config.worktree",
+    ):
         path = git_directory / relative
         try:
             path.lstat()
@@ -178,6 +173,66 @@ def _assert_internal_git_tree(git_directory: Path) -> None:
                 raise SnapshotError("Git metadata tree が大きすぎるため安全に検証できません。")
 
 
+def _read_git_pointer(path: Path, *, label: str) -> Path:
+    _assert_regular_if_present(path, label=label, required=True)
+    try:
+        text = path.read_text(encoding="utf-8", errors="strict").strip()
+    except (OSError, UnicodeError) as exc:
+        raise SnapshotError(f"{label} を安全に読めません: {exc}") from exc
+    if not text or "\n" in text or "\r" in text or "\0" in text:
+        raise SnapshotError(f"{label} は単一pathにしてください。")
+    return Path(text).expanduser().resolve()
+
+
+def _linked_worktree_git_directory(repo: Path, dot_git: Path) -> tuple[Path, Path]:
+    try:
+        text = dot_git.read_text(encoding="utf-8", errors="strict").strip()
+    except (OSError, UnicodeError) as exc:
+        raise SnapshotError(f"linked worktree .git pointerを安全に読めません: {exc}") from exc
+    match = re.fullmatch(r"gitdir:\s*(.+)", text)
+    if match is None or "\n" in text or "\r" in text or "\0" in text:
+        raise SnapshotError("linked worktree .gitは単一のgitdir pointerにしてください。")
+    pointer = Path(match.group(1))
+    git_directory = (dot_git.parent / pointer).resolve() if not pointer.is_absolute() else pointer.resolve()
+    if not git_directory.is_dir() or git_directory.is_symlink():
+        raise SnapshotError("linked worktree gitdirは実directoryにしてください。")
+
+    commondir_pointer = git_directory / "commondir"
+    _assert_regular_if_present(commondir_pointer, label="linked worktree commondir", required=True)
+    try:
+        commondir_text = commondir_pointer.read_text(encoding="utf-8", errors="strict").strip()
+    except (OSError, UnicodeError) as exc:
+        raise SnapshotError(f"linked worktree commondirを安全に読めません: {exc}") from exc
+    if not commondir_text or "\n" in commondir_text or "\r" in commondir_text or "\0" in commondir_text:
+        raise SnapshotError("linked worktree commondirは単一pathにしてください。")
+    common_pointer = Path(commondir_text)
+    common_directory = (git_directory / common_pointer).resolve() if not common_pointer.is_absolute() else common_pointer.resolve()
+    if git_directory.parent.name != "worktrees" or git_directory.parent.parent != common_directory:
+        raise SnapshotError("linked worktree gitdirはcommon Git dir直下のworktrees entryに限定します。")
+    if not common_directory.is_dir() or common_directory.is_symlink() or common_directory.name != ".git":
+        raise SnapshotError("linked worktree common dirは通常repositoryの.git directoryにしてください。")
+    primary_worktree = common_directory.parent
+    try:
+        primary_mode = primary_worktree.lstat().st_mode
+    except OSError as exc:
+        raise SnapshotError(f"linked worktree primary rootを検証できません: {exc}") from exc
+    if not stat.S_ISDIR(primary_mode) or stat.S_ISLNK(primary_mode) or primary_worktree.parent != repo.parent:
+        raise SnapshotError("linked worktreeはtargetと同じ親directoryにあるprimary worktreeへ限定します。")
+
+    backlink = _read_git_pointer(git_directory / "gitdir", label="linked worktree gitdir backlink")
+    if backlink != dot_git.resolve():
+        raise SnapshotError("linked worktree gitdir backlinkがtarget .gitと一致しません。")
+    for entry in os.scandir(git_directory):
+        if entry.is_symlink() or not (entry.is_file(follow_symlinks=False) or entry.is_dir(follow_symlinks=False)):
+            raise SnapshotError(f"linked worktree gitdirにsymlink / special entryがあります: {entry.name}")
+    for relative, required in (("HEAD", True), ("index", False), ("commondir", True), ("gitdir", True)):
+        _assert_regular_if_present(git_directory / relative, label=f"linked worktree/{relative}", required=required)
+    _assert_regular_if_present(git_directory / "config.worktree", label="linked worktree/config.worktree", required=False)
+    if (git_directory / "config.worktree").exists():
+        raise SnapshotError("linked worktree固有configは対応しません。")
+    return git_directory, common_directory
+
+
 def _repo_root(value: str) -> Path:
     candidate = Path(value).expanduser().resolve()
     if not candidate.is_dir():
@@ -186,11 +241,15 @@ def _repo_root(value: str) -> Path:
     try:
         git_mode = git_directory.lstat().st_mode
     except OSError as exc:
-        raise SnapshotError(f"standard .git directory を確認できません: {exc}") from exc
-    if not stat.S_ISDIR(git_mode) or stat.S_ISLNK(git_mode):
-        raise SnapshotError("linked worktree / symlink .git はtarget root外を読めるため対応しません。")
-    _assert_internal_git_tree(git_directory)
-    config_path = git_directory / "config"
+        raise SnapshotError(f".gitを確認できません: {exc}") from exc
+    if stat.S_ISDIR(git_mode) and not stat.S_ISLNK(git_mode):
+        common_directory = git_directory
+    elif stat.S_ISREG(git_mode) and not stat.S_ISLNK(git_mode):
+        git_directory, common_directory = _linked_worktree_git_directory(candidate, git_directory)
+    else:
+        raise SnapshotError(".gitは実directoryまたは検証可能なlinked worktree pointerにしてください。")
+    _assert_internal_git_tree(common_directory)
+    config_path = common_directory / "config"
     try:
         config_mode = config_path.lstat().st_mode
         if not stat.S_ISREG(config_mode) or stat.S_ISLNK(config_mode) or config_path.stat().st_size > 1_000_000:
@@ -207,6 +266,10 @@ def _repo_root(value: str) -> Path:
     actual = Path(_run(candidate, ["rev-parse", "--show-toplevel"]).decode().strip()).resolve()
     if candidate != actual:
         raise SnapshotError(f"--repo は Git root と一致させてください: expected={candidate} actual={actual}")
+    actual_git_dir = Path(_run(candidate, ["rev-parse", "--absolute-git-dir"]).decode().strip()).resolve()
+    actual_common_dir = Path(_run(candidate, ["rev-parse", "--path-format=absolute", "--git-common-dir"]).decode().strip()).resolve()
+    if actual_git_dir != git_directory or actual_common_dir != common_directory:
+        raise SnapshotError("事前検証したGit metadata pathとGitの解決結果が一致しません。")
     return actual
 
 

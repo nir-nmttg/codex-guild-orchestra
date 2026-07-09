@@ -9,38 +9,24 @@ report:
   id: null
   quest_id: null
   assignment_id: null
-  worker_id: adventurer
+  worker_id: adventurer # adventurer / integration_owner
   target_repo_root: null
   status: draft
   summary: null
   changed_files: []
   decisions_made: []
-  intent_alignment:
-    matched_outcomes: []
-    deviations: []
-    over_implementation_avoided: []
-    assumptions_validated: []
-    remaining_questions: []
-  quest_awareness:
-    goal: null
-    current_subgoal: null
-    known_facts: []
-    unknowns: []
-    assumptions: []
-    evidence: []
-    current_strategy: null
-    confidence_percent: null
-    risk_level: medium
+  evidence_state:
+    blocking_unknowns: []
+    failed_checks: []
+    scope_drift: false
+    high_risk_triggers: []
     verification_status: partially_checked
     next_action: null
-    stop_condition: null
-  control_decision:
-    decision: run_tests
-    rationale: null
-    required_next_action: null
-    triggers: []
-    confidence_threshold_applied: null
-    escalation_required: false
+    stop_reason: null
+  validation_evidence:
+    commands: []
+    manual_checks: []
+    not_run: []
   base_snapshot:
     snapshot_id: null
     digest_version: cgo-snapshot-v1
@@ -63,62 +49,6 @@ report:
     untracked_paths: []
     dirty_state: null
     diff_hash: null
-  validation_evidence:
-    commands: []
-    manual_checks: []
-    not_run: []
-  handoff_sufficiency:
-    owner_to_trial_ready: false
-    required_evidence:
-      - changed_files
-      - decisions_made
-      - intent_alignment
-      - quest_awareness
-      - control_decision
-      - validation_evidence
-      - research_evidence
-      - risks
-      - base_snapshot
-      - result_snapshot
-    missing: []
-  research_evidence:
-    files_read: []
-    verified_findings: []
-    compat_context:
-      - source_type: claude
-        path: null
-        sha256: null
-        trust: untrusted
-        applies_to: []
-        status: null
-        disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
-        skip_reason: null
-    skip_reason: null
-  trial_recommendation:
-    depth: self_check
-    focus: []
-  self_check:
-    considered: true
-    eligible: null
-    owner_validation_attestation: null
-    independent_trial_skip_reason: null
-    escalation_required: null
-    gate_results:
-      single_owned_scope: null
-      low_uncertainty: null
-      low_coupling: null
-      bounded_blast_radius: null
-      no_safety_item: null
-      no_confirmation_needed: null
-      no_public_api_or_data_compatibility_change: null
-      no_scope_drift: null
-      no_blocking_unknown: null
-      targeted_validation_passed: null
-      success_criteria_directly_evidenced: null
-      snapshot_matched: null
-  confidence: evidence_limited
   risks: []
-  escalations: []
-  scope_changes_requested: []
   evidence_refs: []
   timestamp: null

@@ -1,5 +1,7 @@
 # ユースケース集
 
+この配下は代表例であり、すべてのtaskに同じ手順やfieldを要求する規範ではありません。共通の正本は`AGENTS.md`と`settings.yaml`のcompact contractです。各例では成果、安全、検証に必要な部分だけを選びます。
+
 このフォルダは、codex-guild-orchestra を一般公開されたテンプレートとして使う時の代表的な依頼パターンをまとめています。
 正本は [オーケストレーションランタイム](../orchestration-runtime.md) と [Guild Quest Lifecycle](../guild-quest-lifecycle.md) です。
 
@@ -16,7 +18,7 @@
 
 Quest、assignment、report、Trial、Ledger / Git 操作は `subject_snapshot` で対象 state に結び付けます。snapshot は `.agents/orchestra/scripts/docker_python.sh .agents/orchestra/scripts/snapshot_digest.py --repo <target_repo_root> ...` で作る `cgo-snapshot-v1` を使い、次を持ちます。
 
-helperはstandardなrepo内 `.git/` directoryだけを対象にし、linked worktree、Git config include / `core.worktree`、commondir / object alternates、file-valued external config、fsmonitor、textconv、external diffを拒否または無効化します。これらのindirectionが必要なrepositoryではdigestを推測せず、隔離済みの別手順を人間に確認します。
+helperは通常repoに加え、targetと同じ親directoryにあるprimary worktree、backlink、common Git dir構造を検証できるstandard linked worktreeを扱います。任意のgitdir/commondir、Git config include / `core.worktree`、object alternates、worktree固有config、file-valued external config、fsmonitor、textconv、external diff、hostの`GIT_*`注入は拒否または無効化します。
 
 - `snapshot_id`: snapshot 自体の identity。content digest がある場合は同じ SHA-256
 - `kind`: clean な読み取り対象の `revision_only`、working tree の最終内容を表す `working_tree_content`、固定 commit 間の `commit_range`
@@ -44,9 +46,9 @@ Ledger には `snapshot_id`、kind、`revision_id`、subject scope、必要な `
 
 ## 共通 handoff 契約
 
-- Root -> owner: `intent_analysis`、objective、success criteria、non-goals、authority、boundaries、`quest_awareness`、evidence required、`subject_snapshot`
-- owner -> Trial: `intent_alignment`、変更、判断、`quest_awareness`、`control_decision`、validation evidence、未実行理由、残リスク、`base_snapshot` / owned-scope `result_snapshot`
-- Trial -> Ledger / final: decision、findings、`intent_coverage`、`quest_awareness`、`control_decision`、validation evidence、advisor / `focus_reviewer` synthesis、finding disposition、残リスク、barrier 後の integrated `subject_snapshot`
+handoffはobjective、success criteria、scope、authority、evidence、helper発行snapshot、residual riskを核にします。`evidence_state`はblocking unknown、failed check、verification、scope drift、高リスクtriggerに変化がある時だけdeltaを渡します。
+
+queue metadata、lineage、digest、statusはvalidatorが生成・照合し、agentに再記述させません。
 
 handoff が不足する場合は完了扱いにせず、`needs_human`、`request_changes`、`stale_evidence`、または escalation として返します。
 
@@ -62,7 +64,7 @@ handoff が不足する場合は完了扱いにせず、`needs_human`、`request
 | [Ledger と Git 操作を明示する](06-ledger-and-local-git.md) | 作業記録、commit、PR 説明準備を分けたい | `solo_quest` + `courier` |
 | [Claude context を参考情報として使う](07-claude-context.md) | 既存 repo に `CLAUDE.md` や `.claude/` がある | 任意 / risk-based |
 | [Guild Quest を複数 Party で進める](08-guild-quest-strategy-and-parties.md) | 広い影響、安全判断、複数 Party の sequencing が必要 | `guild_quest` / `multi_focus_trial` or `safety_gate` |
-| [Quest Sentinel で制御判断を補助する](09-quest-sentinel-control-loop.md) | confidence 低下、scope drift、検証失敗から次アクションを選び直したい | 任意 / control loop |
+| [Quest Sentinel で例外診断する](09-quest-sentinel-control-loop.md) | 矛盾、scope drift、反復失敗で通常制御が停滞した | 例外時のみ |
 | [Advisor の助言を owner が統合する](10-advisor-owner-synthesis.md) | 設計や Trial の狭い focus で考慮漏れを減らしたい | 任意 / advisory consultation |
 
 ## 選び方

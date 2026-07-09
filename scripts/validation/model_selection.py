@@ -58,6 +58,15 @@ def validate_model_selection_eval() -> None:
         "external_data_ack_required: true",
         "approved_isolation_wrapper_sha256: []",
         "approved_isolation_profile_sha256: []",
+        "prompt_profiles:",
+        "reference_profile: full",
+        "paired_same_task_repetition_required: true",
+        "final_outcome_policy:",
+        "required_artifact_missing",
+        "required_validation_missing",
+        "snapshot_mismatch",
+        "scope_or_authority_violation",
+        "confirmatory_policy:",
     ):
         require(token in text, f"model selection eval manifest に `{token}` が必要です。")
 
@@ -73,6 +82,9 @@ def validate_model_selection_eval() -> None:
         "git_commit_diff.patch",
         "untracked_manifest.json",
         "hard_gate_violations",
+        "final_outcome_hard_gate_violations",
+        "prompt_layer_metrics",
+        "pairing_id",
         "noninferiority_margin",
         "expected_jobs",
         "secrets.token_hex",
@@ -127,75 +139,132 @@ def validate_model_selection_eval() -> None:
         run_policy = manifest["run_policy"]
         job_number = 0
         first_grader_path: Path | None = None
+        prompt_profiles = manifest["prompt_profiles"]
+        final_outcome_hard_gate_keys = [
+            str(value) for value in manifest["final_outcome_policy"]["hard_gate_zero_tolerance"]
+        ]
         for case_id in role_data["cases"]:
             case = cases[case_id]
             repetition_key = "safety_case_pilot_repetitions" if case["risk"] == "safety" else "normal_case_pilot_repetitions"
             for pair in module._candidate_list(role_data):
                 for run_index in range(1, int(run_policy[repetition_key]) + 1):
-                    job_number += 1
-                    blind_label = f"blind-{job_number:032d}"
-                    expected_job = {
-                        "blind_label": blind_label,
-                        "case_id": case_id,
-                        "role": role,
-                        "model": pair["model"],
-                        "effort": pair["effort"],
-                        "candidate_source": pair["source"],
-                        "run_index": run_index,
-                    }
-                    expected_jobs.append(expected_job)
-                    provenance = {
-                        **expected_job,
-                        "manifest_sha256": manifest_sha256,
-                        "case_fixture_sha256": module.hashlib.sha256(
-                            json.dumps(case, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-                        ).hexdigest(),
-                        "role_contract_bundle_sha256": module._role_contract_bundle_sha256(role),
-                        "contract_fixtures": case["contract_fixtures"],
-                        "contract_fixture_bundle_sha256": module._contract_fixture_bundle_sha256(case["contract_fixtures"]),
-                        "runner_sha256": module.hashlib.sha256(script_path.read_bytes()).hexdigest(),
-                        "execution_wrapper_sha256": wrapper_sha256,
-                        "isolation_attestation_sha256": attestation_sha256,
-                    }
-                    (provenance_root / f"{blind_label}.json").write_text(json.dumps(provenance), encoding="utf-8")
-                    grading = grading_root / blind_label
-                    grading.mkdir()
-                    grader_path = grading / "grader.json"
-                    grader_path.write_text(
-                        json.dumps(
-                            {
-                                "blind_label": blind_label,
-                                "grader_id": "validator-grader",
-                                "graded_at": "2026-07-10T00:00:00+00:00",
-                                "blindness_attestation": True,
-                                "grading_package_input_sha256": None,
-                                "hard_gate_violations": {key: False for key in hard_gate_keys},
-                                "required_evidence": {key: True for key in case["required_evidence"]},
-                                "quality_scores": {key: 4 for key in module.QUALITY_SCORE_KEYS},
-                                "false_positive_count": 0,
-                                "notes": [],
-                            }
-                        ),
-                        encoding="utf-8",
-                    )
-                    if first_grader_path is None:
-                        first_grader_path = grader_path
-                    total_tokens = 50 if pair["model"] == "gpt-5.6-terra" and pair["effort"] == "high" else 100
-                    (grading / "run_metrics.json").write_text(
-                        json.dumps(
-                            {
-                                "blind_label": blind_label,
-                                "case_id": case_id,
-                                "role": role,
-                                "run_index": run_index,
-                                "exit_code": 0,
-                                "usage": {"total_tokens": total_tokens},
-                                "elapsed_seconds": 1.0,
-                                "automatic_hard_gate_violations": {"target_repo_escape": False},
-                            }
-                        ),
-                        encoding="utf-8",
-                    )
+                    pairing_id = module.hashlib.sha256(
+                        f"{seed}:{case_id}:{pair['model']}:{pair['effort']}:{pair['source']}:{run_index}".encode("utf-8")
+                    ).hexdigest()
+                    for prompt_profile in prompt_profiles:
+                        job_number += 1
+                        blind_label = f"blind-{job_number:032d}"
+                        expected_job = {
+                            "blind_label": blind_label,
+                            "case_id": case_id,
+                            "role": role,
+                            "model": pair["model"],
+                            "effort": pair["effort"],
+                            "candidate_source": pair["source"],
+                            "run_index": run_index,
+                            "prompt_profile": prompt_profile,
+                            "pairing_id": pairing_id,
+                        }
+                        expected_jobs.append(expected_job)
+                        layer_estimated_tokens = 70 if prompt_profile == "compact" else 140
+                        layer = {
+                            "name": "synthetic_contract",
+                            "sha256": "d" * 64,
+                            "utf8_bytes": layer_estimated_tokens * 4,
+                            "characters": layer_estimated_tokens * 4,
+                            "estimated_tokens": layer_estimated_tokens,
+                            "cache_class": "stable_contract",
+                        }
+                        task_layer = {
+                            "name": "task_prompt",
+                            "sha256": "e" * 64,
+                            "utf8_bytes": 80,
+                            "characters": 80,
+                            "estimated_tokens": 20,
+                            "cache_class": "volatile_task",
+                        }
+                        prompt_layer_metrics = {
+                            "prompt_profile": prompt_profile,
+                            "estimation_method": "ceil_unicode_characters_divided_by_4",
+                            "layers": [layer, task_layer],
+                            "cache_write_equivalent_estimated_tokens": layer_estimated_tokens,
+                            "installed_contract_sha256": "f" * 64,
+                            "volatile_task_estimated_tokens": 20,
+                            "total_estimated_input_tokens": layer_estimated_tokens + 20,
+                        }
+                        provenance = {
+                            **expected_job,
+                            "manifest_sha256": manifest_sha256,
+                            "case_fixture_sha256": module.hashlib.sha256(
+                                json.dumps(case, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+                            ).hexdigest(),
+                            "role_contract_bundle_sha256": module._role_contract_bundle_sha256(role),
+                            "contract_fixtures": case["contract_fixtures"],
+                            "contract_fixture_bundle_sha256": module._contract_fixture_bundle_sha256(case["contract_fixtures"]),
+                            "runner_sha256": module.hashlib.sha256(script_path.read_bytes()).hexdigest(),
+                            "execution_wrapper_sha256": wrapper_sha256,
+                            "isolation_attestation_sha256": attestation_sha256,
+                            "prompt_layer_metrics": prompt_layer_metrics,
+                            "prompt_layer_metrics_sha256": module.hashlib.sha256(
+                                json.dumps(
+                                    prompt_layer_metrics,
+                                    ensure_ascii=False,
+                                    sort_keys=True,
+                                    separators=(",", ":"),
+                                ).encode("utf-8")
+                            ).hexdigest(),
+                        }
+                        (provenance_root / f"{blind_label}.json").write_text(json.dumps(provenance), encoding="utf-8")
+                        grading = grading_root / blind_label
+                        grading.mkdir()
+                        grader_path = grading / "grader.json"
+                        grader_path.write_text(
+                            json.dumps(
+                                {
+                                    "blind_label": blind_label,
+                                    "grader_id": "validator-grader",
+                                    "graded_at": "2026-07-10T00:00:00+00:00",
+                                    "blindness_attestation": True,
+                                    "grading_package_input_sha256": None,
+                                    "hard_gate_violations": {key: False for key in hard_gate_keys},
+                                    "final_outcome_hard_gate_violations": {
+                                        key: False for key in final_outcome_hard_gate_keys
+                                    },
+                                    "required_evidence": {key: True for key in case["required_evidence"]},
+                                    "quality_scores": {key: 4 for key in module.QUALITY_SCORE_KEYS},
+                                    "false_positive_count": 0,
+                                    "notes": [],
+                                }
+                            ),
+                            encoding="utf-8",
+                        )
+                        if first_grader_path is None:
+                            first_grader_path = grader_path
+                        if pair["source"] == "regression_control":
+                            total_tokens = 10
+                        elif pair["model"] == role_data["selected_pair"]["model"] and pair["effort"] == role_data["selected_pair"]["effort"]:
+                            total_tokens = 50
+                        else:
+                            total_tokens = 100
+                        (grading / "run_metrics.json").write_text(
+                            json.dumps(
+                                {
+                                    "blind_label": blind_label,
+                                    "case_id": case_id,
+                                    "role": role,
+                                    "run_index": run_index,
+                                    "exit_code": 0,
+                                    "usage": {"total_tokens": total_tokens},
+                                    "elapsed_seconds": 1.0,
+                                    "automatic_hard_gate_violations": {"target_repo_escape": False},
+                                    "automatic_final_outcome_hard_gate_violations": {
+                                        "required_artifact_missing": False,
+                                        "scope_or_authority_violation": False
+                                    },
+                                }
+                            ),
+                            encoding="utf-8",
+                        )
         grading_input_sha256 = module._grading_input_bundle_sha256(grading_root)
         for grader_path in grading_root.glob("*/grader.json"):
             grader = json.loads(grader_path.read_text(encoding="utf-8"))
@@ -226,11 +295,74 @@ def validate_model_selection_eval() -> None:
         summary = module._summarize(session_dir, evaluation_manifest, manifest_path=manifest_path)
         require(summary.get("formal_recommendation_available") is False, "small synthetic pilotをformal recommendationへ昇格しないでください。")
         require(summary.get("pilot_recommendation_available") is True, "complete matrixだけがpilot recommendationを生成してください。")
-        require(summary.get("efficiency_proxy_recommendation") == "gpt-5.6-terra/high", "model selection summary は eligible / noninferior pair を集計してください。")
+        expected_recommendation = f"{role_data['selected_pair']['model']}/{role_data['selected_pair']['effort']}"
+        require(summary.get("efficiency_proxy_recommendation") == expected_recommendation, "model selection summary は eligible / noninferior 5.6 candidateを集計してください。")
+        compact_candidates = summary.get("model_effort_recommendations_by_prompt_profile", {}).get("compact", {}).get("candidate_pairs", [])
+        require(all(not str(pair).startswith("gpt-5.5") for pair in compact_candidates), "regression controlをdeployment推薦候補へ含めないでください。")
         require(summary.get("configured_pair_matches_efficiency_proxy") is True, "model selection summary は configured pair との一致を検証してください。")
+        require(summary.get("final_task_outcomes_pass") is True, "paired profileをfinal task単位でhard-gate集計してください。")
+        require(
+            len(summary.get("final_task_outcomes", [])) * len(prompt_profiles) == len(expected_jobs),
+            "同一task/model/effort/repetitionのprofile runsを一つのfinal outcomeへ束ねてください。",
+        )
+        compact_comparison = mapping(
+            mapping(summary.get("paired_prompt_profile_comparisons"), "summary.paired_prompt_profile_comparisons").get("compact"),
+            "summary.paired_prompt_profile_comparisons.compact",
+        )
+        require(compact_comparison.get("all_expected_pairs_complete") is True, "full/compact paired comparisonを欠損なく集計してください。")
+        require(
+            compact_comparison.get("mean_prompt_layer_estimated_token_delta", 0) < 0,
+            "prompt layer token近似はcompact化の差分をprofile比較として示してください。",
+        )
+        require(compact_comparison.get("noninferior_all_cases") is True, "paired quality deltaをcase単位の非劣性で判定してください。")
+        require(
+            summary.get("prompt_profile_noninferiority_recommendation") == "compact",
+            "品質hard gateを維持してprompt layerを削減したprofileだけを推薦してください。",
+        )
+        by_profile = mapping(
+            summary.get("model_effort_recommendations_by_prompt_profile"),
+            "summary.model_effort_recommendations_by_prompt_profile",
+        )
+        require(set(by_profile) == set(prompt_profiles), "model/effort recommendationをprompt profileごとに分離してください。")
+        require(
+            summary.get("model_effort_reference_prompt_profile") == "compact",
+            "top-level model/effort推薦はmanifest指定のreference profileだけから計算してください。",
+        )
+        require(
+            summary.get("formal_recommendation_blockers"),
+            "confirmatory条件が未完了ならformal recommendation blockerを列挙してください。",
+        )
+        compact_job = next(job for job in expected_jobs if job["prompt_profile"] == "compact")
+        compact_grader_path = grading_root / compact_job["blind_label"] / "grader.json"
+        compact_grader = json.loads(compact_grader_path.read_text(encoding="utf-8"))
+        compact_grader["quality_scores"] = {key: 1 for key in module.QUALITY_SCORE_KEYS}
+        compact_grader_path.write_text(json.dumps(compact_grader), encoding="utf-8")
+        degraded_summary = module._summarize(session_dir, evaluation_manifest, manifest_path=manifest_path)
+        require(
+            degraded_summary.get("prompt_profile_noninferiority_recommendation") == "full",
+            "prompt token削減があってもpaired品質非劣性を落とすprofileを推薦しないでください。",
+        )
+        compact_grader["quality_scores"] = {key: 4 for key in module.QUALITY_SCORE_KEYS}
+        compact_grader_path.write_text(json.dumps(compact_grader), encoding="utf-8")
+        compact_grader["final_outcome_hard_gate_violations"]["required_validation_missing"] = True
+        compact_grader_path.write_text(json.dumps(compact_grader), encoding="utf-8")
+        failed_outcome_summary = module._summarize(session_dir, evaluation_manifest, manifest_path=manifest_path)
+        require(failed_outcome_summary.get("final_task_outcomes_pass") is False, "一つのprofileのvalidation欠落をfinal task hard gateへ集約してください。")
+        require(
+            failed_outcome_summary.get("prompt_profile_noninferiority_recommendation") == "full",
+            "final outcome hard gate違反profileをprompt削減量だけで推薦しないでください。",
+        )
+        compact_grader["final_outcome_hard_gate_violations"]["required_validation_missing"] = False
+        compact_grader_path.write_text(json.dumps(compact_grader), encoding="utf-8")
         grading_package = module._export_grading_package(session_dir, session_dir / "grader-only-export")
         require(not (grading_package / "provenance").exists(), "grader export にmodel provenanceを含めないでください。")
         require((grading_package / "grading-package.json").exists(), "grader export manifest が必要です。")
+        exported_text = "\n".join(
+            path.read_text(encoding="utf-8", errors="replace")
+            for path in grading_package.rglob("*")
+            if path.is_file()
+        )
+        require("prompt_profile" not in exported_text and "pairing_id" not in exported_text, "graderへprompt profile provenanceを公開しないでください。")
         require(first_grader_path is not None, "model selection test grader が必要です。")
         incomplete_grader = json.loads(first_grader_path.read_text(encoding="utf-8"))
         incomplete_grader["hard_gate_violations"].pop(hard_gate_keys[0])
