@@ -16,6 +16,17 @@
 現在のブランチ差分を focused_trial として確認してください。
 target_repo_root は /path/to/guild-root/repositories/example-app です。
 
+review scope:
+- quest_charter_ref: <元 Quest Charter の ID>
+- owner_report_ref: <実装担当 report の ID>
+- base_ref: origin/main
+- head_ref: <review 対象の commit SHA または branch head SHA>
+- kind: commit_range
+- revision_id: <Root が確認した HEAD commit SHA>
+- dirty_state: staged / unstaged / untracked を review に含めない。存在する場合は停止
+- scope_paths: <review対象 path。全差分なら repository root 相当の明示 scope>
+- diff_hash: <`commit_range` の `cgo-snapshot-v1` SHA-256>
+
 focus:
 - `intent_analysis` の本質的な成果を満たし、`intent_alignment` が根拠付きか
 - `quest_awareness` と `control_decision` が owner -> Trial の handoff に足りているか
@@ -37,13 +48,14 @@ focus:
 
 ## 期待される流れ
 
-1. Root が read-only の Trial として境界を固定します。
-2. `inquisitor` が差分、関連コード、テスト観点を確認します。
-3. `intent_coverage` として推定意図、本質的な成果、non-goals、過剰実装回避を確認します。
-4. `quest_awareness`、`control_decision`、`validation_evidence` が Trial -> Ledger / final に足りるか確認します。
-5. 必要に応じて focus reviewer を追加し、reviewer 数判断では常に cost reason を残します。使わない場合は skip reason、使う場合は focus 分割と finding disposition も残します。
-6. findings を Critical / Major / Minor などの重要度で整理します。
-7. 追加 Quest が必要か、完了扱いでよいかを判断します。
+1. Root が元 Quest Charter と owner report を取得し、read-only の Trial authority、`base_ref`、`head_ref`、dirty state policy、共通 snapshot 契約を固定します。元の intent や report がない場合は、推測で補わず evidence-limited とします。
+2. Root と `inquisitor` が `base_ref` / `head_ref` の存在、`revision_id`、`diff_hash`、staged / unstaged / untracked の状態を確認します。許可されていない dirty state や hash mismatch があれば `stale_evidence` として停止します。
+3. `inquisitor` が固定済みの差分、関連コード、owner report、テスト観点を確認します。
+4. `intent_coverage` として推定意図、本質的な成果、non-goals、過剰実装回避を確認します。
+5. `quest_awareness`、`control_decision`、`validation_evidence` が owner -> Trial と Trial -> Ledger / final の handoff に足りるか確認します。
+6. 必要に応じて Trial lead の `inquisitor` が独立 role の `focus_reviewer` へ単一 focus を割り当て、reports を根拠確認して統合します。reviewer 数判断では常に cost reason を残し、使わない場合は skip reason、使う場合は focus 分割と finding disposition も残します。
+7. findings を Critical / Major / Minor などの重要度で整理します。
+8. 追加 Quest が必要か、完了扱いでよいかを判断します。Trial 中に source state が変わった場合は判断を破棄し、新しい snapshot で Trial をやり直します。
 
 ## 完了条件
 
@@ -54,8 +66,10 @@ focus:
 - 指摘ごとに根拠ファイルや判断理由がある
 - 修正が必要な場合は、次の最小 Quest に分けられる
 - 問題がなければ、残る risk と test gap が説明されている
+- findings と decision が固定された `base_ref` / `head_ref`、`revision_id` / `diff_hash` に結び付いている
 
 ## 注意点
 
 Trial は採点ではなく、完了判断のための evidence を増やす工程です。
 read-only review の依頼では、勝手に修正や git 操作へ進みません。
+「現在の差分」を推測せず、branch diff、index、worktree、untracked file のどれを対象にするかを明示します。

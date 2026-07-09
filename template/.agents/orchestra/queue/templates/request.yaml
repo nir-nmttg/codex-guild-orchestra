@@ -62,6 +62,17 @@ requests: []
 #       verification_status: not_checked
 #       next_action: null
 #       stop_condition: null
+#     subject_snapshot:
+#       snapshot_id: null
+#       digest_version: cgo-snapshot-v1
+#       kind: revision_only
+#       revision_id: null
+#       base_ref: null
+#       head_ref: null
+#       scope_paths: []
+#       untracked_paths: []
+#       dirty_state: clean
+#       diff_hash: null
 #     autonomy_budget:
 #       subassignments: 2
 #       extra_file_reads: 20
@@ -92,6 +103,7 @@ requests: []
 #         - authority
 #         - boundaries
 #         - evidence_required
+#         - subject_snapshot
 #       missing: []
 #     escalation_triggers: []
 #     evidence_required: []

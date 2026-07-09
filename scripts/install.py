@@ -134,6 +134,7 @@ EXPECTED_AGENT_SANDBOX_MODES = {
     'advisor': 'read-only',
     'cartographer': 'read-only',
     'courier': 'workspace-write',
+    'focus_reviewer': 'read-only',
     'guildmaster': 'read-only',
     'inquisitor': 'read-only',
     'quest_sentinel': 'read-only',
@@ -144,6 +145,7 @@ EXPECTED_AGENT_MODEL_CONFIGS = {
     'advisor': ('gpt-5.6-luna', 'high'),
     'cartographer': ('gpt-5.6-terra', 'high'),
     'courier': ('gpt-5.3-codex-spark', 'xhigh'),
+    'focus_reviewer': ('gpt-5.6-terra', 'high'),
     'guildmaster': ('gpt-5.6-sol', 'xhigh'),
     'inquisitor': ('gpt-5.6-sol', 'high'),
     'quest_sentinel': ('gpt-5.6-luna', 'high'),
@@ -184,6 +186,7 @@ SOURCE_REQUIRED_REL_PATHS = (
     Path('.agents/orchestra/instructions/advisor.md'),
     Path('.agents/orchestra/instructions/cartographer.md'),
     Path('.agents/orchestra/instructions/common.md'),
+    Path('.agents/orchestra/instructions/focus_reviewer.md'),
     Path('.agents/orchestra/instructions/guildmaster.md'),
     Path('.agents/orchestra/instructions/inquisitor.md'),
     Path('.agents/orchestra/instructions/party_leader.md'),
@@ -199,6 +202,8 @@ SOURCE_REQUIRED_REL_PATHS = (
     Path('.agents/orchestra/queue/templates/cartographer_assignment.yaml'),
     Path('.agents/orchestra/queue/templates/cartographer_report.yaml'),
     Path('.agents/orchestra/queue/templates/command.yaml'),
+    Path('.agents/orchestra/queue/templates/focus_reviewer_assignment.yaml'),
+    Path('.agents/orchestra/queue/templates/focus_reviewer_report.yaml'),
     Path('.agents/orchestra/queue/templates/inquisitor_report.yaml'),
     Path('.agents/orchestra/queue/templates/inquisitor_trial.yaml'),
     Path('.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml'),
@@ -210,6 +215,7 @@ SOURCE_REQUIRED_REL_PATHS = (
     Path('.agents/orchestra/scripts/queue_db.py'),
     Path('.agents/orchestra/scripts/queue_audit.py'),
     Path('.agents/orchestra/scripts/queue_schema.sql'),
+    Path('.agents/orchestra/scripts/snapshot_digest.py'),
 )
 SOURCE_REQUIRED_REL_PATHS += tuple(Path('.codex/agents') / f'{role}.toml' for role in sorted(EXPECTED_AGENT_SANDBOX_MODES))
 SOURCE_REQUIRED_REL_PATHS += tuple(Path('.agents/skills') / skill / 'SKILL.md' for skill in sorted(EXPECTED_ORCHESTRA_SKILL_DIRS))
@@ -929,6 +935,7 @@ def load_worker_roles(source_root: Path) -> dict[str, dict[str, int]]:
         'adventurer': 1,
         'party_leader': 1,
         'inquisitor': 1,
+        'focus_reviewer': 1,
         'advisor': 1,
         'quest_sentinel': 1,
     }
@@ -945,7 +952,58 @@ def load_worker_roles(source_root: Path) -> dict[str, dict[str, int]]:
     return result
 
 
+def validate_focus_reviewer_worker_contract(source_root: Path) -> None:
+    settings_path = source_root / '.agents' / 'orchestra' / 'config' / 'settings.yaml'
+    lines = settings_path.read_text(encoding='utf-8').splitlines()
+    in_workers = False
+    in_focus = False
+    block: list[str] = []
+    for line in lines:
+        if line == 'workers:':
+            in_workers = True
+            continue
+        if in_workers and line and not line.startswith(' '):
+            break
+        if in_workers and line == '  focus_reviewer:':
+            in_focus = True
+            continue
+        if in_focus and line.startswith('  ') and not line.startswith('    '):
+            break
+        if in_focus:
+            block.append(line.strip())
+    if not block:
+        raise SystemExit('settings.yaml workers.focus_reviewer block が必要です。')
+    required_lines = {
+        'terminal_worker: true',
+        'implementation_authority: false',
+        'decision_authority: false',
+        'severity_authority: false',
+        'synthesis_authority: false',
+        'ledger_authority: false',
+        'git_authority: false',
+        'external_action_authority: false',
+        'budget_expansion_authority: false',
+        'recursive_subagents: false',
+        '- inquisitor',
+    }
+    missing = sorted(required_lines - set(block))
+    forbidden_true = sorted(line for line in block if line.endswith('_authority: true') or line == 'recursive_subagents: true')
+    allowed_callers: set[str] = set()
+    if 'allowed_callers:' in block:
+        index = block.index('allowed_callers:') + 1
+        while index < len(block) and block[index].startswith('- '):
+            allowed_callers.add(block[index][2:].strip())
+            index += 1
+    caller_enforcement_valid = any(line.startswith('caller_enforcement:') and 'policy-only' in line and 'runtime ACL' in line for line in block)
+    if missing or forbidden_true or allowed_callers != {'inquisitor'} or not caller_enforcement_valid:
+        raise SystemExit(
+            'settings.yaml workers.focus_reviewer の terminal / caller / authority contract が不正です: '
+            + ', '.join(missing + forbidden_true or [f'allowed_callers={sorted(allowed_callers)}, caller_enforcement={caller_enforcement_valid}'])
+        )
+
+
 def validate_codex_agent_preflight(source_root: Path) -> None:
+    validate_focus_reviewer_worker_contract(source_root)
     config_path = source_root / '.codex' / 'config.toml'
     config_text = config_path.read_text(encoding='utf-8')
     config = read_toml_document(config_path)
@@ -1014,6 +1072,38 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
         raise SystemExit(
             'template/.codex/agents/advisor.toml の developer_instructions に advisor 契約が不足しています: '
             + ', '.join(missing_tokens)
+        )
+
+    focus_reviewer_path = source_root / '.codex' / 'agents' / 'focus_reviewer.toml'
+    focus_reviewer = read_toml_document(focus_reviewer_path)
+    if focus_reviewer.get('sandbox_mode') != 'read-only':
+        raise SystemExit('template/.codex/agents/focus_reviewer.toml の sandbox_mode は read-only にしてください。')
+    focus_features = focus_reviewer.get('features')
+    if not isinstance(focus_features, dict) or focus_features.get('multi_agent') is not False:
+        raise SystemExit('template/.codex/agents/focus_reviewer.toml の features.multi_agent は false にしてください。')
+    focus_reviewer_instructions = focus_reviewer.get('developer_instructions')
+    if not isinstance(focus_reviewer_instructions, str):
+        raise SystemExit('template/.codex/agents/focus_reviewer.toml の developer_instructions が必要です。')
+    focus_reviewer_tokens = (
+        '単一 focus',
+        'terminal worker',
+        'read-only',
+        '採否',
+        '重大度分類',
+        '最終 owner synthesis',
+        '追加 subagent 起動',
+        'owner_worker_id = inquisitor',
+        'snapshot_id',
+        'stale_evidence',
+        'invalid_assignment',
+        'policy-only',
+        'trial_ref',
+    )
+    focus_reviewer_missing = [token for token in focus_reviewer_tokens if token not in focus_reviewer_instructions]
+    if focus_reviewer_missing:
+        raise SystemExit(
+            'template/.codex/agents/focus_reviewer.toml の developer_instructions に bounded reviewer 契約が不足しています: '
+            + ', '.join(focus_reviewer_missing)
         )
 
     controller_path = source_root / '.codex' / 'agents' / 'quest_sentinel.toml'

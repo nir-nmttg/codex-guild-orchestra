@@ -395,6 +395,7 @@ handoff_sufficiency:
         - authority
         - boundaries
         - evidence_required
+        - subject_snapshot
       stop_when:
         - "confirmation_needed が残る"
         - "target_repo_root が固定できない"
@@ -411,6 +412,7 @@ handoff_sufficiency:
         - boundaries
         - autonomy_budget
         - trial_expectations
+        - subject_snapshot
       stop_when:
         - "owned_scope が曖昧"
         - "implementation_strategy が本質的成果へ落ちていない"
@@ -426,6 +428,8 @@ handoff_sufficiency:
         - validation_evidence
         - research_evidence
         - risks
+        - base_snapshot
+        - result_snapshot
       stop_when:
         - "validation_evidence または未実行理由がない"
         - "intent_alignment が success_criteria と結びつかない"
@@ -443,6 +447,7 @@ handoff_sufficiency:
         - reviewer_synthesis
         - finding_dispositions
         - risks
+        - subject_snapshot
       stop_when:
         - "Critical または未解決 Major が残る"
         - "finding disposition がない"
@@ -464,9 +469,26 @@ workers:
     max_parallel: 5
     assignment_identity: "Quest ID、assignment_id、owned_scope で区別する。"
   inquisitor:
-    role: trial_specialist
+    role: trial_lead_integrator
     max_parallel: 3
-    assignment_identity: "Quest ID、trial_id、trial_focus、reviewer_index で区別する。"
+    assignment_identity: "Quest ID、trial_id、owner assignment で区別する。"
+  focus_reviewer:
+    role: bounded_trial_focus_reviewer
+    max_parallel: 3
+    terminal_worker: true
+    allowed_callers:
+      - inquisitor
+    caller_enforcement: "Codex custom agent は actual parent identity を公開しないため runtime ACL ではなく policy-only。focus_reviewer は queue の trial owner / assignment lineage も確認し、確認不能なら invalid_assignment とする。"
+    implementation_authority: false
+    decision_authority: false
+    severity_authority: false
+    synthesis_authority: false
+    ledger_authority: false
+    git_authority: false
+    external_action_authority: false
+    budget_expansion_authority: false
+    recursive_subagents: false
+    assignment_identity: "Quest ID、trial_id、focus、reviewer_index で区別する。"
   advisor:
     role: advisory_specialist
     max_parallel: 4
@@ -506,6 +528,7 @@ advisory_consultation:
   terminal_worker: true
   recursive_subagents: false
   decision_authority: false
+  separate_from_focus_reviewer: true
   owner_synthesis_required: true
   authority_must_not_exceed_owner: true
   consumes_autonomy_budget: subassignments
@@ -612,6 +635,51 @@ trial:
   depth_guardrails:
     multi_focus_trial: "focus が複数観点に分かれていない時は accept せず、必要 focus を返す。"
     safety_gate: "Guild Law、人間確認条件、安全境界に関わる evidence がない時は accept せず、needs_human または request_changes にする。"
+  self_check_policy:
+    rule: "`self_check` は owner の検証 evidence であり、Root の品質採否ではない。errand / low-risk solo_quest で全 eligibility gate を満たす場合だけ independent `inquisitor` Trial を省略できる。Root は gate と handoff の機械的充足だけを確認し、品質判断を補わない。一つでも満たさない場合は `peer_review` 以上を `inquisitor` へ割り当てる。"
+    eligible_ranks:
+      - errand
+      - solo_quest
+    required:
+      - single_owned_scope
+      - low_uncertainty
+      - low_coupling
+      - bounded_blast_radius
+      - no_safety_item
+      - no_confirmation_needed
+      - no_public_api_or_data_compatibility_change
+      - no_scope_drift
+      - no_blocking_unknown
+      - targeted_validation_passed
+      - success_criteria_directly_evidenced
+      - snapshot_matched
+    forbidden_outcome_fields:
+      - accept
+      - accept_with_risks
+      - severity
+      - requested_changes
+    ledger_required:
+      - trial_depth_self_check
+      - owner_attestation
+      - independent_trial_skip_reason
+      - validation_evidence
+      - result_snapshot
+    escalation_depth: peer_review
+  snapshot_policy:
+    digest_version: cgo-snapshot-v1
+    helper: .agents/orchestra/scripts/snapshot_digest.py
+    kinds:
+      - revision_only
+      - working_tree_content
+      - commit_range
+    mutation_layers:
+      - base_snapshot
+      - owned_scope_result_snapshot
+      - integrated_snapshot_after_barrier
+    stage_state_excluded_from_digest: true
+    explicit_untracked_only: true
+    secret_like_or_pii_path: stop_before_read
+    read_only_reuse: "同じ snapshot_id と subject scope の dialogue では既存 snapshot を再利用し、mutation、HEAD 変更、scope 変更、dirty-state signal がある時だけ再計算する。"
   decision_inputs:
     - uncertainty
     - coupling
@@ -621,7 +689,7 @@ trial:
     - validation_result
     - user_impact
   focus_reviewer_policy:
-    rule: "Party Tactics または Trial 統合担当の `inquisitor` は、固定人数ではなく risk、focus、blast radius、coupling、validation result、confidence、cost を見て追加 read-only focus reviewer 数を決める。軽微な変更は追加 reviewer 0..1 を標準とし、multi_focus_trial、safety_gate、高 risk、高 coupling、検証失敗または evidence 不足では複数 reviewer を選べる。上限は `workers.inquisitor.max_parallel` と `autonomy_budget.subassignments` の小さい方にする。focus reviewer は `autonomy_budget.subassignments` を消費し、`focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments` を守る。複数 reviewer を使う時は focus 分割、read-only、owner synthesis、finding disposition を Trial evidence に残す。skip reason は reviewer を使わない時に必須、cost reason は reviewer 数判断で常に必須にする。"
+    rule: "Party Tactics は必要な Trial focus を提案でき、Trial 統合担当の `inquisitor` が固定人数ではなく risk、focus、blast radius、coupling、validation result、confidence、cost を見て追加 read-only `focus_reviewer` 数と assignment を最終決定する。軽微な変更は追加 reviewer 0..1 を標準にし、multi_focus_trial、safety_gate、高 risk、高 coupling、検証失敗または evidence 不足では複数 reviewer を選べる。上限は `workers.focus_reviewer.max_parallel` と `autonomy_budget.subassignments` の小さい方にする。focus reviewer は `autonomy_budget.subassignments` を消費し、`focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments` を守る。複数 reviewer を使う時は focus 分割、read-only、owner synthesis、finding disposition を Trial evidence に残す。skip reason は reviewer を使わない時に必須、cost reason は reviewer 数判断で常に必須にする。"
     count_basis:
       - risk
       - focus
@@ -642,7 +710,7 @@ trial:
       - evidence_limited
       - independent_focus_needed
     max_bound_by:
-      - workers.inquisitor.max_parallel
+      - workers.focus_reviewer.max_parallel
       - autonomy_budget.subassignments
     consumes_autonomy_budget: subassignments
     shared_budget_rule: "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments"
@@ -653,7 +721,7 @@ trial:
       - finding_disposition
       - skip_reason_when_not_used
       - cost_reason_always
-    reviewer_role: "focus reviewer は `inquisitor` の read-only review 担当であり、advisor ではない。採否、重大度分類、requested changes、最終 owner synthesis は Trial 統合担当の `inquisitor` が行う。"
+    reviewer_role: "追加 reviewer は独立 role の read-only `focus_reviewer` へ割り当てる。`focus_reviewer` は advisor ではない別契約の terminal worker であり、採否、重大度分類、requested changes、最終 owner synthesis、追加 subagent 起動を行わない。Trial 統合担当の `inquisitor` が reports を根拠確認して統合する。"
   outcomes:
     - accept
     - accept_with_risks

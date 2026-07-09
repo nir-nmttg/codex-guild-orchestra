@@ -98,15 +98,17 @@ advisor は実装分業者ではなく、考慮漏れ、矛盾、未確認リス
 advisor dialogue は confidence-based で、owner confidence が target 未満でも、新しい evidence が増えない、confidence delta が閾値未満、同じ unknown が残る、focus や authority / boundaries が広がる場合は停止します。
 Ledger には advisor assignment、advisor report、owner synthesis の判断根拠だけを残し、raw discussion は残しません。
 
-Party Tactics または Trial 統合担当の `inquisitor` は、固定人数ではなく risk、focus、blast radius、coupling、validation result、confidence、cost を見て read-only focus reviewer 数を決めます。
+Party Tactics は必要な Trial focus を提案でき、Trial lead / integrator の `inquisitor` が固定人数ではなく risk、focus、blast radius、coupling、validation result、confidence、cost を見て追加 read-only `focus_reviewer` 数と assignment を最終決定します。
 軽微な変更は追加 read-only focus reviewer 0..1 を標準とし、`multi_focus_trial`、`safety_gate`、高 risk、高 coupling、検証失敗、evidence 不足では複数 reviewer を選べます。
-reviewer 数は `workers.inquisitor.max_parallel` と `autonomy_budget.subassignments` の小さい方を上限にします。
+reviewer 数は `workers.focus_reviewer.max_parallel` と `autonomy_budget.subassignments` の小さい方を上限にします。
 focus reviewer は `autonomy_budget.subassignments` を消費し、`focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments` を守ります。
 複数 reviewer を使う時は focus 分割、read-only、owner synthesis、finding disposition を Trial evidence に残します。skip reason は reviewer を使わない時に必須、cost reason は reviewer 数判断で常に必須です。
-focus reviewer は `inquisitor` の read-only review 担当であり、`advisor` ではありません。採否、重大度分類、requested changes、最終 owner synthesis は Trial 統合担当の `inquisitor` が行います。
+`focus_reviewer` は Trial 内の単一 focus だけを確認する独立した terminal worker であり、`advisor` とは別契約です。実装、採否、重大度分類、requested changes、最終 owner synthesis、追加 subagent 起動は行わず、bounded review evidence だけを `inquisitor` に返します。Trial lead の `inquisitor` が reports を根拠確認し、finding disposition、重大度、requested changes、最終 decision を統合します。
 
 Root は intake、`target_repo_root` 固定、Guild Law / authority / boundaries の検証、割り当て（assignment）作成、報告（report）集約だけを担当します。
 実装、Trial 実施、品質採否の単独確定、Ledger / dashboard 直接反映は担当しません。
+
+source-state binding は `cgo-snapshot-v1` の `subject_snapshot` を正本にします。clean read-onlyは`revision_only`、working treeは`working_tree_content`、commit間は`commit_range`です。並列実装はbase、owned-scope result、integration barrier後のintegrated snapshotを分け、stage状態はcontent digestへ含めません。helperは`.agents/orchestra/scripts/snapshot_digest.py`で、secret-like / PII-like path、symlink、repo escapeを内容読み取り前に拒否します。Git refはoptionとして解釈せずcommit OIDへ厳格解決し、repo外を参照し得るlinked worktree、config include、commondir / object alternatesを受理しません。
 
 ## Trial
 
@@ -120,7 +122,8 @@ Trial は risk-based です。
 - `safety_gate`
 
 uncertainty、coupling、blast radius、safety risk、confidence、validation result を見て選びます。
-focus reviewer 数も同じ risk 情報と cost を使い、軽微な変更では増やさず、高リスク時だけ複数に分けます。
+`focus_reviewer` 数も同じ risk 情報と cost を使い、軽微な変更では増やさず、高リスク時だけ複数の単一 focus に分けます。
+`self_check`でindependent Trialを省略できるのは、errand / low-risk solo、単一scope、低uncertainty / coupling、限定blast radius、安全・確認・互換性変更・scope drift・blocking unknownなし、targeted validationとsuccess criteriaの直接evidence、snapshot一致をすべて満たす場合だけです。ownerはvalidation attestationを返しますがaccept authorityを持たず、Rootはgateの機械的充足だけを確認します。それ以外は`inquisitor`の`peer_review`以上へ上げます。
 
 ## Ledger
 

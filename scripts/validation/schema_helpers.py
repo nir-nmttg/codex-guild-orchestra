@@ -45,6 +45,28 @@ def validate_autonomy_budget(value: object, label: str) -> None:
     require(budget["timebox_minutes"] is None or isinstance(budget["timebox_minutes"], int), f"{label}.timebox_minutes は null または整数にしてください。")
 
 
+def validate_subject_snapshot(value: object, label: str) -> None:
+    snapshot = mapping(value, label)
+    required = {
+        "snapshot_id",
+        "digest_version",
+        "kind",
+        "revision_id",
+        "base_ref",
+        "head_ref",
+        "scope_paths",
+        "untracked_paths",
+        "dirty_state",
+        "diff_hash",
+    }
+    require(set(snapshot) == required, f"{label} は canonical subject snapshot key と一致させてください。")
+    require(snapshot.get("digest_version") == "cgo-snapshot-v1", f"{label}.digest_version は cgo-snapshot-v1 にしてください。")
+    require(snapshot.get("kind") in {"revision_only", "working_tree_content", "commit_range", None}, f"{label}.kind が不正です。")
+    sequence(snapshot.get("scope_paths"), f"{label}.scope_paths")
+    sequence(snapshot.get("untracked_paths"), f"{label}.untracked_paths")
+    require(snapshot.get("dirty_state") in {"clean", "dirty", None}, f"{label}.dirty_state は clean / dirty / null にしてください。")
+
+
 def validate_quest_awareness(value: object, label: str) -> None:
     state = mapping(value, label)
     require(set(state) == QUEST_AWARENESS_KEYS, f"{label} は quest_awareness key と一致させてください。")

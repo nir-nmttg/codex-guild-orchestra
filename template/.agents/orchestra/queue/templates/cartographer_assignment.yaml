@@ -43,6 +43,17 @@ assignment:
     triggers: []
     confidence_threshold_applied: null
     escalation_required: false
+  subject_snapshot:
+    snapshot_id: null
+    digest_version: cgo-snapshot-v1
+    kind: revision_only
+    revision_id: null
+    base_ref: null
+    head_ref: null
+    scope_paths: []
+    untracked_paths: []
+    dirty_state: null
+    diff_hash: null
   authority:
     read: true
     edit: false

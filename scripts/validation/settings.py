@@ -181,10 +181,10 @@ def validate_settings() -> None:
     stages = mapping(handoff.get("stages"), "settings.handoff_sufficiency.stages")
     require(set(stages) == {"intake_to_charter", "charter_to_owner", "owner_to_trial", "trial_to_ledger_final"}, "handoff_sufficiency.stages が期待値と一致しません。")
     for stage_name, required_tokens in {
-        "intake_to_charter": {"intent_analysis", "quest_awareness", "objective", "success_criteria", "non_goals", "authority", "boundaries", "evidence_required"},
-        "charter_to_owner": {"quest_awareness", "implementation_strategy", "owned_scope", "authority", "boundaries", "trial_expectations"},
-        "owner_to_trial": {"changed_files", "decisions_made", "intent_alignment", "quest_awareness", "control_decision", "validation_evidence", "research_evidence", "risks"},
-        "trial_to_ledger_final": {"decision", "findings", "intent_coverage", "quest_awareness", "control_decision", "validation_evidence", "advisor_dialogue_synthesis", "reviewer_synthesis", "finding_dispositions", "risks"},
+        "intake_to_charter": {"intent_analysis", "quest_awareness", "objective", "success_criteria", "non_goals", "authority", "boundaries", "evidence_required", "subject_snapshot"},
+        "charter_to_owner": {"quest_awareness", "implementation_strategy", "owned_scope", "authority", "boundaries", "trial_expectations", "subject_snapshot"},
+        "owner_to_trial": {"changed_files", "decisions_made", "intent_alignment", "quest_awareness", "control_decision", "validation_evidence", "research_evidence", "risks", "base_snapshot", "result_snapshot"},
+        "trial_to_ledger_final": {"decision", "findings", "intent_coverage", "quest_awareness", "control_decision", "validation_evidence", "advisor_dialogue_synthesis", "reviewer_synthesis", "finding_dispositions", "risks", "subject_snapshot"},
     }.items():
         stage = mapping(stages.get(stage_name), f"settings.handoff_sufficiency.stages.{stage_name}")
         required = set(sequence(stage.get("required"), f"settings.handoff_sufficiency.stages.{stage_name}.required"))
@@ -208,24 +208,42 @@ def validate_settings() -> None:
     require(conditional_checks == TRIAL_CONDITIONAL_CHECKS, "settings.trial.conditional_checks が期待値と一致しません。")
     depth_guardrails = set(mapping(trial.get("depth_guardrails"), "settings.trial.depth_guardrails"))
     require(depth_guardrails == TRIAL_DEPTH_GUARDRAILS, "settings.trial.depth_guardrails が期待値と一致しません。")
+    self_check_policy = mapping(trial.get("self_check_policy"), "settings.trial.self_check_policy")
+    require(set(sequence(self_check_policy.get("eligible_ranks"), "settings.trial.self_check_policy.eligible_ranks")) == {"errand", "solo_quest"}, "self_check は errand / solo_quest だけにしてください。")
+    self_check_required = set(sequence(self_check_policy.get("required"), "settings.trial.self_check_policy.required"))
+    require({"single_owned_scope", "low_uncertainty", "low_coupling", "bounded_blast_radius", "no_safety_item", "no_confirmation_needed", "no_public_api_or_data_compatibility_change", "no_scope_drift", "no_blocking_unknown", "targeted_validation_passed", "success_criteria_directly_evidenced", "snapshot_matched"} == self_check_required, "self_check eligibility gate が不足しています。")
+    require({"accept", "accept_with_risks", "severity", "requested_changes"} == set(sequence(self_check_policy.get("forbidden_outcome_fields"), "settings.trial.self_check_policy.forbidden_outcome_fields")), "self_check に Trial decision authority を与えないでください。")
+    require(self_check_policy.get("escalation_depth") == "peer_review", "self_check gate 不成立時は peer_review 以上へ上げてください。")
+    snapshot_policy = mapping(trial.get("snapshot_policy"), "settings.trial.snapshot_policy")
+    require(snapshot_policy.get("digest_version") == "cgo-snapshot-v1", "snapshot digest version は cgo-snapshot-v1 にしてください。")
+    require(snapshot_policy.get("helper") == ".agents/orchestra/scripts/snapshot_digest.py", "snapshot helper path が不正です。")
+    require(set(sequence(snapshot_policy.get("kinds"), "settings.trial.snapshot_policy.kinds")) == {"revision_only", "working_tree_content", "commit_range"}, "snapshot kind が不正です。")
+    require(snapshot_policy.get("stage_state_excluded_from_digest") is True and snapshot_policy.get("explicit_untracked_only") is True, "snapshot は stage invariant / explicit untracked にしてください。")
+    require(snapshot_policy.get("secret_like_or_pii_path") == "stop_before_read", "snapshot は secret-like / PII-like path を読む前に停止してください。")
     focus_reviewer_policy = mapping(trial.get("focus_reviewer_policy"), "settings.trial.focus_reviewer_policy")
     require_tokens(json.dumps(focus_reviewer_policy, ensure_ascii=False), FOCUS_REVIEWER_CONTRACT_TOKENS + ("risk", "blast_radius", "coupling", "validation_result", "confidence", "cost"), "settings.trial.focus_reviewer_policy")
     require(focus_reviewer_policy.get("light_change_reviewer_range") == "additional reviewer 0..1", "軽微な変更は追加 reviewer 0..1 にしてください。")
     require({"multi_focus_trial", "safety_gate"} <= set(sequence(focus_reviewer_policy.get("multi_reviewer_depths"), "settings.trial.focus_reviewer_policy.multi_reviewer_depths")), "複数 reviewer 対象 depth が不足しています。")
     multi_reviewer_triggers = set(sequence(focus_reviewer_policy.get("multi_reviewer_triggers"), "settings.trial.focus_reviewer_policy.multi_reviewer_triggers"))
     require({"high_risk", "high_coupling", "broad_blast_radius", "validation_failed", "evidence_limited", "independent_focus_needed"} <= multi_reviewer_triggers, "複数 reviewer trigger が不足しています。")
-    require({"workers.inquisitor.max_parallel", "autonomy_budget.subassignments"} == set(sequence(focus_reviewer_policy.get("max_bound_by"), "settings.trial.focus_reviewer_policy.max_bound_by")), "reviewer 上限は workers.inquisitor.max_parallel と autonomy_budget.subassignments にしてください。")
+    require({"workers.focus_reviewer.max_parallel", "autonomy_budget.subassignments"} == set(sequence(focus_reviewer_policy.get("max_bound_by"), "settings.trial.focus_reviewer_policy.max_bound_by")), "reviewer 上限は workers.focus_reviewer.max_parallel と autonomy_budget.subassignments にしてください。")
     require(focus_reviewer_policy.get("consumes_autonomy_budget") == "subassignments", "focus reviewer は autonomy_budget.subassignments を消費してください。")
     require(focus_reviewer_policy.get("shared_budget_rule") == "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments", "focus reviewer shared budget rule が必要です。")
     require({"focus_split", "read_only", "owner_synthesis", "finding_disposition", "skip_reason_when_not_used", "cost_reason_always"} <= set(sequence(focus_reviewer_policy.get("requirements"), "settings.trial.focus_reviewer_policy.requirements")), "focus reviewer 必須 evidence が不足しています。")
     require("advisor ではない" in str(focus_reviewer_policy.get("reviewer_role") or ""), "focus reviewer は advisor と別契約であることを明記してください。")
 
     workers = mapping(settings["workers"], "settings.workers")
-    for role in ("adventurer", "party_leader", "inquisitor", "advisor", "quest_sentinel"):
+    for role in ("adventurer", "party_leader", "inquisitor", "focus_reviewer", "advisor", "quest_sentinel"):
         role_data = mapping(workers.get(role), f"settings.workers.{role}")
         require(isinstance(role_data.get("max_parallel"), int), f"settings.workers.{role}.max_parallel が必要です。")
     advisor_worker = mapping(workers.get("advisor"), "settings.workers.advisor")
     require(advisor_worker.get("terminal_worker") is True, "settings.workers.advisor.terminal_worker は true にしてください。")
+    focus_reviewer_worker = mapping(workers.get("focus_reviewer"), "settings.workers.focus_reviewer")
+    require(focus_reviewer_worker.get("terminal_worker") is True, "settings.workers.focus_reviewer.terminal_worker は true にしてください。")
+    require(focus_reviewer_worker.get("allowed_callers") == ["inquisitor"], "focus_reviewer は inquisitor だけが起動できるようにしてください。")
+    require("policy-only" in str(focus_reviewer_worker.get("caller_enforcement") or "") and "runtime ACL" in str(focus_reviewer_worker.get("caller_enforcement") or ""), "focus_reviewer caller制約はCodexの実runtime ACLではないことを明記してください。")
+    for key in ("implementation_authority", "decision_authority", "severity_authority", "synthesis_authority", "ledger_authority", "git_authority", "external_action_authority", "budget_expansion_authority", "recursive_subagents"):
+        require(focus_reviewer_worker.get(key) is False, f"settings.workers.focus_reviewer.{key} は false にしてください。")
     controller_worker = mapping(workers.get("quest_sentinel"), "settings.workers.quest_sentinel")
     require(controller_worker.get("terminal_worker") is True, "settings.workers.quest_sentinel.terminal_worker は true にしてください。")
     require(controller_worker.get("decision_authority") is False, "settings.workers.quest_sentinel.decision_authority は false にしてください。")

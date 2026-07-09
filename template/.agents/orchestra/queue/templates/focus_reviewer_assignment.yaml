@@ -1,0 +1,67 @@
+artifact_type: "trial_focus_assignment"
+schema_version: "3.0"
+workflow_id: null
+structured_data_usage:
+  structured_inputs: []
+  decision_rationale: null
+  evidence_refs: []
+assignment:
+  id: null
+  quest_id: null
+  trial_id: null
+  worker_id: focus_reviewer
+  owner_worker_id: inquisitor
+  caller_lineage:
+    enforcement: policy_only_with_queue_lineage
+    required_parent_role: inquisitor
+    trial_owner_worker_id: inquisitor
+    trial_ref: null
+    verification: null
+  reviewer_index: null
+  role: bounded_trial_focus_reviewer
+  focus: null
+  subject_snapshot:
+    snapshot_id: null
+    digest_version: cgo-snapshot-v1
+    kind: working_tree_content
+    base_ref: null
+    head_ref: null
+    revision_id: null
+    scope_paths: []
+    untracked_paths: []
+    diff_hash: null
+    dirty_state: null
+  terminal_worker: true
+  decision_authority: false
+  severity_authority: false
+  owner_synthesis_required: true
+  authority:
+    read: true
+    edit: false
+    validate: true
+    local_git: false
+    external_actions: false
+  boundaries:
+    target_repo_root: null
+    read_deny: []
+    edit_deny: []
+    safety_items: []
+  autonomy_budget:
+    subassignments: 0
+    extra_file_reads: 0
+    validation_iterations: 1
+    timebox_minutes: null
+  evidence_required: []
+  forbidden:
+    - focus_expansion
+    - implementation
+    - final_decision
+    - final_severity
+    - requested_changes
+    - owner_synthesis
+    - recursive_subagent
+    - ledger_write
+    - git_write
+    - external_action
+  status: idle
+  timestamp: null

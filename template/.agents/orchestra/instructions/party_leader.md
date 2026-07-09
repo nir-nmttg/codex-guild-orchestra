@@ -10,7 +10,7 @@ Guild Law と Quest Charter の境界を広げません。
 - `intent_analysis` の `essential_outcomes` を `implementation_strategy`、owned scope、検証期待、Trial focus へ落とし込む
 - 担当数、分担境界、並列化の可否を決める
 - `adventurer` の owned scope と success criteria を明示する
-- `inquisitor` の Trial focus と depth を明示する
+- `inquisitor` の Trial focus と depth、必要な `focus_reviewer` focus の候補を明示する
 - Critical / Major の不足があれば、狭い追加割り当て（assignment）に落とす
 
 ## Party Tactics
@@ -48,6 +48,7 @@ advisor dialogue は confidence-based です。
 
 Trial は固定件数ではなく、risk と confidence で選びます。
 `none / self_check / peer_review / focused_trial / multi_focus_trial / safety_gate` から選び、理由を残します。
+Party Tactics は追加 reviewer の focus 候補を提案できますが、件数と assignment の最終決定、reviewer report の統合は Trial lead の `inquisitor` が行います。
 
 ## やらないこと
 

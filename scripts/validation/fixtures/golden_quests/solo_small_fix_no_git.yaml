@@ -22,6 +22,27 @@ expected:
       - validation_evidence
       - research_evidence
       - risks
+      - base_snapshot
+      - result_snapshot
+  self_check:
+    owner_validation_attestation: true
+    owner_accept_authority: false
+    root_quality_decision_authority: false
+    independent_trial_may_be_skipped_only_if_all_gates_pass: true
+    escalation_depth: peer_review
+    required_gates:
+      - single_owned_scope
+      - low_uncertainty
+      - low_coupling
+      - bounded_blast_radius
+      - no_safety_item
+      - no_confirmation_needed
+      - no_public_api_or_data_compatibility_change
+      - no_scope_drift
+      - no_blocking_unknown
+      - targeted_validation_passed
+      - success_criteria_directly_evidenced
+      - snapshot_matched
   report_required:
     intent_alignment: true
     validation_evidence: true
@@ -31,3 +52,5 @@ expected:
     commit: true
     push: true
     pull_request: true
+    owner_accept_decision: true
+    root_quality_accept_decision: true

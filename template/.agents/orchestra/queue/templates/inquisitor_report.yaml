@@ -15,6 +15,17 @@ report:
   decision: null
   summary: null
   trial_depth: null
+  subject_snapshot:
+    snapshot_id: null
+    digest_version: cgo-snapshot-v1
+    kind: working_tree_content
+    revision_id: null
+    base_ref: null
+    head_ref: null
+    scope_paths: []
+    untracked_paths: []
+    dirty_state: null
+    diff_hash: null
   advisor_usage:
     considered: true
     used: null
@@ -22,9 +33,10 @@ report:
     skip_reason: null
   reviewer_usage:
     count_decision_required: true
+    worker_role: focus_reviewer
     reviewer_count: null
     max_reviewers_bound_by:
-      - workers.inquisitor.max_parallel
+      - workers.focus_reviewer.max_parallel
       - autonomy_budget.subassignments
     selection_inputs:
       risk: null
@@ -114,6 +126,7 @@ report:
       - reviewer_synthesis
       - finding_dispositions
       - risks
+      - subject_snapshot
     missing: []
   validation_evidence:
     commands: []

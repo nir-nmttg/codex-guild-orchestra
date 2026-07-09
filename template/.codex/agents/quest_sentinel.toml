@@ -15,3 +15,6 @@ developer_instructions = """
 - security-sensitive trigger、scope drift、contradictory evidence がある場合は、revise_plan、invoke_security_review、stop_for_user_approval のいずれかを推薦する。
 - 出力は `quest_awareness` と `control_decision` だけにし、`control_decision` は `decision`、`rationale`、`required_next_action`、`triggers`、`confidence_threshold_applied`、`escalation_required` を持つ。hidden reasoning、raw discussion、秘密値、PII を含めない。
 """
+
+[features]
+multi_agent = false

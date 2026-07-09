@@ -23,6 +23,7 @@ RUNTIME_SCHEMA_VERSION = "3.0"
 READ_ONLY_AGENT_ROLES = (
     "advisor",
     "cartographer",
+    "focus_reviewer",
     "guildmaster",
     "inquisitor",
     "quest_sentinel",
@@ -33,6 +34,7 @@ EXPECTED_AGENT_FILES = {
     "advisor.toml",
     "cartographer.toml",
     "courier.toml",
+    "focus_reviewer.toml",
     "guildmaster.toml",
     "inquisitor.toml",
     "party_leader.toml",
@@ -673,6 +675,38 @@ def validate_install_upgrade_smoke() -> None:
     missing_advisor = run_with_mutated_source("missing advisor.toml", lambda source: (source / ".codex/agents/advisor.toml").unlink())
     require("advisor.toml" in (missing_advisor.stdout + missing_advisor.stderr), "install.py の advisor 不足拒否 message は advisor.toml を示してください。")
 
+    missing_focus_reviewer = run_with_mutated_source("missing focus_reviewer.toml", lambda source: (source / ".codex/agents/focus_reviewer.toml").unlink())
+    require("focus_reviewer.toml" in (missing_focus_reviewer.stdout + missing_focus_reviewer.stderr), "install.py の focus_reviewer 不足拒否 message は focus_reviewer.toml を示してください。")
+
+    def enable_focus_recursive_agents(source: Path) -> None:
+        path = source / ".codex/agents/focus_reviewer.toml"
+        path.write_text(path.read_text(encoding="utf-8").replace("multi_agent = false", "multi_agent = true"), encoding="utf-8")
+
+    recursive_focus = run_with_mutated_source("focus reviewer multi-agent enabled", enable_focus_recursive_agents)
+    require("multi_agent" in (recursive_focus.stdout + recursive_focus.stderr), "install.py は focus_reviewer の recursive multi-agent capability を拒否してください。")
+
+    def enable_focus_decision_authority(source: Path) -> None:
+        path = source / ".agents/orchestra/config/settings.yaml"
+        text = path.read_text(encoding="utf-8")
+        marker = "  focus_reviewer:\n"
+        before, focus = text.split(marker, 1)
+        focus = focus.replace("    decision_authority: false", "    decision_authority: true", 1)
+        path.write_text(before + marker + focus, encoding="utf-8")
+
+    authority_focus = run_with_mutated_source("focus reviewer authority expanded", enable_focus_decision_authority)
+    require("focus_reviewer" in (authority_focus.stdout + authority_focus.stderr), "install.py は focus_reviewer settings authority 拡張を拒否してください。")
+
+    def add_focus_caller(source: Path) -> None:
+        path = source / ".agents/orchestra/config/settings.yaml"
+        text = path.read_text(encoding="utf-8")
+        marker = "  focus_reviewer:\n"
+        before, focus = text.split(marker, 1)
+        focus = focus.replace("    allowed_callers:\n      - inquisitor", "    allowed_callers:\n      - inquisitor\n      - root", 1)
+        path.write_text(before + marker + focus, encoding="utf-8")
+
+    caller_focus = run_with_mutated_source("focus reviewer caller expanded", add_focus_caller)
+    require("allowed_callers" in (caller_focus.stdout + caller_focus.stderr), "install.py は focus_reviewer caller 拡張を拒否してください。")
+
     missing_controller = run_with_mutated_source("missing quest_sentinel.toml", lambda source: (source / ".codex/agents/quest_sentinel.toml").unlink())
     require("quest_sentinel.toml" in (missing_controller.stdout + missing_controller.stderr), "install.py の quest_sentinel 不足拒否 message は quest_sentinel.toml を示してください。")
 
@@ -688,6 +722,9 @@ def validate_install_upgrade_smoke() -> None:
     missing_queue_schema = run_with_mutated_source("missing queue schema", lambda source: (source / ".agents/orchestra/scripts/queue_schema.sql").unlink())
     require("queue_schema.sql" in (missing_queue_schema.stdout + missing_queue_schema.stderr), "install.py の queue schema 不足拒否 message は queue_schema.sql を示してください。")
 
+    missing_snapshot_helper = run_with_mutated_source("missing snapshot digest helper", lambda source: (source / ".agents/orchestra/scripts/snapshot_digest.py").unlink())
+    require("snapshot_digest.py" in (missing_snapshot_helper.stdout + missing_snapshot_helper.stderr), "install.py の snapshot helper 不足拒否 message は snapshot_digest.py を示してください。")
+
     missing_stop_hook = run_with_mutated_source("missing stop hook", lambda source: (source / ".codex/hooks/stop_quality_gate.sh").unlink())
     require("stop_quality_gate.sh" in (missing_stop_hook.stdout + missing_stop_hook.stderr), "install.py の hook 不足拒否 message は stop_quality_gate.sh を示してください。")
 
@@ -696,6 +733,9 @@ def validate_install_upgrade_smoke() -> None:
 
     missing_sentinel_assignment = run_with_mutated_source("missing quest_sentinel assignment template", lambda source: (source / ".agents/orchestra/queue/templates/quest_sentinel_assignment.yaml").unlink())
     require("quest_sentinel_assignment.yaml" in (missing_sentinel_assignment.stdout + missing_sentinel_assignment.stderr), "install.py の quest_sentinel assignment template 不足拒否 message は quest_sentinel_assignment.yaml を示してください。")
+
+    missing_focus_assignment = run_with_mutated_source("missing focus reviewer assignment template", lambda source: (source / ".agents/orchestra/queue/templates/focus_reviewer_assignment.yaml").unlink())
+    require("focus_reviewer_assignment.yaml" in (missing_focus_assignment.stdout + missing_focus_assignment.stderr), "install.py の focus reviewer assignment template 不足拒否 message は focus_reviewer_assignment.yaml を示してください。")
 
     missing_inbox_script = run_with_mutated_source("missing inbox helper", lambda source: (source / ".agents/orchestra/scripts/inbox_write.sh").unlink())
     require("inbox_write.sh" in (missing_inbox_script.stdout + missing_inbox_script.stderr), "install.py の inbox helper 不足拒否 message は inbox_write.sh を示してください。")

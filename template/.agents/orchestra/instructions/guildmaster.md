@@ -11,6 +11,7 @@ Guild Law と Quest Charter の境界を広げません。
 - Party を分ける単位と、同時編集してはいけない境界を決める
 - 各 Party の authority、boundaries、success criteria を明示する
 - Trial 深度と safety gate を設計する
+- 必要な `focus_reviewer` focus の候補を Trial 方針に含める。追加 reviewer の件数と assignment、report 統合は Trial lead の `inquisitor` が行う
 - Ledger に残す command / 割り当て（assignment）draft の材料を返す
 - command draft には `intent_analysis` と Party ごとの `implementation_strategy` を反映する
 

@@ -26,10 +26,11 @@ Root はすべての依頼をまず Guild intake に通し、`use-guild-workflow
 - `scripts/docker_python.sh`: Docker 内の Python 実行 runner
 - `scripts/queue_db.py`: SQLite Ledger 補助
 - `scripts/queue_audit.py`: SQLite Ledger 監査
+- `scripts/snapshot_digest.py`: `cgo-snapshot-v1` の revision / working-tree / commit-range digest。secret-like path、symlink、repo escape、option-like ref、repo外を参照し得るGit metadata indirectionを読み取り前に拒否する
 - ギルド規約ルート直下の `.orchestra/`: 動的状態
 
 runtime helper はホスト側 Python を直接使いません。
-`queue_db.py`、`queue_audit.py`、`claude_compat.py`、Stop hook は `scripts/docker_python.sh` 経由で Docker 内の Python として実行します。
+`queue_db.py`、`queue_audit.py`、`claude_compat.py`、`snapshot_digest.py`、Stop hook は `scripts/docker_python.sh` 経由で Docker 内の Python として実行します。snapshot helper の `--repo` も runner が明示 mount します。
 
 ## Lifecycle
 
@@ -51,7 +52,8 @@ runtime helper はホスト側 Python を直接使いません。
 - `guildmaster`: `guild_quest` の戦略、party 境界、Command draft
 - `party_leader`: `party_quest` の分解、`implementation_strategy`、割り当て（assignment）、Trial、統合 draft
 - `adventurer`: Quest Charter の範囲内で実装と検証を完遂し、`intent_alignment` を残す実行担当
-- `inquisitor`: Trial を担当し、`intent_coverage` で本質的な成果、non-goals、過剰実装回避を確認する品質担当
+- `inquisitor`: Trial lead / integrator として、`intent_coverage`、reviewer evidence、重大度、finding disposition、最終decisionを統合する品質担当
+- `focus_reviewer`: `inquisitor`から割り当てられた単一focusだけをread-onlyで確認し、bounded evidenceを返すterminal worker
 - `advisor`: focus 限定の read-only 助言担当。terminal worker（終端助言担当）として追加 subagent 起動（追加エージェント起動）、実装、採否、Ledger 反映を行わない
 - `quest_sentinel`: 作業中の `quest_awareness`、confidence、unknowns、verification status を監視し、次アクションだけを推薦する read-only 制御監視担当
 - `courier`: Ledger 反映と、Root または Quest Charter が明示した local Git 操作だけを扱う軽量実行担当

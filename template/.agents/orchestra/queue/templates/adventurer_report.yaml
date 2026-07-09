@@ -41,6 +41,28 @@ report:
     triggers: []
     confidence_threshold_applied: null
     escalation_required: false
+  base_snapshot:
+    snapshot_id: null
+    digest_version: cgo-snapshot-v1
+    kind: null
+    revision_id: null
+    base_ref: null
+    head_ref: null
+    scope_paths: []
+    untracked_paths: []
+    dirty_state: null
+    diff_hash: null
+  result_snapshot:
+    snapshot_id: null
+    digest_version: cgo-snapshot-v1
+    kind: working_tree_content
+    revision_id: null
+    base_ref: null
+    head_ref: null
+    scope_paths: []
+    untracked_paths: []
+    dirty_state: null
+    diff_hash: null
   validation_evidence:
     commands: []
     manual_checks: []
@@ -56,6 +78,8 @@ report:
       - validation_evidence
       - research_evidence
       - risks
+      - base_snapshot
+      - result_snapshot
     missing: []
   research_evidence:
     files_read: []
@@ -73,6 +97,25 @@ report:
   trial_recommendation:
     depth: self_check
     focus: []
+  self_check:
+    considered: true
+    eligible: null
+    owner_validation_attestation: null
+    independent_trial_skip_reason: null
+    escalation_required: null
+    gate_results:
+      single_owned_scope: null
+      low_uncertainty: null
+      low_coupling: null
+      bounded_blast_radius: null
+      no_safety_item: null
+      no_confirmation_needed: null
+      no_public_api_or_data_compatibility_change: null
+      no_scope_drift: null
+      no_blocking_unknown: null
+      targeted_validation_passed: null
+      success_criteria_directly_evidenced: null
+      snapshot_matched: null
   confidence: evidence_limited
   risks: []
   escalations: []

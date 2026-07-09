@@ -16,9 +16,11 @@ from validation.core import ValidationError
 from validation.docs import validate_agents, validate_docs_and_instructions, validate_skills, validate_stop_hook
 from validation.golden_quests import validate_golden_quests
 from validation.install_smoke import validate_install_upgrade_smoke
+from validation.model_selection import validate_model_selection_eval
 from validation.queue_templates import validate_queue_templates
 from validation.runtime_smoke import validate_queue_db_smoke, validate_sqlite_schema
 from validation.settings import validate_settings
+from validation.snapshot_digest import validate_snapshot_digest
 
 
 def main() -> int:
@@ -31,6 +33,8 @@ def main() -> int:
         validate_sqlite_schema,
         validate_queue_db_smoke,
         validate_golden_quests,
+        validate_model_selection_eval,
+        validate_snapshot_digest,
         validate_install_upgrade_smoke,
         validate_claude_compat_smoke,
         validate_agents,

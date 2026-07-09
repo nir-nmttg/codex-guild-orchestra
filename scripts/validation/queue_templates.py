@@ -22,6 +22,7 @@ from .schema_helpers import (
     validate_control_decision,
     validate_dialogue_policy,
     validate_quest_awareness,
+    validate_subject_snapshot,
     validate_percent,
     validate_template_metadata,
 )
@@ -41,10 +42,13 @@ def validate_queue_templates() -> None:
     request_text = read("template/.agents/orchestra/queue/templates/request.yaml")
     require("quest_awareness:" in request_text, "request.yaml example は quest_awareness を含めてください。")
     require("- quest_awareness" in request_text, "request.yaml handoff required_evidence は quest_awareness を含めてください。")
+    require("subject_snapshot:" in request_text and "- subject_snapshot" in request_text, "request.yaml example と handoff は subject_snapshot を含めてください。")
     require("confidence_percent" in request_text and "verification_status" in request_text, "request.yaml quest_awareness example は confidence_percent / verification_status を含めてください。")
+    command_text = read("template/.agents/orchestra/queue/templates/command.yaml")
+    require("subject_snapshot:" in command_text and "cgo-snapshot-v1" in command_text, "command.yaml example は canonical subject_snapshot を含めてください。")
 
     assignment = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/adventurer_assignment.yaml"), "adventurer_assignment").get("assignment"), "adventurer_assignment.assignment")
-    for key in ("id", "quest_id", "rank", "objective", "intent_analysis", "success_criteria", "implementation_strategy", "quest_awareness", "control_decision", "owned_scope", "authority", "boundaries", "autonomy_budget", "research_plan", "validation_expectations", "trial_expectations", "escalation_triggers", "evidence_required", "status"):
+    for key in ("id", "quest_id", "rank", "objective", "intent_analysis", "success_criteria", "implementation_strategy", "quest_awareness", "control_decision", "subject_snapshot", "owned_scope", "authority", "boundaries", "autonomy_budget", "research_plan", "validation_expectations", "trial_expectations", "escalation_triggers", "evidence_required", "status"):
         require(key in assignment, f"adventurer_assignment.assignment.{key} が必要です。")
     assignment_intent = mapping(assignment.get("intent_analysis"), "adventurer_assignment.assignment.intent_analysis")
     require(set(assignment_intent) == INTENT_ANALYSIS_KEYS, "adventurer_assignment.assignment.intent_analysis が期待値と一致しません。")
@@ -52,9 +56,10 @@ def validate_queue_templates() -> None:
     require(set(assignment_strategy) == IMPLEMENTATION_STRATEGY_KEYS, "adventurer_assignment.assignment.implementation_strategy が期待値と一致しません。")
     validate_quest_awareness(assignment.get("quest_awareness"), "adventurer_assignment.assignment.quest_awareness")
     validate_control_decision(assignment.get("control_decision"), "adventurer_assignment.assignment.control_decision")
+    validate_subject_snapshot(assignment.get("subject_snapshot"), "adventurer_assignment.assignment.subject_snapshot")
     assignment_handoff = mapping(assignment.get("handoff_sufficiency"), "adventurer_assignment.assignment.handoff_sufficiency")
     require({"intake_to_charter_confirmed", "charter_to_owner_confirmed", "required_evidence", "missing"} <= set(assignment_handoff), "adventurer_assignment.assignment.handoff_sufficiency が不足しています。")
-    require({"objective", "intent_analysis", "quest_awareness", "implementation_strategy", "owned_scope", "authority", "boundaries", "autonomy_budget", "trial_expectations"} <= set(sequence(assignment_handoff.get("required_evidence"), "adventurer_assignment.assignment.handoff_sufficiency.required_evidence")), "adventurer_assignment handoff required_evidence が不足しています。")
+    require({"objective", "intent_analysis", "quest_awareness", "implementation_strategy", "owned_scope", "authority", "boundaries", "autonomy_budget", "trial_expectations", "subject_snapshot"} <= set(sequence(assignment_handoff.get("required_evidence"), "adventurer_assignment.assignment.handoff_sufficiency.required_evidence")), "adventurer_assignment handoff required_evidence が不足しています。")
     validate_authority(assignment["authority"], "adventurer_assignment.assignment.authority")
     validate_boundaries(assignment["boundaries"], "adventurer_assignment.assignment.boundaries")
     validate_autonomy_budget(assignment["autonomy_budget"], "adventurer_assignment.assignment.autonomy_budget")
@@ -62,12 +67,13 @@ def validate_queue_templates() -> None:
     validate_compat_context(assignment_known_context.get("compat_context"), "adventurer_assignment.assignment.known_context.compat_context")
 
     cartographer_assignment = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/cartographer_assignment.yaml"), "cartographer_assignment").get("assignment"), "cartographer_assignment.assignment")
-    for key in ("id", "quest_id", "worker_id", "role", "kind", "rank", "objective", "intent_analysis", "success_criteria", "non_goals", "focus", "quest_awareness", "control_decision", "authority", "boundaries", "known_context", "autonomy_budget", "research_plan", "advisor_consultation", "output_requirements", "escalation_triggers", "evidence_required", "status"):
+    for key in ("id", "quest_id", "worker_id", "role", "kind", "rank", "objective", "intent_analysis", "success_criteria", "non_goals", "focus", "quest_awareness", "control_decision", "subject_snapshot", "authority", "boundaries", "known_context", "autonomy_budget", "research_plan", "advisor_consultation", "output_requirements", "escalation_triggers", "evidence_required", "status"):
         require(key in cartographer_assignment, f"cartographer_assignment.assignment.{key} が必要です。")
     cartographer_intent = mapping(cartographer_assignment.get("intent_analysis"), "cartographer_assignment.assignment.intent_analysis")
     require(set(cartographer_intent) == INTENT_ANALYSIS_KEYS, "cartographer_assignment.assignment.intent_analysis が期待値と一致しません。")
     validate_quest_awareness(cartographer_assignment.get("quest_awareness"), "cartographer_assignment.assignment.quest_awareness")
     validate_control_decision(cartographer_assignment.get("control_decision"), "cartographer_assignment.assignment.control_decision")
+    validate_subject_snapshot(cartographer_assignment.get("subject_snapshot"), "cartographer_assignment.assignment.subject_snapshot")
     require(cartographer_assignment["worker_id"] == "cartographer", "cartographer_assignment.assignment.worker_id は cartographer にしてください。")
     require(cartographer_assignment["kind"] == "mapmaking", "cartographer_assignment.assignment.kind は mapmaking にしてください。")
     require(cartographer_assignment["rank"] == "mapmaking", "cartographer_assignment.assignment.rank は mapmaking にしてください。")
@@ -93,7 +99,7 @@ def validate_queue_templates() -> None:
     require(cartographer_advisor.get("skip_reason_required_when_not_used") is True, "cartographer advisor を使わない時は理由を必須にしてください。")
 
     advisor_assignment = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/advisor_assignment.yaml"), "advisor_assignment").get("assignment"), "advisor_assignment.assignment")
-    for key in ("id", "quest_id", "parent_id", "worker_id", "role", "kind", "owner_worker_id", "owner_assignment_id", "objective", "focus", "dialogue_policy", "decision_authority", "terminal_worker", "owner_synthesis_required", "authority", "boundaries", "autonomy_budget", "research_plan", "escalation_triggers", "evidence_required", "status"):
+    for key in ("id", "quest_id", "parent_id", "worker_id", "role", "kind", "owner_worker_id", "owner_assignment_id", "objective", "focus", "dialogue_policy", "decision_authority", "terminal_worker", "owner_synthesis_required", "subject_snapshot", "authority", "boundaries", "autonomy_budget", "research_plan", "escalation_triggers", "evidence_required", "status"):
         require(key in advisor_assignment, f"advisor_assignment.assignment.{key} が必要です。")
     require(advisor_assignment["worker_id"] == "advisor", "advisor_assignment.assignment.worker_id は advisor にしてください。")
     require(advisor_assignment["decision_authority"] is False, "advisor_assignment.assignment.decision_authority は false にしてください。")
@@ -101,6 +107,7 @@ def validate_queue_templates() -> None:
     require(advisor_assignment["owner_synthesis_required"] is True, "advisor_assignment.assignment.owner_synthesis_required は true にしてください。")
     dialogue_policy = mapping(advisor_assignment["dialogue_policy"], "advisor_assignment.assignment.dialogue_policy")
     validate_dialogue_policy(dialogue_policy, "advisor_assignment.assignment.dialogue_policy")
+    validate_subject_snapshot(advisor_assignment.get("subject_snapshot"), "advisor_assignment.assignment.subject_snapshot")
     for key in ("confidence_target_percent", "confidence_delta_min_percent"):
         validate_percent(dialogue_policy.get(key), f"advisor_assignment.assignment.dialogue_policy.{key}")
     validate_authority(advisor_assignment["authority"], "advisor_assignment.assignment.authority")
@@ -111,8 +118,46 @@ def validate_queue_templates() -> None:
     advisor_known_context = mapping(advisor_assignment.get("known_context"), "advisor_assignment.assignment.known_context")
     validate_compat_context(advisor_known_context.get("compat_context"), "advisor_assignment.assignment.known_context.compat_context")
 
+    focus_assignment = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/focus_reviewer_assignment.yaml"), "focus_reviewer_assignment").get("assignment"), "focus_reviewer_assignment.assignment")
+    for key in ("id", "quest_id", "trial_id", "worker_id", "owner_worker_id", "caller_lineage", "reviewer_index", "role", "focus", "subject_snapshot", "terminal_worker", "decision_authority", "severity_authority", "owner_synthesis_required", "authority", "boundaries", "autonomy_budget", "evidence_required", "forbidden", "status"):
+        require(key in focus_assignment, f"focus_reviewer_assignment.assignment.{key} が必要です。")
+    require(focus_assignment.get("worker_id") == "focus_reviewer" and focus_assignment.get("owner_worker_id") == "inquisitor", "focus_reviewer assignment は inquisitor から focus_reviewer へ渡してください。")
+    require(focus_assignment.get("role") == "bounded_trial_focus_reviewer", "focus_reviewer assignment role が不正です。")
+    require(focus_assignment.get("terminal_worker") is True, "focus_reviewer は terminal worker にしてください。")
+    require(focus_assignment.get("decision_authority") is False and focus_assignment.get("severity_authority") is False, "focus_reviewer に decision / severity authority を与えないでください。")
+    require(focus_assignment.get("owner_synthesis_required") is True, "focus_reviewer report は inquisitor synthesis を必須にしてください。")
+    caller_lineage = mapping(focus_assignment.get("caller_lineage"), "focus_reviewer_assignment.assignment.caller_lineage")
+    require(caller_lineage == {"enforcement": "policy_only_with_queue_lineage", "required_parent_role": "inquisitor", "trial_owner_worker_id": "inquisitor", "trial_ref": None, "verification": None}, "focus_reviewer caller lineage policy が不正です。")
+    validate_authority(focus_assignment.get("authority"), "focus_reviewer_assignment.assignment.authority")
+    focus_authority = mapping(focus_assignment.get("authority"), "focus_reviewer_assignment.assignment.authority")
+    require(focus_authority == {"read": True, "edit": False, "validate": True, "local_git": False, "external_actions": False}, "focus_reviewer authority は read / non-mutating validate だけにしてください。")
+    validate_boundaries(focus_assignment.get("boundaries"), "focus_reviewer_assignment.assignment.boundaries")
+    validate_autonomy_budget(focus_assignment.get("autonomy_budget"), "focus_reviewer_assignment.assignment.autonomy_budget")
+    focus_budget = mapping(focus_assignment.get("autonomy_budget"), "focus_reviewer_assignment.assignment.autonomy_budget")
+    require(focus_budget.get("subassignments") == 0, "focus_reviewer は追加 subagent を起動できません。")
+    validate_subject_snapshot(focus_assignment.get("subject_snapshot"), "focus_reviewer_assignment.assignment.subject_snapshot")
+    forbidden = set(sequence(focus_assignment.get("forbidden"), "focus_reviewer_assignment.assignment.forbidden"))
+    require({"focus_expansion", "implementation", "final_decision", "final_severity", "requested_changes", "owner_synthesis", "recursive_subagent", "ledger_write", "git_write", "external_action"} <= forbidden, "focus_reviewer forbidden 契約が不足しています。")
+
+    focus_report = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/focus_reviewer_report.yaml"), "focus_reviewer_report").get("report"), "focus_reviewer_report.report")
+    for key in ("id", "quest_id", "trial_id", "assignment_id", "worker_id", "owner_worker_id", "caller_lineage_check", "focus", "subject_snapshot", "snapshot_check", "terminal_worker", "decision_authority", "severity_authority", "synthesis_authority", "summary", "finding_candidates", "evidence", "unknowns", "residual_risks", "authority_compliance", "evidence_refs", "status"):
+        require(key in focus_report, f"focus_reviewer_report.report.{key} が必要です。")
+    require(focus_report.get("worker_id") == "focus_reviewer" and focus_report.get("owner_worker_id") == "inquisitor", "focus_reviewer report は inquisitor に返してください。")
+    require(focus_report.get("terminal_worker") is True, "focus_reviewer report は terminal worker 契約を維持してください。")
+    for key in ("decision_authority", "severity_authority", "synthesis_authority"):
+        require(focus_report.get(key) is False, f"focus_reviewer_report.report.{key} は false にしてください。")
+    caller_check = mapping(focus_report.get("caller_lineage_check"), "focus_reviewer_report.report.caller_lineage_check")
+    require(set(caller_check) == {"enforcement", "required_parent_role", "trial_owner_worker_id", "trial_ref", "verified", "status"}, "focus_reviewer caller_lineage_check が不正です。")
+    require(caller_check.get("enforcement") == "policy_only_with_queue_lineage" and caller_check.get("required_parent_role") == "inquisitor" and caller_check.get("trial_owner_worker_id") == "inquisitor", "focus_reviewer caller lineage は policy-only inquisitor contract にしてください。")
+    validate_subject_snapshot(focus_report.get("subject_snapshot"), "focus_reviewer_report.report.subject_snapshot")
+    snapshot_check = mapping(focus_report.get("snapshot_check"), "focus_reviewer_report.report.snapshot_check")
+    require(set(snapshot_check) == {"start_match", "report_match", "status"}, "focus_reviewer snapshot_check が不正です。")
+    require(snapshot_check.get("status") in {None, "matched", "stale_evidence", "invalid_assignment"}, "focus_reviewer snapshot_check.status が不正です。")
+    compliance = mapping(focus_report.get("authority_compliance"), "focus_reviewer_report.report.authority_compliance")
+    require(compliance == {"focus_stayed_bounded": True, "read_only": True, "budget_respected": True, "recursive_subagent_spawned": False}, "focus_reviewer authority compliance が不正です。")
+
     sentinel_assignment = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml"), "quest_sentinel_assignment").get("assignment"), "quest_sentinel_assignment.assignment")
-    for key in ("id", "quest_id", "parent_id", "owner_assignment_id", "owner_worker_id", "worker_id", "role", "kind", "control_trigger", "objective", "quest_awareness", "control_decision", "decision_authority", "terminal_worker", "output_contract", "authority", "boundaries", "autonomy_budget", "research_plan", "escalation_triggers", "evidence_required", "status"):
+    for key in ("id", "quest_id", "parent_id", "owner_assignment_id", "owner_worker_id", "worker_id", "role", "kind", "control_trigger", "objective", "quest_awareness", "control_decision", "subject_snapshot", "decision_authority", "terminal_worker", "output_contract", "authority", "boundaries", "autonomy_budget", "research_plan", "escalation_triggers", "evidence_required", "status"):
         require(key in sentinel_assignment, f"quest_sentinel_assignment.assignment.{key} が必要です。")
     require(sentinel_assignment["worker_id"] == "quest_sentinel", "quest_sentinel_assignment.assignment.worker_id は quest_sentinel にしてください。")
     require(sentinel_assignment["kind"] == "quest_awareness_control_monitor", "quest_sentinel_assignment.assignment.kind は quest_awareness_control_monitor にしてください。")
@@ -121,6 +166,7 @@ def validate_queue_templates() -> None:
     require("owner_assignment_id" in sentinel_assignment and "control_trigger" in sentinel_assignment, "quest_sentinel assignment は owner_assignment_id と control_trigger で identity を持ってください。")
     validate_quest_awareness(sentinel_assignment.get("quest_awareness"), "quest_sentinel_assignment.assignment.quest_awareness")
     validate_control_decision(sentinel_assignment.get("control_decision"), "quest_sentinel_assignment.assignment.control_decision")
+    validate_subject_snapshot(sentinel_assignment.get("subject_snapshot"), "quest_sentinel_assignment.assignment.subject_snapshot")
     output_contract = mapping(sentinel_assignment.get("output_contract"), "quest_sentinel_assignment.assignment.output_contract")
     require(output_contract.get("quest_awareness_only") is True and output_contract.get("control_decision_only") is True and output_contract.get("hidden_reasoning_allowed") is False, "quest_sentinel output は quest_awareness / control_decision のみにしてください。")
     validate_authority(sentinel_assignment["authority"], "quest_sentinel_assignment.assignment.authority")
@@ -130,12 +176,14 @@ def validate_queue_templates() -> None:
     validate_autonomy_budget(sentinel_assignment["autonomy_budget"], "quest_sentinel_assignment.assignment.autonomy_budget")
 
     trial = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/inquisitor_trial.yaml"), "inquisitor_trial").get("trial"), "inquisitor_trial.trial")
-    for key in ("id", "quest_id", "depth", "focus", "objective", "intent_analysis", "success_criteria", "quest_awareness", "control_decision", "authority", "boundaries", "trial_checks", "depth_guardrails", "autonomy_budget", "research_plan", "decision_options", "evidence_required", "status"):
+    for key in ("id", "quest_id", "role", "depth", "focus", "objective", "intent_analysis", "success_criteria", "quest_awareness", "control_decision", "subject_snapshot", "authority", "boundaries", "trial_checks", "depth_guardrails", "autonomy_budget", "research_plan", "decision_options", "evidence_required", "status"):
         require(key in trial, f"inquisitor_trial.trial.{key} が必要です。")
     trial_intent = mapping(trial.get("intent_analysis"), "inquisitor_trial.trial.intent_analysis")
     require(set(trial_intent) == INTENT_ANALYSIS_KEYS, "inquisitor_trial.trial.intent_analysis が期待値と一致しません。")
     validate_quest_awareness(trial.get("quest_awareness"), "inquisitor_trial.trial.quest_awareness")
     validate_control_decision(trial.get("control_decision"), "inquisitor_trial.trial.control_decision")
+    require(trial.get("role") == "trial_lead_integrator", "inquisitor_trial.trial.role は trial_lead_integrator にしてください。")
+    validate_subject_snapshot(trial.get("subject_snapshot"), "inquisitor_trial.trial.subject_snapshot")
     validate_authority(trial["authority"], "inquisitor_trial.trial.authority")
     validate_boundaries(trial["boundaries"], "inquisitor_trial.trial.boundaries")
     validate_autonomy_budget(trial["autonomy_budget"], "inquisitor_trial.trial.autonomy_budget")
@@ -160,10 +208,11 @@ def validate_queue_templates() -> None:
     require(focus_advisors.get("skip_reason_required_when_not_used") is True, "focus advisor を使わない時は理由を必須にしてください。")
     require("skip_reason" in focus_advisors, "focus advisor を使わない理由欄が必要です。")
     focus_reviewers = mapping(trial.get("focus_reviewers"), "inquisitor_trial.trial.focus_reviewers")
-    require(set(focus_reviewers) == {"count_decision_required", "reviewer_count", "max_reviewers_bound_by", "selection_inputs", "light_change_reviewer_range", "multi_reviewer_allowed_for", "assignments", "consumes_autonomy_budget", "shared_budget_rule", "focus_split_required_when_multiple", "read_only_required", "owner_synthesis_required", "finding_disposition_required", "skip_reason_required_when_not_used", "cost_reason_required", "cost_reason_required_always", "skip_reason", "cost_reason"}, "focus_reviewers は reviewer 数判断と shared budget / evidence 契約にしてください。")
+    require(set(focus_reviewers) == {"count_decision_required", "worker_role", "reviewer_count", "max_reviewers_bound_by", "selection_inputs", "light_change_reviewer_range", "multi_reviewer_allowed_for", "assignments", "consumes_autonomy_budget", "shared_budget_rule", "focus_split_required_when_multiple", "read_only_required", "owner_synthesis_required", "finding_disposition_required", "skip_reason_required_when_not_used", "cost_reason_required", "cost_reason_required_always", "skip_reason", "cost_reason"}, "focus_reviewers は reviewer role、数判断、shared budget / evidence 契約にしてください。")
     require(focus_reviewers.get("count_decision_required") is True, "focus reviewer 数の判断を必須にしてください。")
+    require(focus_reviewers.get("worker_role") == "focus_reviewer", "追加 reviewer は focus_reviewer role にしてください。")
     require(focus_reviewers.get("reviewer_count") is None, "focus_reviewers.reviewer_count は draft で null にしてください。")
-    require({"workers.inquisitor.max_parallel", "autonomy_budget.subassignments"} == set(sequence(focus_reviewers.get("max_reviewers_bound_by"), "inquisitor_trial.trial.focus_reviewers.max_reviewers_bound_by")), "focus reviewer 上限が不足しています。")
+    require({"workers.focus_reviewer.max_parallel", "autonomy_budget.subassignments"} == set(sequence(focus_reviewers.get("max_reviewers_bound_by"), "inquisitor_trial.trial.focus_reviewers.max_reviewers_bound_by")), "focus reviewer 上限が不足しています。")
     require({"risk", "focus", "blast_radius", "coupling", "validation_result", "confidence", "cost"} <= set(sequence(focus_reviewers.get("selection_inputs"), "inquisitor_trial.trial.focus_reviewers.selection_inputs")), "focus reviewer selection_inputs が不足しています。")
     require(focus_reviewers.get("light_change_reviewer_range") == "additional reviewer 0..1", "軽微な変更は追加 reviewer 0..1 にしてください。")
     settings_focus_policy = mapping(mapping(load_yaml("template/.agents/orchestra/config/settings.yaml"), "settings.yaml").get("trial"), "settings.trial").get("focus_reviewer_policy")
@@ -190,7 +239,7 @@ def validate_queue_templates() -> None:
     require(safety_gate_guardrail.get("if_evidence_is_missing") == "needs_human", "safety_gate の evidence 不足時は needs_human にしてください。")
 
     cartographer_report = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/cartographer_report.yaml"), "cartographer_report").get("report"), "cartographer_report.report")
-    for key in ("id", "quest_id", "assignment_id", "worker_id", "target_repo_root", "status", "summary", "objective", "intent_analysis", "success_criteria", "terrain_map", "recommended_implementation_strategy", "quest_awareness", "control_decision", "risk_zones", "recommended_quest_rank", "recommended_party_tactics", "recommended_trial", "advisor_usage", "advisor_synthesis", "unknowns", "research_evidence", "confidence", "risks", "evidence_refs"):
+    for key in ("id", "quest_id", "assignment_id", "worker_id", "target_repo_root", "status", "summary", "objective", "intent_analysis", "success_criteria", "terrain_map", "recommended_implementation_strategy", "quest_awareness", "control_decision", "subject_snapshot", "risk_zones", "recommended_quest_rank", "recommended_party_tactics", "recommended_trial", "advisor_usage", "advisor_synthesis", "unknowns", "research_evidence", "confidence", "risks", "evidence_refs"):
         require(key in cartographer_report, f"cartographer_report.report.{key} が必要です。")
     cartographer_report_intent = mapping(cartographer_report.get("intent_analysis"), "cartographer_report.report.intent_analysis")
     require(set(cartographer_report_intent) == INTENT_ANALYSIS_KEYS, "cartographer_report.report.intent_analysis が期待値と一致しません。")
@@ -198,6 +247,7 @@ def validate_queue_templates() -> None:
     require(set(cartographer_strategy) == IMPLEMENTATION_STRATEGY_KEYS, "cartographer_report.report.recommended_implementation_strategy が期待値と一致しません。")
     validate_quest_awareness(cartographer_report.get("quest_awareness"), "cartographer_report.report.quest_awareness")
     validate_control_decision(cartographer_report.get("control_decision"), "cartographer_report.report.control_decision")
+    validate_subject_snapshot(cartographer_report.get("subject_snapshot"), "cartographer_report.report.subject_snapshot")
     require(cartographer_report["worker_id"] == "cartographer", "cartographer_report.report.worker_id は cartographer にしてください。")
     terrain_map = mapping(cartographer_report["terrain_map"], "cartographer_report.report.terrain_map")
     require(set(terrain_map) == {"existing_structure", "relevant_paths", "dependencies", "candidate_routes"}, "cartographer_report.report.terrain_map が期待値と一致しません。")
@@ -220,14 +270,23 @@ def validate_queue_templates() -> None:
         validate_quest_awareness(report.get("quest_awareness"), f"{rel}.report.quest_awareness")
         validate_control_decision(report.get("control_decision"), f"{rel}.report.control_decision")
         if rel.endswith("adventurer_report.yaml"):
+            validate_subject_snapshot(report.get("base_snapshot"), f"{rel}.report.base_snapshot")
+            validate_subject_snapshot(report.get("result_snapshot"), f"{rel}.report.result_snapshot")
+            self_check = mapping(report.get("self_check"), f"{rel}.report.self_check")
+            require(set(self_check) == {"considered", "eligible", "owner_validation_attestation", "independent_trial_skip_reason", "escalation_required", "gate_results"}, f"{rel}.report.self_check が不正です。")
+            require(self_check.get("considered") is True and self_check.get("eligible") is None and self_check.get("owner_validation_attestation") is None, f"{rel}.report.self_check はdraftで判断を先取りしないでください。")
+            self_check_gates = mapping(self_check.get("gate_results"), f"{rel}.report.self_check.gate_results")
+            require(set(self_check_gates) == {"single_owned_scope", "low_uncertainty", "low_coupling", "bounded_blast_radius", "no_safety_item", "no_confirmation_needed", "no_public_api_or_data_compatibility_change", "no_scope_drift", "no_blocking_unknown", "targeted_validation_passed", "success_criteria_directly_evidenced", "snapshot_matched"}, f"{rel}.report.self_check.gate_results が不足しています。")
+            require(all(value is None for value in self_check_gates.values()), f"{rel}.report.self_check.gate_results はdraftでnullにしてください。")
             intent_alignment = mapping(report.get("intent_alignment"), f"{rel}.report.intent_alignment")
             require(set(intent_alignment) == INTENT_ALIGNMENT_KEYS, f"{rel}.report.intent_alignment が期待値と一致しません。")
             handoff = mapping(report.get("handoff_sufficiency"), f"{rel}.report.handoff_sufficiency")
             require({"owner_to_trial_ready", "required_evidence", "missing"} <= set(handoff), f"{rel}.report.handoff_sufficiency が不足しています。")
-            require({"changed_files", "decisions_made", "intent_alignment", "quest_awareness", "control_decision", "validation_evidence", "research_evidence", "risks"} <= set(sequence(handoff.get("required_evidence"), f"{rel}.report.handoff_sufficiency.required_evidence")), f"{rel}.report.handoff_sufficiency.required_evidence が不足しています。")
+            require({"changed_files", "decisions_made", "intent_alignment", "quest_awareness", "control_decision", "validation_evidence", "research_evidence", "risks", "base_snapshot", "result_snapshot"} <= set(sequence(handoff.get("required_evidence"), f"{rel}.report.handoff_sufficiency.required_evidence")), f"{rel}.report.handoff_sufficiency.required_evidence が不足しています。")
         report_research = mapping(report.get("research_evidence"), f"{rel}.report.research_evidence")
         validate_compat_context(report_research.get("compat_context"), f"{rel}.report.research_evidence.compat_context")
         if rel.endswith("inquisitor_report.yaml"):
+            validate_subject_snapshot(report.get("subject_snapshot"), f"{rel}.report.subject_snapshot")
             intent_coverage = mapping(report.get("intent_coverage"), f"{rel}.report.intent_coverage")
             require(set(intent_coverage) == INTENT_COVERAGE_REPORT_KEYS, f"{rel}.report.intent_coverage が期待値と一致しません。")
             advisor_usage = mapping(report.get("advisor_usage"), f"{rel}.report.advisor_usage")
@@ -238,10 +297,11 @@ def validate_queue_templates() -> None:
             require(advisor_usage.get("used") is None, f"{rel}.report.advisor_usage.used は draft で採否を先取りしないでください。")
             require(advisor_usage.get("skip_reason_required_when_not_used") is True, f"{rel}.report.advisor_usage.skip_reason_required_when_not_used は true にしてください。")
             reviewer_usage = mapping(report.get("reviewer_usage"), f"{rel}.report.reviewer_usage")
-            require(set(reviewer_usage) == {"count_decision_required", "reviewer_count", "max_reviewers_bound_by", "selection_inputs", "light_change_reviewer_range", "multi_reviewer_used", "consumes_autonomy_budget", "shared_budget_rule", "focus_split", "read_only_confirmed", "owner_synthesis_required", "finding_disposition_required", "skip_reason_required_when_not_used", "cost_reason_required", "cost_reason_required_always", "skip_reason", "cost_reason"}, f"{rel}.report.reviewer_usage は reviewer 数判断と shared budget / evidence 契約にしてください。")
+            require(set(reviewer_usage) == {"count_decision_required", "worker_role", "reviewer_count", "max_reviewers_bound_by", "selection_inputs", "light_change_reviewer_range", "multi_reviewer_used", "consumes_autonomy_budget", "shared_budget_rule", "focus_split", "read_only_confirmed", "owner_synthesis_required", "finding_disposition_required", "skip_reason_required_when_not_used", "cost_reason_required", "cost_reason_required_always", "skip_reason", "cost_reason"}, f"{rel}.report.reviewer_usage は reviewer role、数判断、shared budget / evidence 契約にしてください。")
             require(reviewer_usage.get("count_decision_required") is True, f"{rel}.report.reviewer_usage.count_decision_required は true にしてください。")
+            require(reviewer_usage.get("worker_role") == "focus_reviewer", f"{rel}.report.reviewer_usage.worker_role は focus_reviewer にしてください。")
             require(reviewer_usage.get("reviewer_count") is None, f"{rel}.report.reviewer_usage.reviewer_count は draft で null にしてください。")
-            require({"workers.inquisitor.max_parallel", "autonomy_budget.subassignments"} == set(sequence(reviewer_usage.get("max_reviewers_bound_by"), f"{rel}.report.reviewer_usage.max_reviewers_bound_by")), f"{rel}.report.reviewer_usage.max_reviewers_bound_by が不足しています。")
+            require({"workers.focus_reviewer.max_parallel", "autonomy_budget.subassignments"} == set(sequence(reviewer_usage.get("max_reviewers_bound_by"), f"{rel}.report.reviewer_usage.max_reviewers_bound_by")), f"{rel}.report.reviewer_usage.max_reviewers_bound_by が不足しています。")
             reviewer_inputs = mapping(reviewer_usage.get("selection_inputs"), f"{rel}.report.reviewer_usage.selection_inputs")
             require({"risk", "focus", "blast_radius", "coupling", "validation_result", "confidence", "cost"} <= set(reviewer_inputs), f"{rel}.report.reviewer_usage.selection_inputs が不足しています。")
             require(reviewer_usage.get("light_change_reviewer_range") == "additional reviewer 0..1", f"{rel}.report.reviewer_usage.light_change_reviewer_range は additional reviewer 0..1 にしてください。")
@@ -263,14 +323,15 @@ def validate_queue_templates() -> None:
                 require(key in dialogue_synthesis, f"{rel}.report.advisor_dialogue_synthesis.{key} が必要です。")
             handoff = mapping(report.get("handoff_sufficiency"), f"{rel}.report.handoff_sufficiency")
             require({"trial_to_ledger_final_ready", "required_evidence", "missing"} <= set(handoff), f"{rel}.report.handoff_sufficiency が不足しています。")
-            require({"decision", "findings", "intent_coverage", "quest_awareness", "control_decision", "validation_evidence", "advisor_dialogue_synthesis", "reviewer_synthesis", "finding_dispositions", "risks"} <= set(sequence(handoff.get("required_evidence"), f"{rel}.report.handoff_sufficiency.required_evidence")), f"{rel}.report.handoff_sufficiency.required_evidence が不足しています。")
+            require({"decision", "findings", "intent_coverage", "quest_awareness", "control_decision", "validation_evidence", "advisor_dialogue_synthesis", "reviewer_synthesis", "finding_dispositions", "risks", "subject_snapshot"} <= set(sequence(handoff.get("required_evidence"), f"{rel}.report.handoff_sufficiency.required_evidence")), f"{rel}.report.handoff_sufficiency.required_evidence が不足しています。")
     advisor_report = mapping(mapping(load_yaml("template/.agents/orchestra/queue/templates/advisor_report.yaml"), "advisor_report").get("report"), "advisor_report.report")
-    for key in ("id", "quest_id", "assignment_id", "worker_id", "owner_worker_id", "status", "decision_authority", "terminal_worker", "owner_synthesis_required", "summary", "focus", "findings", "risks", "unknowns", "confidence_percent", "confidence_basis", "confidence_delta_percent", "new_evidence_refs", "blocking_unknowns_resolved", "blocking_unknowns_remaining", "recommended_next_focus", "research_evidence", "confidence", "evidence_refs"):
+    for key in ("id", "quest_id", "assignment_id", "worker_id", "owner_worker_id", "status", "decision_authority", "terminal_worker", "owner_synthesis_required", "subject_snapshot", "summary", "focus", "findings", "risks", "unknowns", "confidence_percent", "confidence_basis", "confidence_delta_percent", "new_evidence_refs", "blocking_unknowns_resolved", "blocking_unknowns_remaining", "recommended_next_focus", "research_evidence", "confidence", "evidence_refs"):
         require(key in advisor_report, f"advisor_report.report.{key} が必要です。")
     require(advisor_report["worker_id"] == "advisor", "advisor_report.report.worker_id は advisor にしてください。")
     require(advisor_report["decision_authority"] is False, "advisor_report.report.decision_authority は false にしてください。")
     require(advisor_report["terminal_worker"] is True, "advisor_report.report.terminal_worker は true にしてください。")
     require(advisor_report["owner_synthesis_required"] is True, "advisor_report.report.owner_synthesis_required は true にしてください。")
+    validate_subject_snapshot(advisor_report.get("subject_snapshot"), "advisor_report.report.subject_snapshot")
     confidence_basis = mapping(advisor_report["confidence_basis"], "advisor_report.report.confidence_basis")
     require(set(confidence_basis) == {"verified_findings", "validation_evidence", "unresolved_risks", "blocking_unknowns"}, "advisor_report.report.confidence_basis が期待値と一致しません。")
     advisor_research = mapping(advisor_report.get("research_evidence"), "advisor_report.report.research_evidence")

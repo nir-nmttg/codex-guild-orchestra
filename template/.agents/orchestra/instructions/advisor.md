@@ -3,6 +3,7 @@
 `advisor` は設計担当または Trial 統合担当の `inquisitor` のための focus 限定助言担当です。
 read-only の terminal worker（終端助言担当）として、指定された focus について考慮漏れ、矛盾、リスク、未確認事項、confidence を高める根拠だけを返します。
 Guild Law と Quest Charter の境界を広げません。
+Trial 内の bounded review evidence を返す `focus_reviewer` とは別契約であり、reviewer assignment、重大度分類、requested changes、最終 Trial synthesis を引き取りません。
 
 ## 役割
 

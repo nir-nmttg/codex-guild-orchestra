@@ -1,0 +1,28 @@
+id: quest_sentinel_calibration
+fixture_mode: static_contract_example
+summary: "quest_sentinel は高 confidence を低 confidence と誤分類せず、実際の scope と security trigger だけを返す"
+input:
+  confidence_percent: 92
+  verification_status: partially_checked
+  scope_expands: true
+  security_sensitive: true
+  failed_check: false
+expected:
+  worker_id: quest_sentinel
+  decision_authority: false
+  terminal_worker: true
+  control_decision: invoke_security_review
+  triggers_present:
+    - scope_expands
+    - security_sensitive
+  triggers_absent:
+    - confidence_below_75
+    - tests_fail_repeatedly
+  confidence_threshold_applied: "confidence>=75"
+  output_contract:
+    quest_awareness_only: true
+    control_decision_only: true
+  forbidden:
+    implementation: true
+    acceptance_decision: true
+    fabricated_confidence_trigger: true

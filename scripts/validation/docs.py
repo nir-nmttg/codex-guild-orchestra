@@ -32,6 +32,7 @@ EXPECTED_AGENT_SANDBOX_MODES = {
     "advisor": "read-only",
     "cartographer": "read-only",
     "courier": "workspace-write",
+    "focus_reviewer": "read-only",
     "guildmaster": "read-only",
     "inquisitor": "read-only",
     "quest_sentinel": "read-only",
@@ -42,6 +43,7 @@ EXPECTED_AGENT_MODEL_CONFIGS = {
     "advisor": ("gpt-5.6-luna", "high"),
     "cartographer": ("gpt-5.6-terra", "high"),
     "courier": ("gpt-5.3-codex-spark", "xhigh"),
+    "focus_reviewer": ("gpt-5.6-terra", "high"),
     "guildmaster": ("gpt-5.6-sol", "xhigh"),
     "inquisitor": ("gpt-5.6-sol", "high"),
     "quest_sentinel": ("gpt-5.6-luna", "high"),
@@ -98,6 +100,7 @@ ROLE_INSTRUCTION_REFS = {
     "adventurer": ".agents/orchestra/instructions/adventurer.md",
     "advisor": ".agents/orchestra/instructions/advisor.md",
     "cartographer": ".agents/orchestra/instructions/cartographer.md",
+    "focus_reviewer": ".agents/orchestra/instructions/focus_reviewer.md",
     "guildmaster": ".agents/orchestra/instructions/guildmaster.md",
     "inquisitor": ".agents/orchestra/instructions/inquisitor.md",
     "party_leader": ".agents/orchestra/instructions/party_leader.md",
@@ -185,14 +188,16 @@ def validate_agents() -> None:
     for token in LEGACY_ROUTE_COMMENT_TERMS:
         require(token not in config_text, f"template/.codex/config.toml に旧固定 route コメント `{token}` を戻さないでください。")
     require("mapmaking" in config_text and "guild_quest" in config_text and "advisor" in config_text and "terminal worker" in config_text and "quest_sentinel" in config_text, "template/.codex/config.toml の agent コメントは Quest Rank と advisor / quest_sentinel 境界を説明してください。")
-    require_tokens(config_text, ("focus reviewer", "workers.inquisitor.max_parallel", "autonomy_budget.subassignments"), "template/.codex/config.toml")
+    require_tokens(config_text, ("focus reviewer", "workers.focus_reviewer.max_parallel", "autonomy_budget.subassignments"), "template/.codex/config.toml")
     advisor = tomllib.loads(read("template/.codex/agents/advisor.toml"))
     advisor_text = read("template/.codex/agents/advisor.toml")
     require(advisor.get("sandbox_mode") == "read-only", "advisor.toml の sandbox_mode は read-only にしてください。")
+    require(mapping(advisor.get("features"), "advisor.toml.features").get("multi_agent") is False, "advisor terminal worker は multi_agent を無効にしてください。")
     require_tokens(advisor_text, ("terminal worker", "追加 subagent", "実装", "採否", "Ledger", "owner synthesis", "Guild Law", "confidence-based", "confidence delta", "同じ unknown", "owner が根拠確認"), "template/.codex/agents/advisor.toml")
     controller = tomllib.loads(read("template/.codex/agents/quest_sentinel.toml"))
     controller_text = read("template/.codex/agents/quest_sentinel.toml")
     require(controller.get("sandbox_mode") == "read-only", "quest_sentinel.toml の sandbox_mode は read-only にしてください。")
+    require(mapping(controller.get("features"), "quest_sentinel.toml.features").get("multi_agent") is False, "quest_sentinel terminal worker は multi_agent を無効にしてください。")
     require_tokens(
         controller_text,
         ("quest_awareness", "unknowns", "assumptions", "confidence", "verification status", "control signal", "実装", "採否", "Ledger", "Git 操作", "外部送信", "75%", "50%", "first failure", "security-sensitive", "control_decision", "rationale", "required_next_action", "escalation_required"),
@@ -207,6 +212,9 @@ def validate_agents() -> None:
     guildmaster_text = read("template/.codex/agents/guildmaster.toml")
     require_tokens(guildmaster_text, ("intent_analysis", "implementation_strategy", "Party"), "template/.codex/agents/guildmaster.toml")
     inquisitor = read("template/.codex/agents/inquisitor.toml")
+    focus_reviewer = read("template/.codex/agents/focus_reviewer.toml")
+    focus_reviewer_data = tomllib.loads(focus_reviewer)
+    require(mapping(focus_reviewer_data.get("features"), "focus_reviewer.toml.features").get("multi_agent") is False, "focus_reviewer terminal worker は multi_agent を無効にしてください。")
     courier = tomllib.loads(read("template/.codex/agents/courier.toml"))
     courier_text = read("template/.codex/agents/courier.toml")
     require_tokens(
@@ -255,11 +263,28 @@ def validate_agents() -> None:
             "owner confidence",
             "focus reviewer",
             "追加 reviewer 0..1",
-            "workers.inquisitor.max_parallel",
+            "workers.focus_reviewer.max_parallel",
             "cost reason",
             "finding disposition",
         ),
         "template/.codex/agents/inquisitor.toml",
+    )
+    require_tokens(
+        focus_reviewer,
+        (
+            "単一 focus",
+            "terminal worker",
+            "read-only",
+            "inquisitor",
+            "authority",
+            "boundaries",
+            "autonomy_budget",
+            "採否",
+            "重大度分類",
+            "最終 owner synthesis",
+            "追加 subagent 起動",
+        ),
+        "template/.codex/agents/focus_reviewer.toml",
     )
 
 
@@ -276,6 +301,7 @@ def validate_docs_and_instructions() -> None:
         "template/.agents/orchestra/instructions/receptionist.md",
         "template/.agents/orchestra/instructions/advisor.md",
         "template/.agents/orchestra/instructions/cartographer.md",
+        "template/.agents/orchestra/instructions/focus_reviewer.md",
         "template/.agents/orchestra/instructions/guildmaster.md",
         "template/.agents/orchestra/instructions/party_leader.md",
         "template/.agents/orchestra/instructions/adventurer.md",
@@ -481,7 +507,7 @@ def validate_docs_and_instructions() -> None:
             "Trial evidence",
             "focus reviewer",
             "追加",
-            "workers.inquisitor.max_parallel",
+            "workers.focus_reviewer.max_parallel",
             "finding disposition",
             "cost reason",
             "advisor ではありません",
@@ -493,6 +519,24 @@ def validate_docs_and_instructions() -> None:
         advisor_instruction,
         ("terminal worker", "追加 subagent", "実装", "品質採否", "Ledger", "Guild Law", "Quest Charter", "confidence-based", "confidence_delta_min_percent", "同じ unknown"),
         "template/.agents/orchestra/instructions/advisor.md",
+    )
+    focus_reviewer_instruction = read("template/.agents/orchestra/instructions/focus_reviewer.md")
+    require_tokens(
+        focus_reviewer_instruction,
+        (
+            "単一 focus",
+            "terminal worker",
+            "read-only",
+            "Trial 統合担当の `inquisitor`",
+            "authority",
+            "boundaries",
+            "autonomy_budget",
+            "採否",
+            "重大度分類",
+            "最終 owner synthesis",
+            "追加 subagent 起動",
+        ),
+        "template/.agents/orchestra/instructions/focus_reviewer.md",
     )
 
 
@@ -535,7 +579,7 @@ def validate_skills() -> None:
             "追加検証観点",
             "focus reviewer",
             "追加 reviewer 0..1",
-            "workers.inquisitor.max_parallel",
+            "workers.focus_reviewer.max_parallel",
             "autonomy_budget.subassignments",
             "focus 分割",
             "finding disposition",

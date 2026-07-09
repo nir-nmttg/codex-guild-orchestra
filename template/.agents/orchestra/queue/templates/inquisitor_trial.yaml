@@ -9,12 +9,23 @@ trial:
   id: null
   quest_id: null
   worker_id: inquisitor
-  role: trial_specialist
+  role: trial_lead_integrator
   depth: null # none / self_check / peer_review / focused_trial / multi_focus_trial / safety_gate
   focus: []
   subject_assignment_ids: []
   subject_report_ids: []
   changed_files: []
+  subject_snapshot:
+    snapshot_id: null
+    digest_version: cgo-snapshot-v1
+    kind: working_tree_content
+    revision_id: null
+    base_ref: null
+    head_ref: null
+    scope_paths: []
+    untracked_paths: []
+    dirty_state: null
+    diff_hash: null
   objective: null
   intent_analysis:
     request_summary: null
@@ -97,9 +108,10 @@ trial:
     skip_reason: null
   focus_reviewers:
     count_decision_required: true
+    worker_role: focus_reviewer
     reviewer_count: null
     max_reviewers_bound_by:
-      - workers.inquisitor.max_parallel
+      - workers.focus_reviewer.max_parallel
       - autonomy_budget.subassignments
     selection_inputs:
       - risk

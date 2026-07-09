@@ -35,7 +35,8 @@ Human Request
 - `guildmaster`: `guild_quest` 戦略と Party 境界を決める
 - `party_leader`: `intent_analysis` から `implementation_strategy`、Party Tactics、Trial depth を設計する
 - `adventurer`: authority 内で自律的に調査、実装、検証し、`intent_alignment` を残す
-- `inquisitor`: risk-based Trial を行い、`intent_coverage` で本質的な成果、non-goals、過剰実装回避を確認する
+- `inquisitor`: risk-based Trial の lead / integrator として、`intent_coverage`、reviewer evidence、重大度、finding disposition、最終 decision を統合する
+- `focus_reviewer`: `inquisitor` から割り当てられた単一 focus だけを確認し、bounded read-only evidence を返す terminal worker（終端担当）
 - `advisor`: focus 限定の read-only 助言を返す terminal worker（終端助言担当）
 - `quest_sentinel`: 作業中の confidence、unknowns、assumptions、verification status を監視し、次アクションを推薦する read-only 制御監視担当
 - `courier`: Ledger 反映と明示された local Git 操作を扱う
@@ -50,6 +51,7 @@ scope drift、安全領域、矛盾 evidence は plan revision または needs_h
 ## Trial
 
 Trial は固定人数ではなく、risk と confidence で決めます。
+全 handoff は `cgo-snapshot-v1` の `subject_snapshot` に結び付けます。並列実装は共通base、各owned-scope result、integration barrier後のintegrated snapshotを分け、別scopeの変更だけで先行reportをstaleにしません。read-only dialogueは同じsnapshotを再利用し、mutation / HEAD / scope / dirty-state signalの変更時だけ再計算します。
 すべての Trial では、`intent_analysis.confirmation_needed` が未解消のまま実装されていないかを確認し、残る場合は `needs_human` または `request_changes` にします。
 
 - `none`
@@ -59,17 +61,19 @@ Trial は固定人数ではなく、risk と confidence で決めます。
 - `multi_focus_trial`
 - `safety_gate`
 
+`self_check` は owner validation attestation であり、Root のaccept判断ではありません。errand / low-risk soloの厳格なeligibility gateをすべて満たす場合だけindependent Trialを省略し、それ以外は`inquisitor`の`peer_review`以上へ上げます。
+
 `mapmaking`、`party_quest`、`guild_quest`、`focused_trial` / `multi_focus_trial`、architecture / safety / security / regression / validation などの high-value focus では、`autonomy_budget.subassignments` が残り focus が境界内に収まる場合、owner は read-only `advisor` の利用を既定で検討します。
 advisor report は採否ではなく材料であり、最終 decision と重大度分類は Trial 統合担当の `inquisitor` が行います。使わない場合も owner は理由を synthesis に残します。
 advisor は実装分業者ではなく、考慮漏れや未確認リスクを見つけて成果物の confidence を高めるために使います。
 confidence-based dialogue は、新しい evidence、blocking unknown の解消、confidence delta がある間だけ続け、進捗が止まった時は target confidence 未満でも停止して未解決理由を残します。
 
-Party Tactics または Trial 統合担当の `inquisitor` は、risk、focus、blast radius、coupling、validation result、confidence、cost から read-only focus reviewer 数を選びます。
+Party Tactics は必要な Trial focus を提案でき、Trial lead / integrator の `inquisitor` が risk、focus、blast radius、coupling、validation result、confidence、cost から追加 read-only `focus_reviewer` 数と assignment を最終決定します。
 軽微な変更は追加 read-only focus reviewer 0..1 を標準にし、`multi_focus_trial`、`safety_gate`、高 risk、高 coupling、検証失敗、evidence 不足では複数 reviewer を選べます。
-上限は `workers.inquisitor.max_parallel` と `autonomy_budget.subassignments` の小さい方です。
+上限は `workers.focus_reviewer.max_parallel` と `autonomy_budget.subassignments` の小さい方です。
 focus reviewer は `autonomy_budget.subassignments` を消費し、`focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments` を守ります。
 複数 reviewer を使う時は focus 分割、read-only、owner synthesis、finding disposition を残します。skip reason は reviewer を使わない時に必須、cost reason は reviewer 数判断で常に必須です。
-focus reviewer は `inquisitor` の read-only review 担当であり、`advisor` とは別契約です。採否、重大度分類、requested changes、最終 owner synthesis は Trial 統合担当の `inquisitor` が行います。
+`focus_reviewer` は Trial 内の単一 focus だけを確認する独立した terminal worker で、`advisor` とは別契約です。採否、重大度分類、requested changes、最終 owner synthesis、追加 subagent 起動を行わず、Trial lead の `inquisitor` が reports を根拠確認して統合します。
 
 ## Safety
 
