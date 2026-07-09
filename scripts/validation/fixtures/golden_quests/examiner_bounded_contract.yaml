@@ -1,6 +1,6 @@
-id: focus_reviewer_bounded_contract
+id: examiner_bounded_contract
 fixture_mode: static_contract_example
-summary: "focus reviewer は具体的 risk focus に限定し、inquisitor が統合する"
+summary: "examiner は具体的 risk focus に限定し、inquisitor が統合する"
 input:
   trial_depth: multi_focus_trial
   risk_trigger: security
@@ -18,18 +18,18 @@ input:
     revision_id: "def456"
     diff_hash: "sha256:other"
 expected:
-  worker_id: focus_reviewer
+  worker_id: examiner
   assignment_owner: inquisitor
-  reviewer_role: bounded_trial_focus_reviewer
+  examiner_role: bounded_trial_examiner
   risk_trigger_required: true
   concrete_focus_required: true
   read_only_required: true
   owner_synthesis_required: true
   finding_disposition_required: true
-  advisor_role: false
+  sage_role: false
   final_decision_owner: inquisitor
   assignment_identity_required:
-    worker_id: focus_reviewer
+    worker_id: examiner
     owner_worker_id: inquisitor
   caller_enforcement: queue_lineage
   queue_lineage_required:
@@ -42,8 +42,8 @@ expected:
   forbidden:
     missing_risk_trigger: true
     focus_expansion: true
-    reviewer_write_access: true
-    reviewer_acceptance_decision: true
+    examiner_write_access: true
+    examiner_acceptance_decision: true
     non_inquisitor_caller: true
     unverified_caller_lineage: true
     stale_evidence_reuse: true

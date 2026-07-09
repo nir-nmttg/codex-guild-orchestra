@@ -39,7 +39,7 @@ def fail(message: str) -> None:
 
 
 target, content, message_type, sender = sys.argv[1:5]
-allowed_roles = {'receptionist', 'guildmaster', 'cartographer', 'courier', 'party_leader', 'inquisitor', 'adventurer', 'integration_owner', 'advisor', 'quest_sentinel'}
+allowed_roles = {'receptionist', 'guildmaster', 'cartographer', 'courier', 'captain', 'inquisitor', 'adventurer', 'artificer', 'sage', 'warden'}
 if target not in allowed_roles:
     fail(f'未知の送信先です: {target}')
 if sender not in allowed_roles:

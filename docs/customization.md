@@ -24,7 +24,7 @@
 
 - custom agent TOMLはrole固有の短いjob、authority、outputだけにします。
 - `common.md`や`settings.yaml`を全agentへ常時再読込しません。
-- 数値confidence、固定read/test回数、advisor/reviewerの未使用理由、全変更共通の長いchecklistを追加しません。
+- 数値confidence、固定read/test回数、sage/examinerの未使用理由、全変更共通の長いchecklistを追加しません。
 - 新しい規則は、実際のevalで特定されたfailureを直す時だけ追加します。
 - schema、snapshot、lineage、metadataはpromptではなくvalidator/helperへ置きます。
 

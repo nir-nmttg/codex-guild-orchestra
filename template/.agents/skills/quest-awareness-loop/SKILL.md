@@ -31,7 +31,7 @@ scope: target-repository-workflow
 5. contradictory evidenceでは仮定とplanを更新する。
 6. scope/authority拡張は新しいcontractへ戻す。
 7. high-risk triggerはsecurity-focused Trialまたは人間確認へ送る。
-8. 通常制御で解消しない矛盾、反復失敗、停滞だけQuest Sentinelへ渡す。
+8. 通常制御で解消しない矛盾、反復失敗、停滞だけWardenへ渡す。
 
 ## 出力
 

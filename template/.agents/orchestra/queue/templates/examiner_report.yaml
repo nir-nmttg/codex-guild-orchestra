@@ -1,27 +1,26 @@
-artifact_type: "trial_focus_assignment"
+artifact_type: "trial_focus_report"
 schema_version: "3.0"
 workflow_id: null
 structured_data_usage:
   structured_inputs: []
   decision_rationale: null
   evidence_refs: []
-assignment:
+report:
   id: null
   quest_id: null
   trial_id: null
-  worker_id: focus_reviewer
+  assignment_id: null
+  worker_id: examiner
   owner_worker_id: inquisitor
-  role: bounded_trial_focus_reviewer
   terminal_worker: true
   decision_authority: false
   severity_authority: false
-  objective: null
-  # queueはLedger上のTrialを検証した後、verificationを上書きする。
-  caller_lineage:
+  caller_lineage_check:
     required_parent_role: inquisitor
     trial_owner_worker_id: inquisitor
     trial_ref: null
-    verification: null
+    verified: null
+    status: null # verified / invalid_assignment / unverifiable
   risk_trigger: null
   focus: null
   subject_snapshot:
@@ -35,26 +34,14 @@ assignment:
     untracked_paths: []
     diff_hash: null
     dirty_state: null
-  authority:
-    read: true
-    edit: false
-    validate: true
-    local_git: false
-    external_actions: false
-  boundaries:
-    target_repo_root: null
-    read_deny: []
-    edit_deny: []
-    safety_items: []
-  evidence_required: []
-  forbidden:
-    - focus_expansion
-    - implementation
-    - final_decision
-    - final_severity
-    - recursive_subagent
-    - ledger_write
-    - git_write
-    - external_action
-  status: idle
+  snapshot_check:
+    start_match: null
+    report_match: null
+    status: null # matched / stale_evidence / invalid_assignment
+  summary: null
+  finding_candidates: []
+  evidence_refs: []
+  important_unknowns: []
+  residual_risks: []
+  status: draft
   timestamp: null

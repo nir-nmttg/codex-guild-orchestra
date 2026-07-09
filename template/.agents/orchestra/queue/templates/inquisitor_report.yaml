@@ -42,8 +42,8 @@ report:
     commands: []
     manual_checks: []
     not_run: []
-  advisor_reports: []
-  reviewer_reports: []
+  sage_reports: []
+  examiner_reports: []
   finding_dispositions:
     adopted: []
     rejected: []

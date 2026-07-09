@@ -25,30 +25,44 @@ max_depth = 1
 | --- | --- | --- | --- | --- |
 | Root | `gpt-5.6-sol` | `read-only` | `high` | intake、境界、直接assignment、最終統合 |
 | `adventurer` | `gpt-5.6-sol` | `workspace-write` | `high` | 一つのbounded scopeの実装と検証 |
-| `integration_owner` | `gpt-5.6-sol` | `workspace-write` | `high` | 共有契約、cross-scope glue、統合検証 |
-| `advisor` | `gpt-5.6-sol` | `read-only` | `high` | 具体的な独立focusの助言 |
+| `artificer` | `gpt-5.6-sol` | `workspace-write` | `high` | 共有契約、cross-scope glue、統合検証 |
+| `sage` | `gpt-5.6-sol` | `read-only` | `high` | 具体的な独立focusの助言 |
 | `cartographer` | `gpt-5.6-sol` | `read-only` | `high` | read-only mapmaking |
 | `courier` | `gpt-5.3-codex-spark` | `workspace-write` | `xhigh` | Ledgerと明示されたlocal Git操作 |
-| `focus_reviewer` | `gpt-5.6-sol` | `read-only` | `high` | 単一focusのbounded review evidence |
+| `examiner` | `gpt-5.6-sol` | `read-only` | `high` | 単一focusのbounded review evidence |
 | `guildmaster` | `gpt-5.6-sol` | `read-only` | `xhigh` | 複数Partyの広域戦略 |
 | `inquisitor` | `gpt-5.6-sol` | `read-only` | `high` | Trial、finding統合、最終decision |
-| `party_leader` | `gpt-5.6-sol` | `read-only` | `high` | scope、順序、integration、Trial設計 |
-| `quest_sentinel` | `gpt-5.6-sol` | `read-only` | `high` | 例外的な制御診断 |
+| `captain` | `gpt-5.6-sol` | `read-only` | `high` | scope、順序、integration、Trial設計 |
+| `warden` | `gpt-5.6-sol` | `read-only` | `high` | 例外的な制御診断 |
 
 5.6 roleは成果最大化を優先してSolへ統一します。Terra/Lunaはread-heavy、bounded、単一focus roleの比較候補として残しますが、role別live非劣性を確認するまでdeployment既定にはしません。Courierは5.3-Spark/xhighを維持します。
 
 reasoning effortはroleごとに固定します。`guildmaster`のxhighを含め、隣接effort/modelは評価候補として比較しますが、実行中に動的変更しません。
+
+## Guild role naming
+
+custom agentの機械IDは、責務を推測できる一語のGuild職へ統一します。
+
+| retired ID | current ID | role boundary |
+| --- | --- | --- |
+| `party_leader` | `captain` | Partyのscope、順序、統合、Trial設計 |
+| `integration_owner` | `artificer` | cross-scope契約、glue、統合検証 |
+| `focus_reviewer` | `examiner` | Trialの単一focusに対する独立evidence |
+| `advisor` | `sage` | owner判断を補う一論点のread-only助言 |
+| `quest_sentinel` | `warden` | 通常制御で解消しない例外の診断 |
+
+旧IDと新IDを同じruntimeで混在させません。通常installは旧agent fileを除去し、既存SQLite stateに旧worker ID、role、kindが残る場合はfail closedにします。必要なstateを保全したうえで`--backup --reset-runtime`または`--clean-install`を使ってください。
 
 ## Topology
 
 ```mermaid
 flowchart TB
   root["Root\ncontract / direct assignment / synthesis"]
-  plan["cartographer / party_leader / guildmaster\nread-only planning"]
+  plan["cartographer / captain / guildmaster\nread-only planning"]
   worker["adventurer\nbounded implementation"]
-  integrate["integration_owner\nshared contract / glue / integration validation"]
+  integrate["artificer\nshared contract / glue / integration validation"]
   trial["inquisitor\nrisk-triggered Trial"]
-  focus["focus_reviewer / advisor\nindependent read-only focus"]
+  focus["examiner / sage\nindependent read-only focus"]
   courier["courier\nLedger / explicit local Git"]
 
   root --> plan
@@ -64,7 +78,7 @@ flowchart TB
   root -.-> courier
 ```
 
-`party_leader`や`inquisitor`はagentを直接起動せず、必要なassignment案をRootへ返します。これにより`max_depth=1`を維持しつつauthorityとownershipを一か所で検証できます。
+`captain`や`inquisitor`はagentを直接起動せず、必要なassignment案をRootへ返します。これにより`max_depth=1`を維持しつつauthorityとownershipを一か所で検証できます。
 
 ## Integration
 
@@ -74,16 +88,16 @@ flowchart TB
 2. 重複しないowned scopeと共有artifactの単一owner
 3. 各workerのowned-scope result
 4. 全report後のmutation停止
-5. `integration_owner`によるcross-scope glueと統合検証
+5. `artificer`によるcross-scope glueと統合検証
 6. integrated snapshotに対するTrial
 
 `adventurer`へglobal integrationを兼務させません。
 
 ## Review roles
 
-`advisor`は具体的な独立focusがある時だけ使い、ownerがevidenceを確認します。`quest_sentinel`は矛盾、反復失敗、scope drift、長時間停滞の例外時だけ使います。
+`sage`は具体的な独立focusがある時だけ使い、ownerがevidenceを確認します。`warden`は矛盾、反復失敗、scope drift、長時間停滞の例外時だけ使います。
 
-`focus_reviewer.allowed_callers=[inquisitor]`はpolicy-onlyでありruntime ACLではありません。terminal設定とqueue lineage validatorを併用し、確認不能ならfail closedにします。複数reviewerを使う時だけfocus分割を記録し、最終decisionは`inquisitor`が行います。
+`examiner.allowed_callers=[inquisitor]`はpolicy-onlyでありruntime ACLではありません。terminal設定とqueue lineage validatorを併用し、確認不能ならfail closedにします。複数reviewerを使う時だけfocus分割を記録し、最終decisionは`inquisitor`が行います。
 
 ## Install
 

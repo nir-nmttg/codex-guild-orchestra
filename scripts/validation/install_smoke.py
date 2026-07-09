@@ -21,25 +21,25 @@ EXCLUDE_END = "# codex-guild-orchestra:end"
 RUNTIME_SCHEMA_VERSION = "3.0"
 
 READ_ONLY_AGENT_ROLES = (
-    "advisor",
+    "sage",
     "cartographer",
-    "focus_reviewer",
+    "examiner",
     "guildmaster",
     "inquisitor",
-    "quest_sentinel",
-    "party_leader",
+    "warden",
+    "captain",
 )
 EXPECTED_AGENT_FILES = {
     "adventurer.toml",
-    "advisor.toml",
+    "sage.toml",
     "cartographer.toml",
     "courier.toml",
-    "focus_reviewer.toml",
+    "examiner.toml",
     "guildmaster.toml",
     "inquisitor.toml",
-    "integration_owner.toml",
-    "party_leader.toml",
-    "quest_sentinel.toml",
+    "artificer.toml",
+    "captain.toml",
+    "warden.toml",
 }
 EXPECTED_SKILL_DIRS = {
     "branch-implementation-final-review",
@@ -342,6 +342,21 @@ def validate_install_upgrade_smoke() -> None:
         legacy_paths = [
             target / ".codex/agents/spark.toml",
             target / ".codex/agents/" / ("meta" "cognitive_controller.toml"),
+            target / ".codex/agents/advisor.toml",
+            target / ".codex/agents/focus_reviewer.toml",
+            target / ".codex/agents/integration_owner.toml",
+            target / ".codex/agents/party_leader.toml",
+            target / ".codex/agents/quest_sentinel.toml",
+            target / ".agents/orchestra/instructions/advisor.md",
+            target / ".agents/orchestra/instructions/focus_reviewer.md",
+            target / ".agents/orchestra/instructions/integration_owner.md",
+            target / ".agents/orchestra/instructions/party_leader.md",
+            target / ".agents/orchestra/instructions/quest_sentinel.md",
+            target / ".agents/orchestra/queue/templates/advisor_assignment.yaml",
+            target / ".agents/orchestra/queue/templates/advisor_report.yaml",
+            target / ".agents/orchestra/queue/templates/focus_reviewer_assignment.yaml",
+            target / ".agents/orchestra/queue/templates/focus_reviewer_report.yaml",
+            target / ".agents/orchestra/queue/templates/quest_sentinel_assignment.yaml",
             target / ".agents/orchestra/queue/templates/adventurer_task.yaml",
             target / ".agents/orchestra/queue/templates/inquisitor_task.yaml",
             target / ".agents/skills" / ("meta" "cognitive-task-loop") / "SKILL.md",
@@ -414,7 +429,7 @@ def validate_install_upgrade_smoke() -> None:
         target = Path(tmp) / "guild"
         existing_database = target / ".orchestra/queue/state.sqlite"
         existing_database.parent.mkdir(parents=True, exist_ok=True)
-        old_runtime_value = "invoke_" "meta" "cognitive_controller"
+        old_runtime_value = "integration_owner"
         with sqlite3.connect(existing_database) as connection:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.executescript((ROOT / "template/.agents/orchestra/scripts/queue_schema.sql").read_text(encoding="utf-8"))
@@ -673,43 +688,43 @@ def validate_install_upgrade_smoke() -> None:
             require(result.returncode == 0, f"install.py は許可される source template を拒否しないでください: {mutation}: " + result.stderr)
             return result
 
-    missing_advisor = run_with_mutated_source("missing advisor.toml", lambda source: (source / ".codex/agents/advisor.toml").unlink())
-    require("advisor.toml" in (missing_advisor.stdout + missing_advisor.stderr), "install.py の advisor 不足拒否 message は advisor.toml を示してください。")
+    missing_sage = run_with_mutated_source("missing sage.toml", lambda source: (source / ".codex/agents/sage.toml").unlink())
+    require("sage.toml" in (missing_sage.stdout + missing_sage.stderr), "install.py の sage 不足拒否 message は sage.toml を示してください。")
 
-    missing_focus_reviewer = run_with_mutated_source("missing focus_reviewer.toml", lambda source: (source / ".codex/agents/focus_reviewer.toml").unlink())
-    require("focus_reviewer.toml" in (missing_focus_reviewer.stdout + missing_focus_reviewer.stderr), "install.py の focus_reviewer 不足拒否 message は focus_reviewer.toml を示してください。")
+    missing_examiner = run_with_mutated_source("missing examiner.toml", lambda source: (source / ".codex/agents/examiner.toml").unlink())
+    require("examiner.toml" in (missing_examiner.stdout + missing_examiner.stderr), "install.py の examiner 不足拒否 message は examiner.toml を示してください。")
 
     def enable_focus_recursive_agents(source: Path) -> None:
-        path = source / ".codex/agents/focus_reviewer.toml"
+        path = source / ".codex/agents/examiner.toml"
         path.write_text(path.read_text(encoding="utf-8").replace("multi_agent = false", "multi_agent = true"), encoding="utf-8")
 
-    recursive_focus = run_with_mutated_source("focus reviewer multi-agent enabled", enable_focus_recursive_agents)
-    require("multi_agent" in (recursive_focus.stdout + recursive_focus.stderr), "install.py は focus_reviewer の recursive multi-agent capability を拒否してください。")
+    recursive_focus = run_with_mutated_source("examiner multi-agent enabled", enable_focus_recursive_agents)
+    require("multi_agent" in (recursive_focus.stdout + recursive_focus.stderr), "install.py は examiner の recursive multi-agent capability を拒否してください。")
 
     def enable_focus_decision_authority(source: Path) -> None:
         path = source / ".agents/orchestra/config/settings.yaml"
         text = path.read_text(encoding="utf-8")
-        marker = "  focus_reviewer:\n"
+        marker = "  examiner:\n"
         before, focus = text.split(marker, 1)
         focus = focus.replace("    decision_authority: false", "    decision_authority: true", 1)
         path.write_text(before + marker + focus, encoding="utf-8")
 
-    authority_focus = run_with_mutated_source("focus reviewer authority expanded", enable_focus_decision_authority)
-    require("focus_reviewer" in (authority_focus.stdout + authority_focus.stderr), "install.py は focus_reviewer settings authority 拡張を拒否してください。")
+    authority_focus = run_with_mutated_source("examiner authority expanded", enable_focus_decision_authority)
+    require("examiner" in (authority_focus.stdout + authority_focus.stderr), "install.py は examiner settings authority 拡張を拒否してください。")
 
     def add_focus_caller(source: Path) -> None:
         path = source / ".agents/orchestra/config/settings.yaml"
         text = path.read_text(encoding="utf-8")
-        marker = "  focus_reviewer:\n"
+        marker = "  examiner:\n"
         before, focus = text.split(marker, 1)
         focus = focus.replace("    allowed_callers:\n      - inquisitor", "    allowed_callers:\n      - inquisitor\n      - root", 1)
         path.write_text(before + marker + focus, encoding="utf-8")
 
-    caller_focus = run_with_mutated_source("focus reviewer caller expanded", add_focus_caller)
-    require("allowed_callers" in (caller_focus.stdout + caller_focus.stderr), "install.py は focus_reviewer caller 拡張を拒否してください。")
+    caller_focus = run_with_mutated_source("examiner caller expanded", add_focus_caller)
+    require("allowed_callers" in (caller_focus.stdout + caller_focus.stderr), "install.py は examiner caller 拡張を拒否してください。")
 
-    missing_controller = run_with_mutated_source("missing quest_sentinel.toml", lambda source: (source / ".codex/agents/quest_sentinel.toml").unlink())
-    require("quest_sentinel.toml" in (missing_controller.stdout + missing_controller.stderr), "install.py の quest_sentinel 不足拒否 message は quest_sentinel.toml を示してください。")
+    missing_controller = run_with_mutated_source("missing warden.toml", lambda source: (source / ".codex/agents/warden.toml").unlink())
+    require("warden.toml" in (missing_controller.stdout + missing_controller.stderr), "install.py の warden 不足拒否 message は warden.toml を示してください。")
 
     missing_quest_awareness_skill = run_with_mutated_source("missing quest-awareness-loop skill", lambda source: shutil.rmtree(source / ".agents/skills/quest-awareness-loop"))
     require("quest-awareness-loop" in (missing_quest_awareness_skill.stdout + missing_quest_awareness_skill.stderr), "install.py の quest-awareness-loop 不足拒否 message は skill 名を示してください。")
@@ -732,11 +747,11 @@ def validate_install_upgrade_smoke() -> None:
     missing_queue_template = run_with_mutated_source("missing queue template", lambda source: (source / ".agents/orchestra/queue/templates/inquisitor_trial.yaml").unlink())
     require("inquisitor_trial.yaml" in (missing_queue_template.stdout + missing_queue_template.stderr), "install.py の queue template 不足拒否 message は inquisitor_trial.yaml を示してください。")
 
-    missing_sentinel_assignment = run_with_mutated_source("missing quest_sentinel assignment template", lambda source: (source / ".agents/orchestra/queue/templates/quest_sentinel_assignment.yaml").unlink())
-    require("quest_sentinel_assignment.yaml" in (missing_sentinel_assignment.stdout + missing_sentinel_assignment.stderr), "install.py の quest_sentinel assignment template 不足拒否 message は quest_sentinel_assignment.yaml を示してください。")
+    missing_warden_assignment = run_with_mutated_source("missing warden assignment template", lambda source: (source / ".agents/orchestra/queue/templates/warden_assignment.yaml").unlink())
+    require("warden_assignment.yaml" in (missing_warden_assignment.stdout + missing_warden_assignment.stderr), "install.py の warden assignment template 不足拒否 message は warden_assignment.yaml を示してください。")
 
-    missing_focus_assignment = run_with_mutated_source("missing focus reviewer assignment template", lambda source: (source / ".agents/orchestra/queue/templates/focus_reviewer_assignment.yaml").unlink())
-    require("focus_reviewer_assignment.yaml" in (missing_focus_assignment.stdout + missing_focus_assignment.stderr), "install.py の focus reviewer assignment template 不足拒否 message は focus_reviewer_assignment.yaml を示してください。")
+    missing_focus_assignment = run_with_mutated_source("missing examiner assignment template", lambda source: (source / ".agents/orchestra/queue/templates/examiner_assignment.yaml").unlink())
+    require("examiner_assignment.yaml" in (missing_focus_assignment.stdout + missing_focus_assignment.stderr), "install.py の examiner assignment template 不足拒否 message は examiner_assignment.yaml を示してください。")
 
     missing_inbox_script = run_with_mutated_source("missing inbox helper", lambda source: (source / ".agents/orchestra/scripts/inbox_write.sh").unlink())
     require("inbox_write.sh" in (missing_inbox_script.stdout + missing_inbox_script.stderr), "install.py の inbox helper 不足拒否 message は inbox_write.sh を示してください。")

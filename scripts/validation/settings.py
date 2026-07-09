@@ -95,24 +95,24 @@ def validate_settings() -> None:
     require(delegation.get("max_depth") == 1 and delegation.get("max_threads") == 6, "公式default相当のmax_depth=1/max_threads=6にしてください。")
     avoid = set(sequence(delegation.get("avoid_when"), "settings.delegation.avoid_when"))
     require({"extra_planning_or_review_for_trivial_task", "multi_agent_fanout_for_single_ordered_chain", "shared_mutable_scope"} <= avoid, "過剰なplanning/review/fanoutの抑止条件が不足しています。")
-    advisor = mapping(delegation.get("advisor"), "settings.delegation.advisor")
-    require(advisor.get("trigger") == "concrete_independent_focus" and advisor.get("use_by_default") is False, "advisorは具体的focusがある時だけ使ってください。")
-    require(advisor.get("unused_reason_required") is False and advisor.get("read_only") is True and advisor.get("decision_authority") is False, "advisorの軽量terminal contractが不正です。")
-    sentinel = mapping(delegation.get("quest_sentinel"), "settings.delegation.quest_sentinel")
-    require(sentinel.get("routine_use") is False and sentinel.get("read_only") is True and sentinel.get("decision_authority") is False, "Quest Sentinelは例外的terminal診断に限定してください。")
+    sage = mapping(delegation.get("sage"), "settings.delegation.sage")
+    require(sage.get("trigger") == "concrete_independent_focus" and sage.get("use_by_default") is False, "sageは具体的focusがある時だけ使ってください。")
+    require(sage.get("unused_reason_required") is False and sage.get("read_only") is True and sage.get("decision_authority") is False, "sageの軽量terminal contractが不正です。")
+    sentinel = mapping(delegation.get("warden"), "settings.delegation.warden")
+    require(sentinel.get("routine_use") is False and sentinel.get("read_only") is True and sentinel.get("decision_authority") is False, "Wardenは例外的terminal診断に限定してください。")
 
     workers = mapping(settings["workers"], "settings.workers")
-    for role in ("cartographer", "guildmaster", "party_leader", "adventurer", "integration_owner", "inquisitor", "focus_reviewer", "advisor", "quest_sentinel", "courier"):
+    for role in ("cartographer", "guildmaster", "captain", "adventurer", "artificer", "inquisitor", "examiner", "sage", "warden", "courier"):
         worker = mapping(workers.get(role), f"settings.workers.{role}")
         max_parallel = worker.get("max_parallel")
         require(isinstance(max_parallel, int) and not isinstance(max_parallel, bool) and max_parallel >= 1, f"workers.{role}.max_parallel は1以上にしてください。")
-    focus = mapping(workers["focus_reviewer"], "settings.workers.focus_reviewer")
-    require(set(sequence(focus.get("allowed_callers"), "settings.workers.focus_reviewer.allowed_callers")) == {"inquisitor"}, "focus reviewer callerをinquisitorに限定してください。")
+    focus = mapping(workers["examiner"], "settings.workers.examiner")
+    require(set(sequence(focus.get("allowed_callers"), "settings.workers.examiner.allowed_callers")) == {"inquisitor"}, "examiner callerをinquisitorに限定してください。")
     for key in ("implementation_authority", "decision_authority", "severity_authority", "synthesis_authority", "ledger_authority", "git_authority", "external_action_authority"):
-        require(focus.get(key) is False, f"focus_reviewer.{key} はfalseにしてください。")
+        require(focus.get(key) is False, f"examiner.{key} はfalseにしてください。")
 
     execution = mapping(settings["execution"], "settings.execution")
-    require(execution.get("bounded_worker") == "adventurer" and execution.get("cross_scope_integration_worker") == "integration_owner", "bounded実装とcross-scope統合を分離してください。")
+    require(execution.get("bounded_worker") == "adventurer" and execution.get("cross_scope_integration_worker") == "artificer", "bounded実装とcross-scope統合を分離してください。")
     require(execution.get("shared_artifact_single_owner") is True and execution.get("integration_barrier_required_for_parallel_mutation") is True, "並列mutationの所有権契約が不足しています。")
     require(execution.get("fixed_read_or_validation_counts") is False, "固定read/test回数を禁止してください。")
 
@@ -126,9 +126,9 @@ def validate_settings() -> None:
     require({"architecture", "security", "data_compatibility", "performance", "accessibility", "operations"} <= set(conditional), "change-type別Trial checkが不足しています。")
     independent = set(sequence(trial.get("independent_trial_required_when"), "settings.trial.independent_trial_required_when"))
     require({"high_risk", "shared_contract", "security_sensitive", "migration", "validation_failed", "important_unknown_remains"} <= independent, "独立Trial triggerが不足しています。")
-    reviewers = mapping(trial.get("focus_reviewers"), "settings.trial.focus_reviewers")
+    reviewers = mapping(trial.get("examiners"), "settings.trial.examiners")
     require(reviewers.get("unused_reason_required") is False and reviewers.get("cost_reason_required") is False, "reviewer未使用/costの定型理由を要求しないでください。")
-    require(reviewers.get("multiple_reviewers_require_focus_split") is True and reviewers.get("final_decision_owner") == "inquisitor", "複数reviewerのfocus分割とdecision ownerが不正です。")
+    require(reviewers.get("multiple_examiners_require_focus_split") is True and reviewers.get("final_decision_owner") == "inquisitor", "複数reviewerのfocus分割とdecision ownerが不正です。")
 
     root = mapping(settings["root_session"], "settings.root_session")
     require({"implementation", "trial_acceptance", "ledger_write"} == set(sequence(root.get("forbids"), "settings.root_session.forbids")), "Rootのauthority separationが不正です。")

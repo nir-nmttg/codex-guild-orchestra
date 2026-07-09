@@ -1,20 +1,20 @@
-id: advisor_owner_synthesis
+id: sage_owner_synthesis
 fixture_mode: static_contract_example
-summary: "advisor report は未信頼材料であり、owner が evidence を確認して採否と未解決を統合する"
+summary: "sage report は未信頼材料であり、owner が evidence を確認して採否と未解決を統合する"
 input:
-  owner_worker_id: party_leader
-  advisor_findings:
+  owner_worker_id: captain
+  sage_findings:
     - id: finding_verified
       evidence_ref: src/migration.sql
     - id: finding_unverified
       evidence_ref: null
 expected:
-  worker_id: advisor
+  worker_id: sage
   decision_authority: false
   terminal_worker: true
   owner_synthesis:
     required: true
-    owner_worker_id: party_leader
+    owner_worker_id: captain
     evidence_verification_required: true
     adopted_findings:
       - finding_verified
@@ -22,11 +22,11 @@ expected:
       - finding_unverified
     unresolved_findings_recorded: true
     final_decision_by_owner_only: true
-    advisor_judgment_is_not_owner_decision: true
+    sage_judgment_is_not_owner_decision: true
   ledger_policy:
     owner_synthesis_rationale_recorded: true
     raw_discussion_recorded: false
   forbidden:
-    advisor_acceptance_decision: true
+    sage_acceptance_decision: true
     unverified_finding_adoption: true
-    advisor_ledger_write: true
+    sage_ledger_write: true

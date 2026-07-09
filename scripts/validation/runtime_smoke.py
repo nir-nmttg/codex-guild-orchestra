@@ -141,16 +141,25 @@ def validate_queue_db_smoke() -> None:
     audit_retired_values = python_string_set_constant("template/.agents/orchestra/scripts/queue_audit.py", "RETIRED_AGENT_VALUES")
     install_retired_values = python_string_set_constant("scripts/install.py", "RETIRED_AGENT_VALUES")
     require(db_retired_values == audit_retired_values == install_retired_values, "廃止済み agent 値を queue_db.py / queue_audit.py / install.py で一致させてください。")
+    renamed_agent_ids = {"advisor", "focus_reviewer", "integration_owner", "party_leader", "quest_sentinel"}
+    require(renamed_agent_ids <= db_retired_values, "改名前のagent IDを既存runtimeでfail closedにしてください。")
 
     db_legacy_values = python_string_set_constant("template/.agents/orchestra/scripts/queue_db.py", "LEGACY_RUNTIME_STRING_VALUES")
     audit_legacy_values = python_string_set_constant("template/.agents/orchestra/scripts/queue_audit.py", "LEGACY_RUNTIME_STRING_VALUES")
     install_legacy_values = python_string_set_constant("scripts/install.py", "LEGACY_RUNTIME_STRING_VALUES")
     require(db_legacy_values == audit_legacy_values == install_legacy_values, "廃止済み runtime 値を queue_db.py / queue_audit.py / install.py で一致させてください。")
+    renamed_contract_values = {
+        "advisory_consultation",
+        "bounded_trial_focus_reviewer",
+        "cross_scope_integration_owner",
+        "independent_focus_advisor",
+    }
+    require(renamed_contract_values <= db_legacy_values, "改名前のrole/kind値を既存runtimeでfail closedにしてください。")
 
     inbox_script = ROOT / "template/.agents/orchestra/scripts/inbox_write.sh"
     docker_runner = ROOT / "template/.agents/orchestra/scripts/docker_python.sh"
     stop_hook_shell = ROOT / "template/.codex/hooks/stop_quality_gate.sh"
-    require("quest_sentinel" in read("template/.agents/orchestra/scripts/inbox_write.sh"), "inbox_write.sh は quest_sentinel を送受信 role として許可してください。")
+    require("warden" in read("template/.agents/orchestra/scripts/inbox_write.sh"), "inbox_write.sh は warden を送受信 role として許可してください。")
     for executable_path in (script, audit_script, inbox_script, docker_runner, stop_hook_shell):
         require(executable_path.stat().st_mode & 0o111, f"{executable_path.relative_to(ROOT)} の executable bit を維持してください。")
     for shell_path in (inbox_script, docker_runner, stop_hook_shell):
@@ -226,21 +235,21 @@ def validate_queue_db_smoke() -> None:
         second_owner_result = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(second_owner_event))
         require(second_owner_result.returncode == 0, "queue_db.py second owner assignment fixtureの記録に失敗しました: " + second_owner_result.stderr)
 
-        sentinel_assignment_event = {
-            "event_id": "evt_assignment_quest_sentinel_smoke",
+        warden_assignment_event = {
+            "event_id": "evt_assignment_warden_smoke",
             "timestamp": "2026-01-02T03:04:04+00:00",
             "actor": "validator",
             "event_type": "assignment_created",
-            "entity": {"type": "assignment", "id": "assignment_quest_sentinel_smoke"},
+            "entity": {"type": "assignment", "id": "assignment_warden_smoke"},
             "operation": "append",
             "workflow_id": "workflow_smoke",
-            "structured_data_usage": {"structured_inputs": ["assignment"], "decision_rationale": "quest_sentinel assignment linkage smoke", "evidence_refs": ["scripts/validation/runtime_smoke.py"]},
+            "structured_data_usage": {"structured_inputs": ["assignment"], "decision_rationale": "warden assignment linkage smoke", "evidence_refs": ["scripts/validation/runtime_smoke.py"]},
             "payload": {
                 "assignment": {
-                    "id": "assignment_quest_sentinel_smoke",
+                    "id": "assignment_warden_smoke",
                     "quest_id": "quest_smoke",
                     "owner_assignment_id": "assignment_owner_smoke",
-                    "worker_id": "quest_sentinel",
+                    "worker_id": "warden",
                     "role": "exceptional_control_diagnostician",
                     "kind": "evidence_state_monitor",
                     "terminal_worker": True,
@@ -266,26 +275,26 @@ def validate_queue_db_smoke() -> None:
             },
             "event_safety": {"safety_items": [], "human_confirmation_required": []},
         }
-        sentinel_assignment = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(sentinel_assignment_event))
-        require(sentinel_assignment.returncode == 0, "queue_db.py は owner/control trigger 付き quest_sentinel assignment を受け付けてください: " + sentinel_assignment.stderr)
+        warden_assignment = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(warden_assignment_event))
+        require(warden_assignment.returncode == 0, "queue_db.py は owner/control trigger 付き warden assignment を受け付けてください: " + warden_assignment.stderr)
 
-        invalid_sentinel_owner_event = json.loads(json.dumps(sentinel_assignment_event))
-        invalid_sentinel_owner_event["event_id"] = "evt_assignment_quest_sentinel_missing_owner"
-        invalid_sentinel_owner_event["entity"]["id"] = "assignment_quest_sentinel_missing_owner"
-        invalid_sentinel_owner_event["payload"]["assignment"]["id"] = "assignment_quest_sentinel_missing_owner"
-        invalid_sentinel_owner_event["payload"]["assignment"].pop("owner_assignment_id")
-        invalid_sentinel_owner = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_sentinel_owner_event))
-        require(invalid_sentinel_owner.returncode != 0 and "owner_assignment_id" in invalid_sentinel_owner.stderr, "queue_db.py は owner assignment なしの quest_sentinel assignment を拒否してください。")
+        invalid_warden_owner_event = json.loads(json.dumps(warden_assignment_event))
+        invalid_warden_owner_event["event_id"] = "evt_assignment_warden_missing_owner"
+        invalid_warden_owner_event["entity"]["id"] = "assignment_warden_missing_owner"
+        invalid_warden_owner_event["payload"]["assignment"]["id"] = "assignment_warden_missing_owner"
+        invalid_warden_owner_event["payload"]["assignment"].pop("owner_assignment_id")
+        invalid_warden_owner = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_warden_owner_event))
+        require(invalid_warden_owner.returncode != 0 and "owner_assignment_id" in invalid_warden_owner.stderr, "queue_db.py は owner assignment なしの warden assignment を拒否してください。")
 
-        invalid_sentinel_trigger_event = json.loads(json.dumps(sentinel_assignment_event))
-        invalid_sentinel_trigger_event["event_id"] = "evt_assignment_quest_sentinel_missing_trigger"
-        invalid_sentinel_trigger_event["entity"]["id"] = "assignment_quest_sentinel_missing_trigger"
-        invalid_sentinel_trigger_event["payload"]["assignment"]["id"] = "assignment_quest_sentinel_missing_trigger"
-        invalid_sentinel_trigger_event["payload"]["assignment"].pop("control_trigger")
-        invalid_sentinel_trigger = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_sentinel_trigger_event))
-        require(invalid_sentinel_trigger.returncode != 0 and "control_trigger" in invalid_sentinel_trigger.stderr, "queue_db.py は control_trigger なしの quest_sentinel assignment を拒否してください。")
+        invalid_warden_trigger_event = json.loads(json.dumps(warden_assignment_event))
+        invalid_warden_trigger_event["event_id"] = "evt_assignment_warden_missing_trigger"
+        invalid_warden_trigger_event["entity"]["id"] = "assignment_warden_missing_trigger"
+        invalid_warden_trigger_event["payload"]["assignment"]["id"] = "assignment_warden_missing_trigger"
+        invalid_warden_trigger_event["payload"]["assignment"].pop("control_trigger")
+        invalid_warden_trigger = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_warden_trigger_event))
+        require(invalid_warden_trigger.returncode != 0 and "control_trigger" in invalid_warden_trigger.stderr, "queue_db.py は control_trigger なしの warden assignment を拒否してください。")
 
-        invalid_authority_event = json.loads(json.dumps(sentinel_assignment_event))
+        invalid_authority_event = json.loads(json.dumps(warden_assignment_event))
         invalid_authority_event["event_id"] = "evt_assignment_missing_authority"
         invalid_authority_event["entity"]["id"] = "assignment_missing_authority"
         invalid_authority_event["payload"]["assignment"]["id"] = "assignment_missing_authority"
@@ -293,7 +302,7 @@ def validate_queue_db_smoke() -> None:
         invalid_authority = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_authority_event))
         require(invalid_authority.returncode != 0 and "authority" in invalid_authority.stderr, "queue_db.py は machine-bound authority なしの assignment を拒否してください。")
 
-        invalid_edit_event = json.loads(json.dumps(sentinel_assignment_event))
+        invalid_edit_event = json.loads(json.dumps(warden_assignment_event))
         invalid_edit_event["event_id"] = "evt_assignment_readonly_edit"
         invalid_edit_event["entity"]["id"] = "assignment_readonly_edit"
         invalid_edit_event["payload"]["assignment"]["id"] = "assignment_readonly_edit"
@@ -301,7 +310,7 @@ def validate_queue_db_smoke() -> None:
         invalid_edit = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_edit_event))
         require(invalid_edit.returncode != 0 and "read-only" in invalid_edit.stderr, "queue_db.py は read-only worker の edit authority を拒否してください。")
 
-        invalid_snapshot_event = json.loads(json.dumps(sentinel_assignment_event))
+        invalid_snapshot_event = json.loads(json.dumps(warden_assignment_event))
         invalid_snapshot_event["event_id"] = "evt_assignment_missing_snapshot"
         invalid_snapshot_event["entity"]["id"] = "assignment_missing_snapshot"
         invalid_snapshot_event["payload"]["assignment"]["id"] = "assignment_missing_snapshot"
@@ -309,7 +318,7 @@ def validate_queue_db_smoke() -> None:
         invalid_snapshot = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_snapshot_event))
         require(invalid_snapshot.returncode != 0 and "subject_snapshot" in invalid_snapshot.stderr, "queue_db.py は helper-generated snapshot なしの assignment を拒否してください。")
 
-        invalid_snapshot_id_event = json.loads(json.dumps(sentinel_assignment_event))
+        invalid_snapshot_id_event = json.loads(json.dumps(warden_assignment_event))
         invalid_snapshot_id_event["event_id"] = "evt_assignment_invalid_snapshot_id"
         invalid_snapshot_id_event["entity"]["id"] = "assignment_invalid_snapshot_id"
         invalid_snapshot_id_event["payload"]["assignment"]["id"] = "assignment_invalid_snapshot_id"
@@ -317,7 +326,7 @@ def validate_queue_db_smoke() -> None:
         invalid_snapshot_id = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_snapshot_id_event))
         require(invalid_snapshot_id.returncode != 0 and "helper形式" in invalid_snapshot_id.stderr, "queue_db.py は不正形式のsnapshot idを拒否してください。")
 
-        invented_snapshot_event = json.loads(json.dumps(sentinel_assignment_event))
+        invented_snapshot_event = json.loads(json.dumps(warden_assignment_event))
         invented_snapshot_event["event_id"] = "evt_assignment_invented_snapshot"
         invented_snapshot_event["entity"]["id"] = "assignment_invented_snapshot"
         invented_snapshot_event["payload"]["assignment"]["id"] = "assignment_invented_snapshot"
@@ -325,7 +334,7 @@ def validate_queue_db_smoke() -> None:
         invented_snapshot = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invented_snapshot_event))
         require(invented_snapshot.returncode != 0 and "helper出力" in invented_snapshot.stderr, "queue_db.py は形式だけ正しい自己申告snapshotを拒否してください。")
 
-        missing_objective_event = json.loads(json.dumps(sentinel_assignment_event))
+        missing_objective_event = json.loads(json.dumps(warden_assignment_event))
         missing_objective_event["event_id"] = "evt_assignment_missing_objective"
         missing_objective_event["entity"]["id"] = "assignment_missing_objective"
         missing_objective_event["payload"]["assignment"]["id"] = "assignment_missing_objective"
@@ -366,7 +375,7 @@ def validate_queue_db_smoke() -> None:
         invalid_trial_worker_event["event_id"] = "evt_trial_invalid_worker"
         invalid_trial_worker_event["entity"]["id"] = "trial_invalid_worker"
         invalid_trial_worker_event["payload"]["trial"]["id"] = "trial_invalid_worker"
-        invalid_trial_worker_event["payload"]["trial"]["worker_id"] = "advisor"
+        invalid_trial_worker_event["payload"]["trial"]["worker_id"] = "sage"
         invalid_trial_worker = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_trial_worker_event))
         require(invalid_trial_worker.returncode != 0 and "inquisitor" in invalid_trial_worker.stderr, "queue_db.py はinquisitor以外のTrial ownerを拒否してください。")
 
@@ -383,9 +392,9 @@ def validate_queue_db_smoke() -> None:
                 "id": "assignment_focus_smoke",
                 "quest_id": "quest_smoke",
                 "trial_id": "trial_focus_smoke",
-                "worker_id": "focus_reviewer",
+                "worker_id": "examiner",
                 "owner_worker_id": "inquisitor",
-                "role": "bounded_trial_focus_reviewer",
+                "role": "bounded_trial_examiner",
                 "terminal_worker": True,
                 "objective": "authorization focusの根拠を独立確認する",
                 "focus": "authorization before write",
@@ -408,7 +417,7 @@ def validate_queue_db_smoke() -> None:
         invalid_focus_event["payload"]["assignment"]["trial_id"] = "trial_missing"
         invalid_focus_event["payload"]["assignment"]["caller_lineage"]["trial_ref"] = "trial_missing"
         invalid_focus = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(invalid_focus_event))
-        require(invalid_focus.returncode != 0 and "Trial" in invalid_focus.stderr, "queue_db.py は自己申告だけのfocus reviewer lineageを拒否してください。")
+        require(invalid_focus.returncode != 0 and "Trial" in invalid_focus.stderr, "queue_db.py は自己申告だけのexaminer lineageを拒否してください。")
 
         inquisitor_report_event = {
             "event_id": "evt_report_inquisitor_smoke",
@@ -490,7 +499,7 @@ def validate_queue_db_smoke() -> None:
                 "quest_id": "quest_smoke",
                 "status": "issued",
                 "integration_contract": {
-                    "integration_owner": "integration_owner",
+                    "artificer": "artificer",
                     "mutation_barrier_required": True,
                     "required_assignment_ids": ["assignment_owner_smoke", "assignment_owner_second_smoke"],
                     "required_report_refs": ["report_upstream_smoke", "report_upstream_second_smoke"],
@@ -511,8 +520,8 @@ def validate_queue_db_smoke() -> None:
         integration_assignment_event["entity"]["id"] = "assignment_integration_smoke"
         integration_payload = integration_assignment_event["payload"]["assignment"]
         integration_payload["id"] = "assignment_integration_smoke"
-        integration_payload["worker_id"] = "integration_owner"
-        integration_payload["role"] = "cross_scope_integration_owner"
+        integration_payload["worker_id"] = "artificer"
+        integration_payload["role"] = "cross_scope_artificer"
         integration_payload["objective"] = "完了済みbounded resultを共有契約へ統合する"
         integration_payload["owned_scope"] = {
             "read": ["app.py", "other.py"],

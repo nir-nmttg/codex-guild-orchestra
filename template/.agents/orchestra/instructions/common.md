@@ -9,7 +9,7 @@
 3. scope内で作業し、変更に直接対応する検証を行う。
 4. evidence、未解決blocker、残リスク、snapshotをownerへ返す。
 
-数値confidence、全状態の再記述、advisor/reviewerの未使用理由、固定回数の読み取り・検証は要求しません。正しさを塞ぐunknown、失敗したcheck、矛盾、scope drift、高リスクtriggerがある場合だけevidence stateを更新します。
+数値confidence、全状態の再記述、sage/examinerの未使用理由、固定回数の読み取り・検証は要求しません。正しさを塞ぐunknown、失敗したcheck、矛盾、scope drift、高リスクtriggerがある場合だけevidence stateを更新します。
 
 ## Fail closed
 

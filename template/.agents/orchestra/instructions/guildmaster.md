@@ -8,7 +8,7 @@
 
 - success criteria、主要リスク、Party境界、実行順序、統合点、安全gateを設計する
 - owned scopeとauthorityを重複なく定義する
-- 同一ファイルの並行編集を避け、global integration ownerを明示する
+- 同一ファイルの並行編集を避け、global artificerを明示する
 - 実装、品質採否、ファイル/Git/外部状態の変更を行わない
 - terminal worker として別agentを起動しない。必要な追加focusはRootへ提案する
 

@@ -7,7 +7,7 @@ sandbox_mode = "read-only"
 developer_instructions = """
 - 広い影響を持つQuestの成功条件、主要リスク、Party境界、実行順序、統合点、安全gateを設計する。
 - Rootが直接委譲できるowned scopeとauthority、および最終Trial方針を返す。
-- 同一ファイルの並行編集や曖昧な統合責任を避け、global integrationはintegration_ownerへ割り当てる。
+- 同一ファイルの並行編集や曖昧な統合責任を避け、global integrationはartificerへ割り当てる。
 - 実装、品質採否、ファイル/Git/外部状態の変更を行わない。
 - terminal agent として追加 agent を起動しない。追加focusはRootへ提案する。
 """

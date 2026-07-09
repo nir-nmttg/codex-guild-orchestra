@@ -112,22 +112,22 @@ SNAPSHOT_FIELDS = {
     "scope_paths", "untracked_paths", "dirty_state", "diff_hash",
 }
 TERMINAL_ASSIGNMENT_WORKERS = {
-    "adventurer", "integration_owner", "advisor", "cartographer", "courier",
-    "focus_reviewer", "guildmaster", "inquisitor", "party_leader", "quest_sentinel",
+    "adventurer", "artificer", "sage", "cartographer", "courier",
+    "examiner", "guildmaster", "inquisitor", "captain", "warden",
 }
 READ_ONLY_ASSIGNMENT_WORKERS = {
-    "advisor", "cartographer", "focus_reviewer", "guildmaster", "inquisitor", "party_leader", "quest_sentinel",
+    "sage", "cartographer", "examiner", "guildmaster", "inquisitor", "captain", "warden",
 }
 EXPECTED_ASSIGNMENT_ROLES = {
     "adventurer": "bounded_implementation_owner",
-    "integration_owner": "cross_scope_integration_owner",
-    "advisor": "independent_focus_advisor",
+    "artificer": "cross_scope_artificer",
+    "sage": "independent_focus_sage",
     "cartographer": "mapmaking_specialist",
-    "focus_reviewer": "bounded_trial_focus_reviewer",
+    "examiner": "bounded_trial_examiner",
     "guildmaster": "guild_strategy_owner",
     "inquisitor": "trial_lead",
-    "party_leader": "execution_designer",
-    "quest_sentinel": "exceptional_control_diagnostician",
+    "captain": "execution_designer",
+    "warden": "exceptional_control_diagnostician",
     "courier": "ledger_and_git_courier",
 }
 SHA256_ID_RE = re.compile(r"sha256:[0-9a-f]{64}")
@@ -198,11 +198,25 @@ LEGACY_JSON_KEYS = {
     "meta" "cognitive_task_loop",
 }
 RETIRED_AGENT_VALUES = {
+    "advisor",
+    "focus_reviewer",
+    "integration_owner",
+    "party_leader",
+    "quest_sentinel",
     "spark",
     "scout",
     "meta" "cognitive_controller",
 }
 LEGACY_RUNTIME_STRING_VALUES = {
+    "advisor",
+    "focus_reviewer",
+    "integration_owner",
+    "party_leader",
+    "quest_sentinel",
+    "advisory_consultation",
+    "bounded_trial_focus_reviewer",
+    "cross_scope_integration_owner",
+    "independent_focus_advisor",
     "spark",
     "scout",
     "meta" "cognitive",
@@ -523,14 +537,14 @@ def expected_assignment_parent_id(payload: dict[str, Any], label: str, errors: l
         errors.append(f"{label}: owner_assignment_id と parent_id は同じ owner assignment を指してください。")
     worker_id = payload.get("worker_id")
     kind = payload.get("kind")
-    if (worker_id == "advisor" or kind == "advisory_consultation") and not (owner_assignment_id or parent_id):
-        errors.append(f"{label}: advisor assignment は owner_assignment_id または parent_id が必要です。")
-    if worker_id == "quest_sentinel" or kind in {"quest_awareness_control_monitor", "evidence_state_monitor"}:
+    if (worker_id == "sage" or kind == "sage_consultation") and not (owner_assignment_id or parent_id):
+        errors.append(f"{label}: sage assignment は owner_assignment_id または parent_id が必要です。")
+    if worker_id == "warden" or kind in {"quest_awareness_control_monitor", "evidence_state_monitor"}:
         if not (owner_assignment_id or parent_id):
-            errors.append(f"{label}: quest_sentinel assignment は owner_assignment_id または parent_id が必要です。")
+            errors.append(f"{label}: warden assignment は owner_assignment_id または parent_id が必要です。")
         control_trigger = payload.get("control_trigger")
         if not isinstance(control_trigger, str) or not control_trigger:
-            errors.append(f"{label}.control_trigger: quest_sentinel assignment には空でない control_trigger が必要です。")
+            errors.append(f"{label}.control_trigger: warden assignment には空でない control_trigger が必要です。")
     quest_id = payload.get("quest_id")
     if quest_id is not None and (not isinstance(quest_id, str) or not quest_id):
         errors.append(f"{label}.quest_id: null または空でない文字列にしてください。")
@@ -633,14 +647,14 @@ def audit_assignment_machine_contract(payload: dict[str, Any], label: str, error
         audit_relative_path_list(snapshot.get("scope_paths"), f"{label}.subject_snapshot.scope_paths", errors)
         audit_relative_path_list(snapshot.get("untracked_paths"), f"{label}.subject_snapshot.untracked_paths", errors)
 
-    if worker_id == "focus_reviewer":
+    if worker_id == "examiner":
         lineage = payload.get("caller_lineage")
         if payload.get("owner_worker_id") != "inquisitor" or not isinstance(lineage, dict):
             errors.append(f"{label}.caller_lineage: inquisitor owner の queue lineage が必要です。")
         elif not isinstance(lineage.get("trial_ref"), str) or not lineage.get("trial_ref") or lineage.get("verification") != "verified":
             errors.append(f"{label}.caller_lineage: verified trial_ref が必要です。")
 
-    if worker_id in {"adventurer", "integration_owner"}:
+    if worker_id in {"adventurer", "artificer"}:
         audit_nonempty_string_list(payload.get("success_criteria"), f"{label}.success_criteria", errors)
         owned_scope = payload.get("owned_scope")
         if not isinstance(owned_scope, dict) or set(owned_scope) != {"read", "edit", "validate"}:
@@ -654,17 +668,17 @@ def audit_assignment_machine_contract(payload: dict[str, Any], label: str, error
                     errors.append(f"{label}.owned_scope.read: 全edit pathを包含してください。")
         if isinstance(authority, dict) and (authority.get("edit") is not True or authority.get("validate") is not True):
             errors.append(f"{label}.authority: {worker_id}にはedit/validate authorityが必要です。")
-    elif worker_id in {"cartographer", "guildmaster", "party_leader", "inquisitor"}:
+    elif worker_id in {"cartographer", "guildmaster", "captain", "inquisitor"}:
         audit_nonempty_string_list(payload.get("success_criteria"), f"{label}.success_criteria", errors)
 
-    if worker_id in {"advisor", "focus_reviewer"}:
+    if worker_id in {"sage", "examiner"}:
         if not isinstance(payload.get("focus"), str) or not payload.get("focus"):
             errors.append(f"{label}.focus: 空でない具体的focusが必要です。")
         audit_nonempty_string_list(payload.get("evidence_required"), f"{label}.evidence_required", errors)
-    elif worker_id in {"cartographer", "quest_sentinel"}:
+    elif worker_id in {"cartographer", "warden"}:
         audit_nonempty_string_list(payload.get("evidence_required"), f"{label}.evidence_required", errors)
 
-    if worker_id == "integration_owner":
+    if worker_id == "artificer":
         barrier = payload.get("integration_barrier")
         if not isinstance(barrier, dict) or barrier.get("status") != "complete" or barrier.get("mutation_stopped") is not True:
             errors.append(f"{label}.integration_barrier: completeかつmutation_stoppedのbarrierが必要です。")
@@ -675,7 +689,7 @@ def audit_assignment_machine_contract(payload: dict[str, Any], label: str, error
             if barrier.get("verification") != "verified":
                 errors.append(f"{label}.integration_barrier.verification: verifiedが必要です。")
     elif payload.get("integration_barrier") is not None:
-        errors.append(f"{label}.integration_barrier: integration_owner以外には指定できません。")
+        errors.append(f"{label}.integration_barrier: artificer以外には指定できません。")
 
 
 def audit_schema(connection: sqlite3.Connection, errors: list[str]) -> bool:
@@ -1062,7 +1076,7 @@ def audit_assignment_parent_contract(connection: sqlite3.Connection, errors: lis
         workflow_id = payload.get("workflow_id") or row["workflow_id"]
         quest_id = payload.get("quest_id")
 
-        if worker_id in {"advisor", "quest_sentinel"}:
+        if worker_id in {"sage", "warden"}:
             owner_id = payload.get("owner_assignment_id") or payload.get("parent_id")
             owner = connection.execute(
                 "SELECT worker_id, workflow_id, payload_json FROM assignments WHERE assignment_id = ?",
@@ -1077,7 +1091,7 @@ def audit_assignment_parent_contract(connection: sqlite3.Connection, errors: lis
                 if payload.get("owner_worker_id") != owner["worker_id"]:
                     errors.append(f"{label}.owner_worker_id: Ledger上のownerと一致しません。")
 
-        if worker_id == "focus_reviewer":
+        if worker_id == "examiner":
             lineage = payload.get("caller_lineage")
             if not isinstance(lineage, dict):
                 continue
@@ -1117,7 +1131,7 @@ def audit_assignment_parent_contract(connection: sqlite3.Connection, errors: lis
                     if trial_payload.get("subject_snapshot") != payload.get("subject_snapshot"):
                         errors.append(f"{label}: assignmentとTrialのsubject_snapshotが一致しません。")
 
-        if worker_id == "integration_owner":
+        if worker_id == "artificer":
             barrier = payload.get("integration_barrier")
             if not isinstance(barrier, dict):
                 continue
@@ -1144,7 +1158,7 @@ def audit_assignment_parent_contract(connection: sqlite3.Connection, errors: lis
                     or contract_row["workflow_id"] != workflow_id
                     or contract_row["status"] not in {"issued", "active"}
                     or not isinstance(contract, dict)
-                    or contract.get("integration_owner") != "integration_owner"
+                    or contract.get("artificer") != "artificer"
                     or contract.get("mutation_barrier_required") is not True
                     or not isinstance(required_refs, list)
                     or not required_refs
@@ -1162,7 +1176,7 @@ def audit_assignment_parent_contract(connection: sqlite3.Connection, errors: lis
                     for scope_key in ("read", "edit", "validate"):
                         audit_relative_path_list(integration_scope[scope_key], f"{label}.integration_scope.{scope_key}", errors, nonempty=scope_key == "edit")
                     if payload.get("owned_scope") != integration_scope:
-                        errors.append(f"{label}: integration owner scopeがcommand contractと一致しません。")
+                        errors.append(f"{label}: artificer scopeがcommand contractと一致しません。")
             source_assignment_ids: list[str] = []
             for report_id in refs:
                 report = connection.execute(
@@ -1173,7 +1187,7 @@ def audit_assignment_parent_contract(connection: sqlite3.Connection, errors: lis
                     errors.append(f"{label}: upstream reportがLedgerにありません: {report_id}")
                     continue
                 report_payload = parse_json(report["payload_json"], f"reports[{report_id}].payload_json", errors)
-                if report["worker_id"] not in {"adventurer", "integration_owner"}:
+                if report["worker_id"] not in {"adventurer", "artificer"}:
                     errors.append(f"{label}: upstream report ownerが実装workerではありません: {report_id}")
                 if report["workflow_id"] != workflow_id or not isinstance(report_payload, dict) or report_payload.get("quest_id") != quest_id:
                     errors.append(f"{label}: upstream report lineageが一致しません: {report_id}")

@@ -34,7 +34,7 @@ focus:
 - テスト不足や回帰リスクがないか
 - 過度な共通化や重複がないか
 - `confirmation_needed` が未解消のまま実装されていないか
-- 複数focus reviewerを使う場合はfocus分割とfinding dispositionを残すこと
+- 複数examinerを使う場合はfocus分割とfinding dispositionを残すこと
 
 やってよいこと:
 - read-only review
@@ -53,7 +53,7 @@ focus:
 3. `inquisitor` が固定済みの差分、関連コード、owner report、テスト観点を確認します。
 4. `intent_coverage` として推定意図、本質的な成果、non-goals、過剰実装回避を確認します。
 5. `evidence_state`と`validation_evidence`がownerからTrialへ足りるか確認します。
-6. 必要に応じて`inquisitor`が単一focusをRootへ提案し、Rootが`focus_reviewer`を直接起動します。`inquisitor`はreportsを根拠確認して統合し、使わない場合の定型説明は不要です。
+6. 必要に応じて`inquisitor`が単一focusをRootへ提案し、Rootが`examiner`を直接起動します。`inquisitor`はreportsを根拠確認して統合し、使わない場合の定型説明は不要です。
 7. findings を Critical / Major / Minor などの重要度で整理します。
 8. 追加 Quest が必要か、完了扱いでよいかを判断します。Trial 中に source state が変わった場合は判断を破棄し、新しい snapshot で Trial をやり直します。
 
@@ -62,7 +62,7 @@ focus:
 - 重大な破綻や未検証リスクが明示されている
 - `intent_coverage` が `intent_analysis`、`non_goals`、過剰実装回避まで見ている
 - `evidence_state`と`validation_evidence`の不足が分類されている
-- 複数focus reviewerを使った場合はfocus分割とfinding dispositionがある
+- 複数examinerを使った場合はfocus分割とfinding dispositionがある
 - 指摘ごとに根拠ファイルや判断理由がある
 - 修正が必要な場合は、次の最小 Quest に分けられる
 - 問題がなければ、残る risk と test gap が説明されている

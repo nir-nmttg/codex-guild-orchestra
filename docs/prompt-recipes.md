@@ -22,7 +22,7 @@ non-goal: <不要な拡張>
 ## Parallel implementation
 
 ```text
-独立したowned scopeだけを並列化してください。共有artifactのownerを一つにし、全result後にmutationを止め、integration_ownerがcross-scope glueと統合検証を担当してください。
+独立したowned scopeだけを並列化してください。共有artifactのownerを一つにし、全result後にmutationを止め、artificerがcross-scope glueと統合検証を担当してください。
 ```
 
 ## Independent review
@@ -31,13 +31,13 @@ non-goal: <不要な拡張>
 この変更をread-onlyで確認してください。success criteria、scope、authority、安全、validation evidenceを共通checkとし、変更に関係するsecurity/compatibility/performance等だけ追加してください。findingは根拠と影響を示してください。
 ```
 
-## Advisor
+## Sage
 
 ```text
 <具体的な独立focus>だけをread-onlyで調べ、ownerが確認できるevidence、options、risks、unknownsを返してください。実装や採否は行いません。
 ```
 
-advisorは具体的なfocusがある時だけ使います。使わない理由や自己評価値は不要です。
+sageは具体的なfocusがある時だけ使います。使わない理由や自己評価値は不要です。
 
 ## Safety stop
 
