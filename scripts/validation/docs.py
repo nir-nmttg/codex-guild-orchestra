@@ -11,28 +11,28 @@ from .core import ROOT, mapping, read, require, sequence, tomllib
 
 EXPECTED_AGENT_SANDBOX_MODES = {
     "adventurer": "workspace-write",
-    "advisor": "read-only",
+    "sage": "read-only",
     "cartographer": "read-only",
     "courier": "workspace-write",
-    "focus_reviewer": "read-only",
+    "examiner": "read-only",
     "guildmaster": "read-only",
     "inquisitor": "read-only",
-    "integration_owner": "workspace-write",
-    "party_leader": "read-only",
-    "quest_sentinel": "read-only",
+    "artificer": "workspace-write",
+    "captain": "read-only",
+    "warden": "read-only",
 }
 
 EXPECTED_AGENT_MODEL_CONFIGS = {
     "adventurer": ("gpt-5.6-sol", "high"),
-    "advisor": ("gpt-5.6-sol", "high"),
+    "sage": ("gpt-5.6-sol", "high"),
     "cartographer": ("gpt-5.6-sol", "high"),
     "courier": ("gpt-5.3-codex-spark", "xhigh"),
-    "focus_reviewer": ("gpt-5.6-sol", "high"),
+    "examiner": ("gpt-5.6-sol", "high"),
     "guildmaster": ("gpt-5.6-sol", "xhigh"),
     "inquisitor": ("gpt-5.6-sol", "high"),
-    "integration_owner": ("gpt-5.6-sol", "high"),
-    "party_leader": ("gpt-5.6-sol", "high"),
-    "quest_sentinel": ("gpt-5.6-sol", "high"),
+    "artificer": ("gpt-5.6-sol", "high"),
+    "captain": ("gpt-5.6-sol", "high"),
+    "warden": ("gpt-5.6-sol", "high"),
 }
 
 RUNTIME_PROSE = (
@@ -146,7 +146,7 @@ def validate_docs_and_instructions() -> None:
     require(_line_count("template/.agents/orchestra/config/settings.yaml") <= 240, "settings.yamlを240行以内の機械契約にしてください。")
 
     agents = read("template/AGENTS.md")
-    for token in ("target_repo_root", "success_criteria", "State changes", "Evidence-based control", "Rootだけ", "integration_owner", "stale_evidence", "結論を先"):
+    for token in ("target_repo_root", "success_criteria", "State changes", "Evidence-based control", "Rootだけ", "artificer", "stale_evidence", "結論を先"):
         require(token in agents, f"AGENTS.md のcompact kernelに `{token}` が必要です。")
     for token in QUALITY_REDUCING_TOKENS:
         require(token not in agents, f"AGENTS.md に旧制約 `{token}` が残っています。")
@@ -169,7 +169,7 @@ def validate_docs_and_instructions() -> None:
     use_case_text = "\n".join(path.read_text(encoding="utf-8") for path in sorted(use_case_root.glob("*.md")))
     for token in QUALITY_REDUCING_TOKENS:
         require(token not in use_case_text, f"docs/use-cases に旧制約 `{token}` が残っています。")
-    for token in ("evidence_state", "integration_owner", "risk-triggered", "例外"):
+    for token in ("evidence_state", "artificer", "risk-triggered", "例外"):
         require(token in use_case_text, f"docs/use-cases は新設計 `{token}` を説明してください。")
 
     quest_control = read("docs/quest-awareness-runtime.md")

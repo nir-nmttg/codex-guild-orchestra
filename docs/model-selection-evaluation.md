@@ -40,13 +40,13 @@ wrapper reviewでは、単なるpass-throughでないこと、hostのhome、repo
 python3 scripts/model_selection_eval.py validate
 python3 scripts/model_selection_eval.py plan
 python3 scripts/model_selection_eval.py run \
-  --role focus_reviewer \
+  --role examiner \
   --acknowledge-external-data-send \
   --execution-wrapper /path/to/isolated-eval-wrapper \
   --isolation-attestation /path/to/isolation-attestation.json
 # 単一profileだけの診断実行。paired選定matrixとは見なされない
 python3 scripts/model_selection_eval.py run \
-  --role focus_reviewer \
+  --role examiner \
   --prompt-profile compact \
   --acknowledge-external-data-send \
   --execution-wrapper /path/to/isolated-eval-wrapper \
@@ -54,7 +54,7 @@ python3 scripts/model_selection_eval.py run \
 # provenanceへアクセスできないgrader用packageを別access boundaryへ出力
 python3 scripts/model_selection_eval.py export-grading \
   --session-dir /tmp/codex-guild-model-eval/session-... \
-  --output-dir /path/visible-to-grader/focus-reviewer-grading
+  --output-dir /path/visible-to-grader/examiner-grading
 # package内のgrader.jsonを埋め、grader.jsonだけをcontrolled copyで元sessionへ戻した後
 python3 scripts/model_selection_eval.py summarize --session-dir /tmp/codex-guild-model-eval/session-...
 # current pricingを別管理する場合
@@ -108,13 +108,13 @@ prompt stackの削減量はlayerごとのSHA-256、UTF-8 bytes、文字数、比
 | --- | --- | --- | --- |
 | Root | Sol `high` / `xhigh` | どちらも未確定 repository と deployment approval を停止できた。`high` は target を推測せず assignment も作らず、`xhigh` は両 repository の調査 assignment を追加した | 全依頼を通る Root は Sol / `high` に固定 |
 | cartographer | Terra `high` / Sol `high` | legacy例では必要な危険地帯を整理できたが、現runnerのlive非劣性は未確認 | 設計段階の omission が下流全体へ波及するため Sol / `high` |
-| party_leader | Terra `high` / Sol `high` | Terra は migration file の owner を落とした。Sol は全 file を2担当へ非重複で割り当て、sequencing と security / rollback Trial を維持した | assignment の波及を重視して Sol / `high` |
+| captain | Terra `high` / Sol `high` | Terra は migration file の owner を落とした。Sol は全 file を2担当へ非重複で割り当て、sequencing と security / rollback Trial を維持した | assignment の波及を重視して Sol / `high` |
 | adventurer | Terra `high` / Sol `high` | synthetic例では両者が必要要素を提示したが、実運用のpaired non-inferiority evidenceはまだない | 成果物を直接変更する主要実装者なので、live非劣性確認までは Sol / `high` |
 | inquisitor | Terra `high` / Sol `high` | どちらも authorization 前 write を Critical、full token logging を重大 finding として reject した。Sol は同じ hard gate を短く満たした | 最終採否と重大度統合の誤りの波及を重視して Sol / `high` |
-| focus_reviewer | Terra `high` / Sol `high` | legacy例ではTerraもsecurity findingを検出したが、独立reviewの見落としはownerが完全には再現できない | live非劣性確認までは Sol / `high`。Terraは候補に残す |
-| advisor | Luna `high` / Terra `high` / Sol `high` | legacy例では下位modelもmigration riskを検出したが、architecture / safetyの未発見はownerが再検証できない | omission riskを優先して Sol / `high`。Luna/Terraは候補に残す |
-| integration_owner | Terra `high` / Sol `high` | bounded実装とは異なり、複数scopeの共有契約、競合、end-to-end validationを最終成果へ統合する | cross-scope failureの波及を重視して Sol / `high` |
-| quest_sentinel | Luna `high` / Terra `high` / Sol `high` | routine monitoringはownerへ戻したが、例外時のfalse stop / false continueは成果へ波及する | live非劣性確認までは Sol / `high` |
+| examiner | Terra `high` / Sol `high` | legacy例ではTerraもsecurity findingを検出したが、独立reviewの見落としはownerが完全には再現できない | live非劣性確認までは Sol / `high`。Terraは候補に残す |
+| sage | Luna `high` / Terra `high` / Sol `high` | legacy例では下位modelもmigration riskを検出したが、architecture / safetyの未発見はownerが再検証できない | omission riskを優先して Sol / `high`。Luna/Terraは候補に残す |
+| artificer | Terra `high` / Sol `high` | bounded実装とは異なり、複数scopeの共有契約、競合、end-to-end validationを最終成果へ統合する | cross-scope failureの波及を重視して Sol / `high` |
+| warden | Luna `high` / Terra `high` / Sol `high` | routine monitoringはownerへ戻したが、例外時のfalse stop / false continueは成果へ波及する | live非劣性確認までは Sol / `high` |
 
 `guildmaster` は guild-scale の Party 境界、sequencing、safety gate に限定される低頻度 role で、失敗時の blast radius が最大です。
 このため現行 deployment は Sol / `xhigh` を維持します。`max` は candidate manifest に含めますが、blind反復評価で `xhigh` への測定済み品質向上が確認されるまで固定採用しません。
@@ -125,7 +125,7 @@ prompt stackの削減量はlayerごとのSHA-256、UTF-8 bytes、文字数、比
 最終 decision の責務と bounded evidence 収集の責務が異なるため、次の固定 role に分離します。
 
 - `inquisitor`: Sol / `high`。Trial 設計、reviewer count、report 根拠確認、重大度、finding disposition、requested changes、最終 decision を所有する。
-- `focus_reviewer`: Sol / `high`。`inquisitor`が必要とした単一focusをRootから直接受け、read-only evidenceだけを返し、採否、重大度、synthesis、追加subagentを持たない。
+- `examiner`: Sol / `high`。`inquisitor`が必要とした単一focusをRootから直接受け、read-only evidenceだけを返し、採否、重大度、synthesis、追加subagentを持たない。
 
 この分離の目的はmodelを下げることではなく、focus expansionとdecision authorityの混同を防ぐことです。live非劣性が確認できるまではreviewerもSolを維持します。
 
@@ -135,15 +135,15 @@ prompt stackの削減量はlayerごとのSHA-256、UTF-8 bytes、文字数、比
 | --- | --- | --- |
 | Root | `gpt-5.6-sol` | `high` |
 | `adventurer` | `gpt-5.6-sol` | `high` |
-| `advisor` | `gpt-5.6-sol` | `high` |
+| `sage` | `gpt-5.6-sol` | `high` |
 | `cartographer` | `gpt-5.6-sol` | `high` |
 | `courier` | `gpt-5.3-codex-spark` | `xhigh` |
-| `focus_reviewer` | `gpt-5.6-sol` | `high` |
+| `examiner` | `gpt-5.6-sol` | `high` |
 | `guildmaster` | `gpt-5.6-sol` | `xhigh` |
 | `inquisitor` | `gpt-5.6-sol` | `high` |
-| `integration_owner` | `gpt-5.6-sol` | `high` |
-| `party_leader` | `gpt-5.6-sol` | `high` |
-| `quest_sentinel` | `gpt-5.6-sol` | `high` |
+| `artificer` | `gpt-5.6-sol` | `high` |
+| `captain` | `gpt-5.6-sol` | `high` |
+| `warden` | `gpt-5.6-sol` | `high` |
 
 Root と全 subagent はこの値を固定し、Quest の難度による動的な reasoning effort 切り替えは行いません。
 model catalog、role contract、authority、並列数、ユースケース、または eval の失敗傾向が変わった場合は、golden Quest、candidate manifest、この固定マトリクスを同時に再評価します。

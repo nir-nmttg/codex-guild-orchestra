@@ -69,14 +69,14 @@ delegation:
   max_threads: 6
   use_when: [independent_bounded_work, read_heavy_parallelism, distinct_owned_scopes, independent_high_risk_review]
   avoid_when: [extra_planning_or_review_for_trivial_task, multi_agent_fanout_for_single_ordered_chain, shared_mutable_scope, delegation_overhead_exceeds_value]
-  advisor:
+  sage:
     trigger: concrete_independent_focus
     use_by_default: false
     unused_reason_required: false
     read_only: true
     decision_authority: false
     owner_verifies_evidence: true
-  quest_sentinel:
+  warden:
     trigger: [contradictory_evidence, repeated_failure, scope_drift, stalled_long_running_work]
     routine_use: false
     read_only: true
@@ -89,20 +89,20 @@ workers:
   guildmaster:
     role: guild_strategy_owner
     max_parallel: 1
-  party_leader:
+  captain:
     role: execution_designer
     max_parallel: 2
   adventurer:
     role: bounded_implementation_owner
     max_parallel: 4
-  integration_owner:
-    role: cross_scope_integration_owner
+  artificer:
+    role: cross_scope_artificer
     max_parallel: 1
   inquisitor:
     role: trial_lead
     max_parallel: 2
-  focus_reviewer:
-    role: bounded_trial_focus_reviewer
+  examiner:
+    role: bounded_trial_examiner
     max_parallel: 3
     allowed_callers:
       - inquisitor
@@ -114,10 +114,10 @@ workers:
     ledger_authority: false
     git_authority: false
     external_action_authority: false
-  advisor:
-    role: independent_focus_advisor
+  sage:
+    role: independent_focus_sage
     max_parallel: 3
-  quest_sentinel:
+  warden:
     role: exceptional_control_diagnostician
     max_parallel: 1
     decision_authority: false
@@ -127,7 +127,7 @@ workers:
 
 execution:
   bounded_worker: adventurer
-  cross_scope_integration_worker: integration_owner
+  cross_scope_integration_worker: artificer
   shared_artifact_single_owner: true
   integration_barrier_required_for_parallel_mutation: true
   fixed_read_or_validation_counts: false
@@ -152,11 +152,11 @@ trial:
     - validation_failed
     - important_unknown_remains
   owner_validation_allowed_when: [low_risk, bounded_scope, targeted_validation_passed, no_blocker]
-  focus_reviewers:
+  examiners:
     trigger: independent_focus_improves_detection
     unused_reason_required: false
     cost_reason_required: false
-    multiple_reviewers_require_focus_split: true
+    multiple_examiners_require_focus_split: true
     final_decision_owner: inquisitor
   outcomes: [accept, accept_with_risks, request_changes, needs_human, blocked]
 

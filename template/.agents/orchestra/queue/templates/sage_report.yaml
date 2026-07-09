@@ -1,4 +1,4 @@
-artifact_type: "advisor_report"
+artifact_type: "sage_report"
 schema_version: "3.0"
 workflow_id: null
 structured_data_usage:
@@ -9,7 +9,7 @@ report:
   id: null
   quest_id: null
   assignment_id: null
-  worker_id: advisor
+  worker_id: sage
   owner_worker_id: null
   target_repo_root: null
   status: draft

@@ -28,9 +28,9 @@ target_repo_root は /path/to/guild-root/repositories/example-app です。
 party_tactics:
 - 実装担当は既存設計を読んで最小差分で進める
 - assignment ごとに assignment_id、owned scope、編集禁止 path、validation expectation を持たせる
-- party_leaderがSol/highの`integration_owner`用assignmentとintegration barrierを設計する
+- captainがSol/highの`artificer`用assignmentとintegration barrierを設計する
 - Trial は validation、UI 回帰、既存データ影響を focus にする
-- 必要なら read-only advisor を 1 focus だけ使う
+- 必要なら read-only sage を 1 focus だけ使う
 
 snapshot:
 - revision_id: <Root が確認した HEAD commit SHA>
@@ -47,14 +47,14 @@ snapshot:
 ## 期待される流れ
 
 1. Root が Quest Charter と共通の `base_snapshot` を作ります。clean な開始点は `revision_only` とし、全 worker が同じ `revision_id` を参照します。
-2. `party_leader` が担当範囲、assignment identity、並列化可否、sequencing、Trial focus、integration barrier を設計します。同じファイルだけでなく、生成物、lockfile、schema、共有契約、共通 test fixture の owner も一つに固定します。
-3. `party_leader`はcross-scope調整を行う専用`integration_owner` assignmentを明示します。`party_leader`自身は実装を引き取りません。
+2. `captain` が担当範囲、assignment identity、並列化可否、sequencing、Trial focus、integration barrier を設計します。同じファイルだけでなく、生成物、lockfile、schema、共有契約、共通 test fixture の owner も一つに固定します。
+3. `captain`はcross-scope調整を行う専用`artificer` assignmentを明示します。`captain`自身は実装を引き取りません。
 4. 各`adventurer`が共通base revisionと自分のowned scopeを確認し、scope内で実装します。reportには変更、validation evidence、変化した`evidence_state`、残リスク、base snapshot、owned scopeの`result_snapshot`を含めます。
 5. 全実装 report が揃うまで integration barrier を閉じません。base revision 不一致、owned scope 重複、同じ owned scope の後発変更、失敗、未完了 assignment が一つでもあれば Trial へ進みません。
-6. Root と `party_leader` が handoff を確認した後、並列編集を停止し、`integration_owner` だけが cross-scope glue、共有契約、統合検証を担当します。新しい実装が不要なら、その理由を残します。
-7. integration owner の report 後に全 owned scope と glue を含む `working_tree_content` の integrated snapshot を固定し、以後 Trial 完了まで実装担当は編集しません。変更が生じた場合は barrier を開き直し、新しい integrated snapshot を作ります。
+6. Root と `captain` が handoff を確認した後、並列編集を停止し、`artificer` だけが cross-scope glue、共有契約、統合検証を担当します。新しい実装が不要なら、その理由を残します。
+7. artificer の report 後に全 owned scope と glue を含む `working_tree_content` の integrated snapshot を固定し、以後 Trial 完了まで実装担当は編集しません。変更が生じた場合は barrier を開き直し、新しい integrated snapshot を作ります。
 8. `inquisitor` が stable snapshot に対して risk-based に `focused_trial` または `multi_focus_trial` を行います。
-9. `inquisitor`がrisk-triggeredに独立focusを選び、必要な場合だけRootへ`focus_reviewer` assignmentを提案します。Rootが直接起動し、複数reviewer時だけfocus分割を記録します。
+9. `inquisitor`がrisk-triggeredに独立focusを選び、必要な場合だけRootへ`examiner` assignmentを提案します。Rootが直接起動し、複数reviewer時だけfocus分割を記録します。
 10. Findings は重大度と disposition を付けて統合され、accept 後に `courier` が snapshot、検証、残リスクを Ledger に記録します。
 
 ## 完了条件

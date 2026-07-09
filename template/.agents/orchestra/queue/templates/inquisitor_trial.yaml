@@ -55,8 +55,8 @@ trial:
     - regression_risk
   # 実際のrisk triggerに対応するcheckだけを追加する。
   risk_triggered_checks: []
-  advisor_assignments: []
-  reviewer_assignments: []
+  sage_assignments: []
+  examiner_assignments: []
   decision_options:
     - accept
     - accept_with_risks

@@ -1,10 +1,10 @@
-id: advisor_dialogue_same_focus_stop
+id: sage_dialogue_same_focus_stop
 fixture_mode: static_contract_example
-summary: "advisor は具体的な focus で verifiable evidence を追加できる間だけ続ける"
+summary: "sage は具体的な focus で verifiable evidence を追加できる間だけ続ける"
 input:
   request: "設計の見落としだけ助言してください"
 expected:
-  worker_id: advisor
+  worker_id: sage
   decision_authority: false
   terminal_worker: true
   evidence_policy:

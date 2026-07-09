@@ -50,7 +50,7 @@ def validate_model_selection_eval() -> None:
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
-        "focus_reviewer",
+        "examiner",
         "gpt-5.3-codex-spark",
         "official_guidance",
         "contract_fixtures",
@@ -100,7 +100,7 @@ def validate_model_selection_eval() -> None:
         grading_root = session_dir / "grading"
         provenance_root.mkdir()
         grading_root.mkdir()
-        role = "focus_reviewer"
+        role = "examiner"
         seed = 56
         evaluation_manifest = json.loads(json.dumps(manifest))
         manifest_sha256 = module._manifest_sha256(manifest_path)

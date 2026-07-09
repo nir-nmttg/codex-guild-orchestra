@@ -10,8 +10,8 @@ assignment:
   # validatorがfail-closedで確認する。workerは推測しない。
   id: null
   quest_id: null
-  worker_id: adventurer # adventurer / integration_owner
-  role: bounded_implementation_owner # bounded_implementation_owner / cross_scope_integration_owner
+  worker_id: adventurer # adventurer / artificer
+  role: bounded_implementation_owner # bounded_implementation_owner / cross_scope_artificer
   terminal_worker: true
   objective: null
   success_criteria: []
@@ -19,7 +19,7 @@ assignment:
     read: []
     edit: []
     validate: []
-  # integration_ownerだけが使用する。queueは参照reportの完了とlineageを検証する。
+  # artificerだけが使用する。queueは参照reportの完了とlineageを検証する。
   integration_barrier: null
   # integration_barrier:
   #   status: complete

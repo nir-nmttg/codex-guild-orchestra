@@ -71,7 +71,7 @@ def validate_queue_templates() -> None:
     require("evidence_state:" in request_text and "subject_snapshot:" in request_text, "request example は compact evidence_state と helper snapshot を参照してください。")
     command_text = read("template/.agents/orchestra/queue/templates/command.yaml")
     require("subject_snapshot:" in command_text and "cgo-snapshot-v1" in command_text, "command example は canonical subject snapshot を参照してください。")
-    require(all(token in command_text for token in ("integration_contract:", "integration_owner:", "mutation_barrier_required:", "required_assignment_ids:", "required_report_refs:", "integration_scope:")), "command example はintegration前にrequired集合とintegration scopeを固定してください。")
+    require(all(token in command_text for token in ("integration_contract:", "artificer:", "mutation_barrier_required:", "required_assignment_ids:", "required_report_refs:", "integration_scope:")), "command example はintegration前にrequired集合とintegration scopeを固定してください。")
 
     _, assignment = _doc("template/.agents/orchestra/queue/templates/adventurer_assignment.yaml", "assignment")
     _keys(
@@ -83,8 +83,8 @@ def validate_queue_templates() -> None:
         },
         "adventurer_assignment.assignment",
     )
-    require(assignment.get("worker_id") in {"adventurer", "integration_owner"}, "implementation assignment の worker_id が不正です。")
-    require(assignment.get("role") in {"bounded_implementation_owner", "cross_scope_integration_owner"}, "implementation role はworker contractと一致させてください。")
+    require(assignment.get("worker_id") in {"adventurer", "artificer"}, "implementation assignment の worker_id が不正です。")
+    require(assignment.get("role") in {"bounded_implementation_owner", "cross_scope_artificer"}, "implementation role はworker contractと一致させてください。")
     require(assignment.get("terminal_worker") is True, "adventurer は recursive delegation しない terminal worker にしてください。")
     _bounded_snapshot_authority(assignment, "adventurer_assignment.assignment")
     validate_evidence_state(assignment.get("evidence_state"), "adventurer_assignment.assignment.evidence_state")
@@ -103,7 +103,7 @@ def validate_queue_templates() -> None:
         },
         "adventurer_report.report",
     )
-    require(adventurer_report.get("worker_id") in {"adventurer", "integration_owner"}, "implementation report worker_id が不正です。")
+    require(adventurer_report.get("worker_id") in {"adventurer", "artificer"}, "implementation report worker_id が不正です。")
     validate_evidence_state(adventurer_report.get("evidence_state"), "adventurer_report.report.evidence_state")
     validate_subject_snapshot(adventurer_report.get("base_snapshot"), "adventurer_report.report.base_snapshot")
     validate_subject_snapshot(adventurer_report.get("result_snapshot"), "adventurer_report.report.result_snapshot")
@@ -137,42 +137,42 @@ def validate_queue_templates() -> None:
     validate_evidence_state(cart_report.get("evidence_state"), "cartographer_report.report.evidence_state")
     validate_subject_snapshot(cart_report.get("subject_snapshot"), "cartographer_report.report.subject_snapshot")
 
-    _, advisor = _doc("template/.agents/orchestra/queue/templates/advisor_assignment.yaml", "assignment")
+    _, sage = _doc("template/.agents/orchestra/queue/templates/sage_assignment.yaml", "assignment")
     _keys(
-        advisor,
+        sage,
         {
             "id", "quest_id", "parent_id", "worker_id", "role", "kind", "owner_worker_id",
             "owner_assignment_id", "terminal_worker", "decision_authority", "objective", "focus",
             "evidence_required", "stop_conditions", "subject_snapshot", "authority", "boundaries", "risks",
             "status", "timestamp",
         },
-        "advisor_assignment.assignment",
+        "sage_assignment.assignment",
     )
-    require(advisor.get("worker_id") == "advisor" and advisor.get("kind") == "advisory_consultation", "advisor identity が不正です。")
-    require(advisor.get("role") == "independent_focus_advisor", "advisor role はworker contractと一致させてください。")
-    require(advisor.get("terminal_worker") is True and advisor.get("decision_authority") is False, "advisor は terminal / non-decision worker にしてください。")
-    _bounded_snapshot_authority(advisor, "advisor_assignment.assignment")
-    _read_only(advisor.get("authority"), "advisor_assignment.assignment.authority")
+    require(sage.get("worker_id") == "sage" and sage.get("kind") == "sage_consultation", "sage identity が不正です。")
+    require(sage.get("role") == "independent_focus_sage", "sage role はworker contractと一致させてください。")
+    require(sage.get("terminal_worker") is True and sage.get("decision_authority") is False, "sage は terminal / non-decision worker にしてください。")
+    _bounded_snapshot_authority(sage, "sage_assignment.assignment")
+    _read_only(sage.get("authority"), "sage_assignment.assignment.authority")
     require(
         {"focus_resolved", "no_new_verifiable_evidence", "authority_or_boundary_would_expand", "human_confirmation_required"}
-        <= set(sequence(advisor.get("stop_conditions"), "advisor_assignment.assignment.stop_conditions")),
-        "advisor stop conditions は evidence/focus/authority で停止できる必要があります。",
+        <= set(sequence(sage.get("stop_conditions"), "sage_assignment.assignment.stop_conditions")),
+        "sage stop conditions は evidence/focus/authority で停止できる必要があります。",
     )
 
-    _, advisor_report = _doc("template/.agents/orchestra/queue/templates/advisor_report.yaml", "report")
+    _, sage_report = _doc("template/.agents/orchestra/queue/templates/sage_report.yaml", "report")
     _keys(
-        advisor_report,
+        sage_report,
         {
             "id", "quest_id", "assignment_id", "worker_id", "owner_worker_id", "target_repo_root", "status",
             "terminal_worker", "decision_authority", "focus", "summary", "findings", "evidence_refs",
             "important_unknowns", "risks", "recommended_next_action", "subject_snapshot", "timestamp",
         },
-        "advisor_report.report",
+        "sage_report.report",
     )
-    require(advisor_report.get("terminal_worker") is True and advisor_report.get("decision_authority") is False, "advisor report は non-decision terminal contract を維持してください。")
-    validate_subject_snapshot(advisor_report.get("subject_snapshot"), "advisor_report.report.subject_snapshot")
+    require(sage_report.get("terminal_worker") is True and sage_report.get("decision_authority") is False, "sage report は non-decision terminal contract を維持してください。")
+    validate_subject_snapshot(sage_report.get("subject_snapshot"), "sage_report.report.subject_snapshot")
 
-    _, focus = _doc("template/.agents/orchestra/queue/templates/focus_reviewer_assignment.yaml", "assignment")
+    _, focus = _doc("template/.agents/orchestra/queue/templates/examiner_assignment.yaml", "assignment")
     _keys(
         focus,
         {
@@ -180,17 +180,17 @@ def validate_queue_templates() -> None:
             "decision_authority", "severity_authority", "objective", "caller_lineage", "risk_trigger", "focus", "subject_snapshot",
             "authority", "boundaries", "evidence_required", "forbidden", "status", "timestamp",
         },
-        "focus_reviewer_assignment.assignment",
+        "examiner_assignment.assignment",
     )
-    require(focus.get("worker_id") == "focus_reviewer" and focus.get("owner_worker_id") == "inquisitor", "focus reviewer lineage identity が不正です。")
-    require(focus.get("terminal_worker") is True and focus.get("decision_authority") is False and focus.get("severity_authority") is False, "focus reviewer authority flags が不正です。")
-    lineage = mapping(focus.get("caller_lineage"), "focus_reviewer_assignment.assignment.caller_lineage")
-    _keys(lineage, {"required_parent_role", "trial_owner_worker_id", "trial_ref", "verification"}, "focus_reviewer_assignment.assignment.caller_lineage")
-    require(lineage.get("required_parent_role") == "inquisitor" and lineage.get("trial_owner_worker_id") == "inquisitor", "focus reviewer は inquisitor lineage に限定してください。")
-    _bounded_snapshot_authority(focus, "focus_reviewer_assignment.assignment")
-    _read_only(focus.get("authority"), "focus_reviewer_assignment.assignment.authority", validate=True)
+    require(focus.get("worker_id") == "examiner" and focus.get("owner_worker_id") == "inquisitor", "examiner lineage identity が不正です。")
+    require(focus.get("terminal_worker") is True and focus.get("decision_authority") is False and focus.get("severity_authority") is False, "examiner authority flags が不正です。")
+    lineage = mapping(focus.get("caller_lineage"), "examiner_assignment.assignment.caller_lineage")
+    _keys(lineage, {"required_parent_role", "trial_owner_worker_id", "trial_ref", "verification"}, "examiner_assignment.assignment.caller_lineage")
+    require(lineage.get("required_parent_role") == "inquisitor" and lineage.get("trial_owner_worker_id") == "inquisitor", "examiner は inquisitor lineage に限定してください。")
+    _bounded_snapshot_authority(focus, "examiner_assignment.assignment")
+    _read_only(focus.get("authority"), "examiner_assignment.assignment.authority", validate=True)
 
-    _, focus_report = _doc("template/.agents/orchestra/queue/templates/focus_reviewer_report.yaml", "report")
+    _, focus_report = _doc("template/.agents/orchestra/queue/templates/examiner_report.yaml", "report")
     _keys(
         focus_report,
         {
@@ -199,16 +199,16 @@ def validate_queue_templates() -> None:
             "subject_snapshot", "snapshot_check", "summary", "finding_candidates", "evidence_refs",
             "important_unknowns", "residual_risks", "status", "timestamp",
         },
-        "focus_reviewer_report.report",
+        "examiner_report.report",
     )
-    require(focus_report.get("terminal_worker") is True and focus_report.get("decision_authority") is False and focus_report.get("severity_authority") is False, "focus reviewer report authority flags が不正です。")
-    caller_check = mapping(focus_report.get("caller_lineage_check"), "focus_reviewer_report.report.caller_lineage_check")
-    _keys(caller_check, {"required_parent_role", "trial_owner_worker_id", "trial_ref", "verified", "status"}, "focus_reviewer_report.report.caller_lineage_check")
-    require(caller_check.get("status") in {None, "verified", "invalid_assignment", "unverifiable"}, "focus reviewer lineage status が不正です。")
-    validate_subject_snapshot(focus_report.get("subject_snapshot"), "focus_reviewer_report.report.subject_snapshot")
-    snapshot_check = mapping(focus_report.get("snapshot_check"), "focus_reviewer_report.report.snapshot_check")
-    _keys(snapshot_check, {"start_match", "report_match", "status"}, "focus_reviewer_report.report.snapshot_check")
-    require(snapshot_check.get("status") in {None, "matched", "stale_evidence", "invalid_assignment"}, "focus reviewer snapshot status が不正です。")
+    require(focus_report.get("terminal_worker") is True and focus_report.get("decision_authority") is False and focus_report.get("severity_authority") is False, "examiner report authority flags が不正です。")
+    caller_check = mapping(focus_report.get("caller_lineage_check"), "examiner_report.report.caller_lineage_check")
+    _keys(caller_check, {"required_parent_role", "trial_owner_worker_id", "trial_ref", "verified", "status"}, "examiner_report.report.caller_lineage_check")
+    require(caller_check.get("status") in {None, "verified", "invalid_assignment", "unverifiable"}, "examiner lineage status が不正です。")
+    validate_subject_snapshot(focus_report.get("subject_snapshot"), "examiner_report.report.subject_snapshot")
+    snapshot_check = mapping(focus_report.get("snapshot_check"), "examiner_report.report.snapshot_check")
+    _keys(snapshot_check, {"start_match", "report_match", "status"}, "examiner_report.report.snapshot_check")
+    require(snapshot_check.get("status") in {None, "matched", "stale_evidence", "invalid_assignment"}, "examiner snapshot status が不正です。")
 
     _, trial = _doc("template/.agents/orchestra/queue/templates/inquisitor_trial.yaml", "trial")
     _keys(
@@ -216,8 +216,8 @@ def validate_queue_templates() -> None:
         {
             "id", "quest_id", "worker_id", "role", "depth", "objective", "success_criteria",
             "subject_assignment_ids", "subject_report_ids", "changed_files", "subject_snapshot", "authority",
-            "boundaries", "evidence_state", "core_checks", "risk_triggered_checks", "advisor_assignments",
-            "reviewer_assignments", "decision_options", "evidence_required", "status", "timestamp",
+            "boundaries", "evidence_state", "core_checks", "risk_triggered_checks", "sage_assignments",
+            "examiner_assignments", "decision_options", "evidence_required", "status", "timestamp",
         },
         "inquisitor_trial.trial",
     )
@@ -232,15 +232,15 @@ def validate_queue_templates() -> None:
         trial_report,
         {
             "id", "quest_id", "trial_id", "worker_id", "target_repo_root", "status", "decision", "summary",
-            "trial_depth", "subject_snapshot", "evidence_state", "findings", "validation_evidence", "advisor_reports",
-            "reviewer_reports", "finding_dispositions", "risks", "requested_changes", "evidence_refs", "timestamp",
+            "trial_depth", "subject_snapshot", "evidence_state", "findings", "validation_evidence", "sage_reports",
+            "examiner_reports", "finding_dispositions", "risks", "requested_changes", "evidence_refs", "timestamp",
         },
         "inquisitor_report.report",
     )
     validate_subject_snapshot(trial_report.get("subject_snapshot"), "inquisitor_report.report.subject_snapshot")
     validate_evidence_state(trial_report.get("evidence_state"), "inquisitor_report.report.evidence_state")
 
-    _, sentinel = _doc("template/.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml", "assignment")
+    _, sentinel = _doc("template/.agents/orchestra/queue/templates/warden_assignment.yaml", "assignment")
     _keys(
         sentinel,
         {
@@ -248,15 +248,15 @@ def validate_queue_templates() -> None:
             "terminal_worker", "decision_authority", "control_trigger", "objective", "evidence_state", "output_contract",
             "subject_snapshot", "authority", "boundaries", "evidence_required", "risks", "status", "timestamp",
         },
-        "quest_sentinel_assignment.assignment",
+        "warden_assignment.assignment",
     )
-    require(sentinel.get("worker_id") == "quest_sentinel" and sentinel.get("kind") == "evidence_state_monitor", "quest_sentinel は exceptional evidence-state monitor にしてください。")
-    require(sentinel.get("role") == "exceptional_control_diagnostician", "quest_sentinel role はworker contractと一致させてください。")
-    require(sentinel.get("terminal_worker") is True and sentinel.get("decision_authority") is False, "quest_sentinel は non-decision terminal worker にしてください。")
-    _bounded_snapshot_authority(sentinel, "quest_sentinel_assignment.assignment")
-    _read_only(sentinel.get("authority"), "quest_sentinel_assignment.assignment.authority")
-    validate_evidence_state(sentinel.get("evidence_state"), "quest_sentinel_assignment.assignment.evidence_state")
-    require(mapping(sentinel.get("output_contract"), "quest_sentinel_assignment.assignment.output_contract") == {"evidence_state_only": True, "hidden_reasoning_allowed": False}, "quest_sentinel output contract が不正です。")
+    require(sentinel.get("worker_id") == "warden" and sentinel.get("kind") == "evidence_state_monitor", "warden は exceptional evidence-state monitor にしてください。")
+    require(sentinel.get("role") == "exceptional_control_diagnostician", "warden role はworker contractと一致させてください。")
+    require(sentinel.get("terminal_worker") is True and sentinel.get("decision_authority") is False, "warden は non-decision terminal worker にしてください。")
+    _bounded_snapshot_authority(sentinel, "warden_assignment.assignment")
+    _read_only(sentinel.get("authority"), "warden_assignment.assignment.authority")
+    validate_evidence_state(sentinel.get("evidence_state"), "warden_assignment.assignment.evidence_state")
+    require(mapping(sentinel.get("output_contract"), "warden_assignment.assignment.output_contract") == {"evidence_state_only": True, "hidden_reasoning_allowed": False}, "warden output contract が不正です。")
 
     for rel in (
         "template/.agents/orchestra/queue/templates/adventurer_inbox.yaml",

@@ -1,4 +1,4 @@
-artifact_type: "advisor_assignment"
+artifact_type: "warden_assignment"
 schema_version: "3.0"
 workflow_id: null
 structured_data_usage:
@@ -9,22 +9,27 @@ assignment:
   id: null
   quest_id: null
   parent_id: null
-  worker_id: advisor
-  role: independent_focus_advisor
-  kind: advisory_consultation
-  owner_worker_id: null
   owner_assignment_id: null
+  owner_worker_id: null
+  worker_id: warden
+  role: exceptional_control_diagnostician
+  kind: evidence_state_monitor
   terminal_worker: true
   decision_authority: false
+  # 例外的なevidence triggerだけを扱い、数値confidenceはtriggerにしない。
+  control_trigger: null
   objective: null
-  # Advisorは具体的で独立した論点がある時だけ起動する。
-  focus: null
-  evidence_required: []
-  stop_conditions:
-    - focus_resolved
-    - no_new_verifiable_evidence
-    - authority_or_boundary_would_expand
-    - human_confirmation_required
+  evidence_state:
+    blocking_unknowns: []
+    failed_checks: []
+    scope_drift: false
+    high_risk_triggers: []
+    verification_status: partially_checked
+    next_action: null
+    stop_reason: null
+  output_contract:
+    evidence_state_only: true
+    hidden_reasoning_allowed: false
   subject_snapshot:
     snapshot_id: null
     digest_version: cgo-snapshot-v1
@@ -47,6 +52,7 @@ assignment:
     read_deny: []
     edit_deny: []
     safety_items: []
+  evidence_required: []
   risks: []
   status: idle
   timestamp: null

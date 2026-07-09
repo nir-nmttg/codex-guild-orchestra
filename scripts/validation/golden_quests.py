@@ -7,8 +7,8 @@ from .core import ROOT, load_yaml, mapping, require, sequence
 
 GOLDEN_ROOT = "scripts/validation/fixtures/golden_quests"
 EXPECTED_FIXTURES = {
-    "advisor_dialogue_same_focus_stop.yaml",
-    "advisor_owner_synthesis.yaml",
+    "sage_dialogue_same_focus_stop.yaml",
+    "sage_owner_synthesis.yaml",
     "claude_helper_only_disposition.yaml",
     "courier_explicit_git_postcondition.yaml",
     "evidence_state_blocked_contract.yaml",
@@ -18,7 +18,7 @@ EXPECTED_FIXTURES = {
     "evidence_state_scope_drift.yaml",
     "evidence_state_security_trigger.yaml",
     "evidence_state_unverified_outcome.yaml",
-    "focus_reviewer_bounded_contract.yaml",
+    "examiner_bounded_contract.yaml",
     "focused_trial_risk_triggered_review.yaml",
     "focused_trial_revision_bound_input.yaml",
     "guild_quest_routing.yaml",
@@ -27,7 +27,7 @@ EXPECTED_FIXTURES = {
     "party_integration_barrier_stable_revision.yaml",
     "safety_approval_scope_absolute_deny.yaml",
     "safety_gate_needs_human.yaml",
-    "sentinel_evidence_trigger.yaml",
+    "warden_evidence_trigger.yaml",
     "solo_small_fix_no_git.yaml",
 }
 
@@ -67,11 +67,11 @@ def validate_golden_quests() -> None:
     actual = {path.name for path in root.glob("*.yaml")}
     require(actual == EXPECTED_FIXTURES, "golden Quest fixture 一覧が期待値と一致しません: " + ", ".join(sorted(actual)))
 
-    # Read-only mapmaking stays safe without forcing a ceremonial advisor pass.
+    # Read-only mapmaking stays safe without forcing a ceremonial sage pass.
     mapmaking = _expected("mapmaking_readonly_no_edit.yaml")
     require(mapmaking.get("rank") == "mapmaking" and mapmaking.get("worker_id") == "cartographer", "mapmaking fixture identity が不正です。")
     require(_authority(mapmaking.get("authority"), "mapmaking.authority") == {"read": True, "edit": False, "validate": False, "local_git": False, "external_actions": False}, "mapmaking は read-only にしてください。")
-    require(mapmaking.get("advisor_required") is False, "mapmaking は具体的な独立 focus がない advisor 起動を必須にしないでください。")
+    require(mapmaking.get("sage_required") is False, "mapmaking は具体的な独立 focus がない sage 起動を必須にしないでください。")
     _forbidden(mapmaking.get("forbidden"), "mapmaking.forbidden")
 
     # A small verified change can finish without a 12-gate form.
@@ -94,9 +94,9 @@ def validate_golden_quests() -> None:
     party_input = mapping(party_doc.get("input"), "party.input")
     party = mapping(party_doc.get("expected"), "party.expected")
     barrier = mapping(party.get("integration_barrier"), "party.integration_barrier")
-    require(barrier.get("required") is True and barrier.get("all_required_reports_complete") is True and barrier.get("single_integration_owner_required") is True, "party integration barrier が不足しています。")
-    require(party_input.get("integration_owner") == "integration_owner", "party integration ownerは専用workerにしてください。")
-    require(barrier.get("integration_owner") == party_input.get("integration_owner") and barrier.get("integration_before_barrier_allowed") is False, "party integration owner/barrier が不正です。")
+    require(barrier.get("required") is True and barrier.get("all_required_reports_complete") is True and barrier.get("single_artificer_required") is True, "party integration barrier が不足しています。")
+    require(party_input.get("artificer") == "artificer", "party artificerは専用workerにしてください。")
+    require(barrier.get("artificer") == party_input.get("artificer") and barrier.get("integration_before_barrier_allowed") is False, "party artificer/barrier が不正です。")
     stable = mapping(party.get("stable_snapshot"), "party.stable_snapshot")
     require(stable.get("revision_id") == party_input.get("final_revision_id") and stable.get("diff_hash") == party_input.get("final_diff_hash"), "party stable snapshot が input と一致しません。")
     for key in ("trial_bound_to_revision", "ledger_bound_to_revision", "revision_change_invalidates_trial", "revision_change_reopens_barrier"):
@@ -115,47 +115,47 @@ def validate_golden_quests() -> None:
     # Independent review is risk-triggered, bounded, read-only and non-decision.
     risk_trial = _expected("focused_trial_risk_triggered_review.yaml")
     require(risk_trial.get("trial_depth") == "focused_trial" and risk_trial.get("worker_id") == "inquisitor", "risk-triggered Trial identity が不正です。")
-    reviewer_assignment = mapping(risk_trial.get("reviewer_assignment"), "risk_trial.reviewer_assignment")
-    require(reviewer_assignment == {"worker_id": "focus_reviewer", "risk_trigger": "security", "focus": "authorization_boundary", "read_only": True, "terminal_worker": True}, "reviewer assignment は concrete risk focus に限定してください。")
+    examiner_assignment = mapping(risk_trial.get("examiner_assignment"), "risk_trial.examiner_assignment")
+    require(examiner_assignment == {"worker_id": "examiner", "risk_trigger": "security", "focus": "authorization_boundary", "read_only": True, "terminal_worker": True}, "reviewer assignment は concrete risk focus に限定してください。")
     require(set(sequence(risk_trial.get("handoff_core"), "risk_trial.handoff_core")) == {"objective", "success_criteria", "scope", "authority", "evidence_state", "snapshot", "risks"}, "Trial handoff core が不正です。")
     _forbidden(risk_trial.get("forbidden"), "risk_trial.forbidden")
 
-    reviewer_doc = _fixture("focus_reviewer_bounded_contract.yaml")
+    reviewer_doc = _fixture("examiner_bounded_contract.yaml")
     reviewer_input = mapping(reviewer_doc.get("input"), "reviewer.input")
     reviewer = mapping(reviewer_doc.get("expected"), "reviewer.expected")
-    require(reviewer.get("worker_id") == "focus_reviewer" and reviewer.get("assignment_owner") == "inquisitor", "focus reviewer identity が不正です。")
-    require(reviewer.get("risk_trigger_required") is True and reviewer_input.get("risk_trigger") and reviewer.get("concrete_focus_required") is True and reviewer_input.get("focus"), "focus reviewer は risk trigger と concrete focus が必要です。")
+    require(reviewer.get("worker_id") == "examiner" and reviewer.get("assignment_owner") == "inquisitor", "examiner identity が不正です。")
+    require(reviewer.get("risk_trigger_required") is True and reviewer_input.get("risk_trigger") and reviewer.get("concrete_focus_required") is True and reviewer_input.get("focus"), "examiner は risk trigger と concrete focus が必要です。")
     for key in ("read_only_required", "owner_synthesis_required", "finding_disposition_required", "recursive_multi_agent_disabled"):
         require(reviewer.get(key) is True, f"reviewer.{key} は true にしてください。")
-    require(reviewer.get("caller_enforcement") == "queue_lineage", "focus reviewer caller は queue lineage で検証してください。")
+    require(reviewer.get("caller_enforcement") == "queue_lineage", "examiner caller は queue lineage で検証してください。")
     assignment_snapshot = mapping(reviewer_input.get("assignment_snapshot"), "reviewer.assignment_snapshot")
     require(assignment_snapshot == mapping(reviewer_input.get("matching_report_snapshot"), "reviewer.matching_snapshot"), "matching reviewer snapshot が不正です。")
     require(assignment_snapshot != mapping(reviewer_input.get("mismatched_report_snapshot"), "reviewer.mismatched_snapshot"), "mismatched reviewer snapshot を区別してください。")
     _forbidden(reviewer.get("forbidden"), "reviewer.forbidden")
 
-    # Advisor is optional, evidence-driven and never owns the decision.
-    advisor = _expected("advisor_dialogue_same_focus_stop.yaml")
-    require(advisor.get("worker_id") == "advisor" and advisor.get("decision_authority") is False and advisor.get("terminal_worker") is True, "advisor authority が不正です。")
-    policy = mapping(advisor.get("evidence_policy"), "advisor.evidence_policy")
-    require(policy.get("concrete_focus_required") is True, "advisor は concrete focus がある時だけ使ってください。")
-    require({"no_new_evidence_added", "blocking_unknowns_unchanged", "authority_or_boundary_would_expand"} <= set(sequence(policy.get("stop_when"), "advisor.evidence_policy.stop_when")), "advisor evidence stop conditions が不足しています。")
-    _forbidden(advisor.get("forbidden"), "advisor.forbidden")
+    # Sage is optional, evidence-driven and never owns the decision.
+    sage = _expected("sage_dialogue_same_focus_stop.yaml")
+    require(sage.get("worker_id") == "sage" and sage.get("decision_authority") is False and sage.get("terminal_worker") is True, "sage authority が不正です。")
+    policy = mapping(sage.get("evidence_policy"), "sage.evidence_policy")
+    require(policy.get("concrete_focus_required") is True, "sage は concrete focus がある時だけ使ってください。")
+    require({"no_new_evidence_added", "blocking_unknowns_unchanged", "authority_or_boundary_would_expand"} <= set(sequence(policy.get("stop_when"), "sage.evidence_policy.stop_when")), "sage evidence stop conditions が不足しています。")
+    _forbidden(sage.get("forbidden"), "sage.forbidden")
 
-    advisor_synthesis_doc = _fixture("advisor_owner_synthesis.yaml")
-    advisor_input = mapping(advisor_synthesis_doc.get("input"), "advisor_synthesis.input")
-    advisor_synthesis = mapping(advisor_synthesis_doc.get("expected"), "advisor_synthesis.expected")
-    owner = mapping(advisor_synthesis.get("owner_synthesis"), "advisor_synthesis.owner_synthesis")
-    require(owner.get("required") is True and owner.get("owner_worker_id") == advisor_input.get("owner_worker_id") and owner.get("final_decision_by_owner_only") is True, "advisor owner synthesis が不正です。")
-    require(owner.get("advisor_judgment_is_not_owner_decision") is True and owner.get("evidence_verification_required") is True, "advisor finding は owner 検証を必要とします。")
-    _forbidden(advisor_synthesis.get("forbidden"), "advisor_synthesis.forbidden")
+    sage_synthesis_doc = _fixture("sage_owner_synthesis.yaml")
+    sage_input = mapping(sage_synthesis_doc.get("input"), "sage_synthesis.input")
+    sage_synthesis = mapping(sage_synthesis_doc.get("expected"), "sage_synthesis.expected")
+    owner = mapping(sage_synthesis.get("owner_synthesis"), "sage_synthesis.owner_synthesis")
+    require(owner.get("required") is True and owner.get("owner_worker_id") == sage_input.get("owner_worker_id") and owner.get("final_decision_by_owner_only") is True, "sage owner synthesis が不正です。")
+    require(owner.get("sage_judgment_is_not_owner_decision") is True and owner.get("evidence_verification_required") is True, "sage finding は owner 検証を必要とします。")
+    _forbidden(sage_synthesis.get("forbidden"), "sage_synthesis.forbidden")
 
-    # Sentinel reacts to evidence triggers, never to a self-scored percentage.
-    sentinel = _expected("sentinel_evidence_trigger.yaml")
-    require(sentinel.get("worker_id") == "quest_sentinel" and sentinel.get("decision_authority") is False and sentinel.get("terminal_worker") is True, "sentinel authority が不正です。")
-    require({"scope_drift", "security"} <= set(sequence(sentinel.get("triggers_present"), "sentinel.triggers_present")), "sentinel evidence triggers が不足しています。")
-    require("numeric_confidence" in sequence(sentinel.get("triggers_absent"), "sentinel.triggers_absent"), "numeric confidence を sentinel trigger にしないでください。")
-    require(mapping(sentinel.get("output_contract"), "sentinel.output_contract") == {"evidence_state_only": True}, "sentinel output は evidence state だけにしてください。")
-    _forbidden(sentinel.get("forbidden"), "sentinel.forbidden")
+    # Warden reacts to evidence triggers, never to a self-scored percentage.
+    warden = _expected("warden_evidence_trigger.yaml")
+    require(warden.get("worker_id") == "warden" and warden.get("decision_authority") is False and warden.get("terminal_worker") is True, "warden authority が不正です。")
+    require({"scope_drift", "security"} <= set(sequence(warden.get("triggers_present"), "warden.triggers_present")), "warden evidence triggers が不足しています。")
+    require("numeric_confidence" in sequence(warden.get("triggers_absent"), "warden.triggers_absent"), "numeric confidence を warden trigger にしないでください。")
+    require(mapping(warden.get("output_contract"), "warden.output_contract") == {"evidence_state_only": True}, "warden output は evidence state だけにしてください。")
+    _forbidden(warden.get("forbidden"), "warden.forbidden")
 
     blocked = _expected("evidence_state_blocked_contract.yaml")
     require(blocked.get("next_action") == "reconstruct_task_contract" and blocked.get("completion_allowed") is False and blocked.get("speculative_editing_allowed") is False, "blocking evidence は contract 再構成まで停止してください。")
@@ -163,7 +163,7 @@ def validate_golden_quests() -> None:
 
     unverified = _expected("evidence_state_unverified_outcome.yaml")
     require(unverified.get("next_action") == "verify_target_behavior" and unverified.get("completion_allowed") is False, "important unknown は検証まで completion を止めてください。")
-    require(unverified.get("sentinel_required") is False, "通常の未検証事項だけで sentinel を必須にしないでください。")
+    require(unverified.get("warden_required") is False, "通常の未検証事項だけで warden を必須にしないでください。")
     _forbidden(unverified.get("forbidden"), "unverified.forbidden")
 
     failed = _expected("evidence_state_failed_check.yaml")

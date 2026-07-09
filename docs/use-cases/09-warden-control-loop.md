@@ -1,6 +1,6 @@
-# Quest Sentinelで例外診断する
+# Wardenで例外診断する
 
-通常のcontrolはownerが行います。`quest_sentinel`は、矛盾、反復失敗、scope drift、長時間停滞で次の行動を絞れない時だけ使うread-onlyの例外診断です。
+通常のcontrolはownerが行います。`warden`は、矛盾、反復失敗、scope drift、長時間停滞で次の行動を絞れない時だけ使うread-onlyの例外診断です。
 
 ## 使う場面
 
@@ -27,8 +27,8 @@
 ## 流れ
 
 1. ownerがsource mutationを止め、snapshotとevidenceを固定します。
-2. RootがSol/highのterminal `quest_sentinel`を直接起動します。
-3. Sentinelはblocker、failed check、矛盾、scope drift、高リスクtriggerを区別します。
+2. RootがSol/highのterminal `warden`を直接起動します。
+3. Wardenはblocker、failed check、矛盾、scope drift、高リスクtriggerを区別します。
 4. 根拠付きの`recommended_next_action`、停止条件、必要なescalationだけを返します。
 5. ownerが根拠を確認し、採用、却下、未解決を決めます。
 6. snapshotが変わった場合は古い診断を使いません。
@@ -36,6 +36,6 @@
 ## 完了条件
 
 - 推薦が固定snapshotとevidenceに結び付いている
-- ownerとSentinelのdecision authorityが分離されている
+- ownerとWardenのdecision authorityが分離されている
 - 根拠のない修正stackを避け、次の最小行動が明確
 - security triggerや人間確認条件が失われていない

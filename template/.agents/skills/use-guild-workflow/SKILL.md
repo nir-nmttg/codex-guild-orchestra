@@ -29,7 +29,7 @@ scope: target-repository-workflow
 1. `target_repo_root`を `<guild_root>/repositories/<repo>` の実Git rootへ固定する。
 2. materialな作業だけobjective、success criteria、scope、authority、validationを契約化する。
 3. 小さなmutationは追加の計画・review roleを作らず、Rootが一つのbounded assignmentとして`adventurer`へ直接委譲する。read-only fast pathはRootが継続できる。
-4. 並列mutationではowned scopeと共有artifact ownerを固定し、`integration_owner`用barrierを設ける。
+4. 並列mutationではowned scopeと共有artifact ownerを固定し、`artificer`用barrierを設ける。
 5. 変更に対応するvalidationを実行する。
 6. 高リスク、共有契約、互換性、security、migration、検証失敗、重要blockerがある場合だけ独立Trialへ進む。
 7. 最終成果、evidence、残リスクを返し、必要な場合だけCourierへLedger/Git actionを渡す。

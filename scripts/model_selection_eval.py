@@ -87,14 +87,14 @@ COMPACT_CORE_CONTRACT = """# Compact evaluation contract
 ROLE_FIXTURE_PREFIXES = {
     "root": ("safety_", "solo_"),
     "adventurer": ("solo_", "safety_"),
-    "advisor": ("advisor_",),
+    "sage": ("sage_",),
     "cartographer": ("mapmaking_",),
     "guildmaster": ("guild_", "party_"),
     "inquisitor": ("focused_trial_",),
-    "integration_owner": ("party_",),
-    "focus_reviewer": ("focus_reviewer_",),
-    "party_leader": ("party_",),
-    "quest_sentinel": ("evidence_state_", "sentinel_"),
+    "artificer": ("party_",),
+    "examiner": ("examiner_",),
+    "captain": ("party_",),
+    "warden": ("evidence_state_", "warden_"),
     "courier": ("courier_",),
 }
 SECRET_PATH_PARTS = {
@@ -294,15 +294,15 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
     required_roles = {
         "root",
         "adventurer",
-        "advisor",
+        "sage",
         "cartographer",
         "courier",
-        "focus_reviewer",
+        "examiner",
         "guildmaster",
         "inquisitor",
-        "integration_owner",
-        "party_leader",
-        "quest_sentinel",
+        "artificer",
+        "captain",
+        "warden",
     }
     if set(roles) != required_roles:
         raise EvalConfigError("roles が固定 pair の全 role と一致しません。")

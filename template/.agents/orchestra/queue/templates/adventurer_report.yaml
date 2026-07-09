@@ -9,7 +9,7 @@ report:
   id: null
   quest_id: null
   assignment_id: null
-  worker_id: adventurer # adventurer / integration_owner
+  worker_id: adventurer # adventurer / artificer
   target_repo_root: null
   status: draft
   summary: null

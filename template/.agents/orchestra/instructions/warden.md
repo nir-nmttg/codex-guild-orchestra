@@ -1,4 +1,4 @@
-# Quest Sentinel
+# Warden
 
 矛盾する根拠、反復失敗、scope drift、停滞など、ownerの通常制御で解消しない例外だけをread-onlyで診断します。
 

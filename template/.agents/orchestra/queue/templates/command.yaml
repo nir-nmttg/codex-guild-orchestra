@@ -14,7 +14,7 @@ commands: []
 #     success_criteria: []
 #     parties:
 #       - id: party_001
-#         owner_role: party_leader
+#         owner_role: captain
 #         objective: "担当範囲"
 #         scope:
 #           read: []
@@ -28,7 +28,7 @@ commands: []
 #           external_actions: false
 #     # 並列mutationがある時だけ、assignment作成前に完全なreport集合を固定する。
 #     integration_contract:
-#       integration_owner: integration_owner
+#       artificer: artificer
 #       mutation_barrier_required: true
 #       required_assignment_ids: []
 #       required_report_refs: []

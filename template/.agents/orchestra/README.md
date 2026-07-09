@@ -19,21 +19,21 @@
 2. materialな作業はobjective、success criteria、scope、authority、validationを固定する。
 3. Rootが必要なcustom agentを直接起動する。custom agentは再委譲しない。
 4. `adventurer`は単一bounded scopeを実装する。
-5. 並列実装後の共有契約とglueは`integration_owner`がstable barrier上で統合する。
-6. risk-triggeredな独立確認は`inquisitor`が行い、必要な単一focusだけ`focus_reviewer`へ渡す。
+5. 並列実装後の共有契約とglueは`artificer`がstable barrier上で統合する。
+6. risk-triggeredな独立確認は`inquisitor`が行い、必要な単一focusだけ`examiner`へ渡す。
 7. `courier`がLedger反映と、明示されたlocal Git操作だけを行う。
 
 ## Roles
 
 - `cartographer`: read-only mapmaking
 - `guildmaster`: 複数Partyの戦略
-- `party_leader`: owned scope、順序、integration、Trial focusの設計
+- `captain`: owned scope、順序、integration、Trial focusの設計
 - `adventurer`: bounded実装
-- `integration_owner`: cross-scope integration
+- `artificer`: cross-scope integration
 - `inquisitor`: risk-based Trialと最終decision
-- `focus_reviewer`: 単一focusのread-only evidence
-- `advisor`: 具体的な独立focusのread-only助言
-- `quest_sentinel`: 矛盾、反復失敗、scope driftなどの例外診断
+- `examiner`: 単一focusのread-only evidence
+- `sage`: 具体的な独立focusのread-only助言
+- `warden`: 矛盾、反復失敗、scope driftなどの例外診断
 - `courier`: Ledger反映と、Rootまたは人間が明示したlocal Git操作だけ
 
 ## Invariants

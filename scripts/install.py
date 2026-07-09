@@ -115,11 +115,25 @@ LEGACY_RUNTIME_JSON_KEYS = {
     'meta' 'cognitive_task_loop',
 }
 RETIRED_AGENT_VALUES = {
+    'advisor',
+    'focus_reviewer',
+    'integration_owner',
+    'party_leader',
+    'quest_sentinel',
     'spark',
     'scout',
     'meta' 'cognitive_controller',
 }
 LEGACY_RUNTIME_STRING_VALUES = {
+    'advisor',
+    'focus_reviewer',
+    'integration_owner',
+    'party_leader',
+    'quest_sentinel',
+    'advisory_consultation',
+    'bounded_trial_focus_reviewer',
+    'cross_scope_integration_owner',
+    'independent_focus_advisor',
     'spark',
     'scout',
     'meta' 'cognitive',
@@ -131,27 +145,27 @@ LEGACY_RUNTIME_STRING_VALUES = {
 }
 EXPECTED_AGENT_SANDBOX_MODES = {
     'adventurer': 'workspace-write',
-    'advisor': 'read-only',
+    'sage': 'read-only',
     'cartographer': 'read-only',
     'courier': 'workspace-write',
-    'focus_reviewer': 'read-only',
+    'examiner': 'read-only',
     'guildmaster': 'read-only',
     'inquisitor': 'read-only',
-    'integration_owner': 'workspace-write',
-    'quest_sentinel': 'read-only',
-    'party_leader': 'read-only',
+    'artificer': 'workspace-write',
+    'warden': 'read-only',
+    'captain': 'read-only',
 }
 EXPECTED_AGENT_MODEL_CONFIGS = {
     'adventurer': ('gpt-5.6-sol', 'high'),
-    'advisor': ('gpt-5.6-sol', 'high'),
+    'sage': ('gpt-5.6-sol', 'high'),
     'cartographer': ('gpt-5.6-sol', 'high'),
     'courier': ('gpt-5.3-codex-spark', 'xhigh'),
-    'focus_reviewer': ('gpt-5.6-sol', 'high'),
+    'examiner': ('gpt-5.6-sol', 'high'),
     'guildmaster': ('gpt-5.6-sol', 'xhigh'),
     'inquisitor': ('gpt-5.6-sol', 'high'),
-    'integration_owner': ('gpt-5.6-sol', 'high'),
-    'quest_sentinel': ('gpt-5.6-sol', 'high'),
-    'party_leader': ('gpt-5.6-sol', 'high'),
+    'artificer': ('gpt-5.6-sol', 'high'),
+    'warden': ('gpt-5.6-sol', 'high'),
+    'captain': ('gpt-5.6-sol', 'high'),
 }
 EXPECTED_ORCHESTRA_SKILL_DIRS = {
     'branch-implementation-final-review',
@@ -185,31 +199,31 @@ SOURCE_REQUIRED_REL_PATHS = (
     Path('.agents/orchestra/docker/requirements.txt'),
     Path('.agents/orchestra/docs/agent-memory.md'),
     Path('.agents/orchestra/instructions/adventurer.md'),
-    Path('.agents/orchestra/instructions/advisor.md'),
+    Path('.agents/orchestra/instructions/sage.md'),
     Path('.agents/orchestra/instructions/cartographer.md'),
     Path('.agents/orchestra/instructions/common.md'),
-    Path('.agents/orchestra/instructions/focus_reviewer.md'),
+    Path('.agents/orchestra/instructions/examiner.md'),
     Path('.agents/orchestra/instructions/guildmaster.md'),
     Path('.agents/orchestra/instructions/inquisitor.md'),
-    Path('.agents/orchestra/instructions/integration_owner.md'),
-    Path('.agents/orchestra/instructions/party_leader.md'),
-    Path('.agents/orchestra/instructions/quest_sentinel.md'),
+    Path('.agents/orchestra/instructions/artificer.md'),
+    Path('.agents/orchestra/instructions/captain.md'),
+    Path('.agents/orchestra/instructions/warden.md'),
     Path('.agents/orchestra/instructions/session_recovery.md'),
     Path('.agents/orchestra/logs/daily/README.md'),
     Path('.agents/orchestra/queue/README.md'),
     Path('.agents/orchestra/queue/templates/adventurer_assignment.yaml'),
     Path('.agents/orchestra/queue/templates/adventurer_inbox.yaml'),
     Path('.agents/orchestra/queue/templates/adventurer_report.yaml'),
-    Path('.agents/orchestra/queue/templates/advisor_assignment.yaml'),
-    Path('.agents/orchestra/queue/templates/advisor_report.yaml'),
+    Path('.agents/orchestra/queue/templates/sage_assignment.yaml'),
+    Path('.agents/orchestra/queue/templates/sage_report.yaml'),
     Path('.agents/orchestra/queue/templates/cartographer_assignment.yaml'),
     Path('.agents/orchestra/queue/templates/cartographer_report.yaml'),
     Path('.agents/orchestra/queue/templates/command.yaml'),
-    Path('.agents/orchestra/queue/templates/focus_reviewer_assignment.yaml'),
-    Path('.agents/orchestra/queue/templates/focus_reviewer_report.yaml'),
+    Path('.agents/orchestra/queue/templates/examiner_assignment.yaml'),
+    Path('.agents/orchestra/queue/templates/examiner_report.yaml'),
     Path('.agents/orchestra/queue/templates/inquisitor_report.yaml'),
     Path('.agents/orchestra/queue/templates/inquisitor_trial.yaml'),
-    Path('.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml'),
+    Path('.agents/orchestra/queue/templates/warden_assignment.yaml'),
     Path('.agents/orchestra/queue/templates/request.yaml'),
     Path('.agents/orchestra/queue/templates/role_inbox.yaml'),
     Path('.agents/orchestra/scripts/claude_compat.py'),
@@ -263,12 +277,27 @@ PATH_TERM_RE = re.compile(r'[^a-z0-9]+')
 REMOVED_TEMPLATE_REL_PATHS = [
     Path('.codex/agents/spark.toml'),
     Path('.codex/agents/' 'meta' 'cognitive_controller.toml'),
+    Path('.codex/agents/advisor.toml'),
+    Path('.codex/agents/focus_reviewer.toml'),
+    Path('.codex/agents/integration_owner.toml'),
+    Path('.codex/agents/party_leader.toml'),
+    Path('.codex/agents/quest_sentinel.toml'),
+    Path('.agents/orchestra/instructions/advisor.md'),
+    Path('.agents/orchestra/instructions/focus_reviewer.md'),
+    Path('.agents/orchestra/instructions/integration_owner.md'),
+    Path('.agents/orchestra/instructions/party_leader.md'),
+    Path('.agents/orchestra/instructions/quest_sentinel.md'),
+    Path('.agents/orchestra/queue/templates/advisor_assignment.yaml'),
+    Path('.agents/orchestra/queue/templates/advisor_report.yaml'),
+    Path('.agents/orchestra/queue/templates/focus_reviewer_assignment.yaml'),
+    Path('.agents/orchestra/queue/templates/focus_reviewer_report.yaml'),
+    Path('.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml'),
     Path('.agents/orchestra/queue/templates/adventurer_task.yaml'),
     Path('.agents/orchestra/queue/templates/inquisitor_task.yaml'),
     Path('.agents/skills/' 'meta' 'cognitive-task-loop'),
     Path('.agents/orchestra/instructions/receptionist.md'),
 ]
-ADVISOR_DEVELOPER_INSTRUCTION_TOKENS = (
+SAGE_DEVELOPER_INSTRUCTION_TOKENS = (
     '一つの focus',
     'evidence refs',
     '実装',
@@ -276,7 +305,7 @@ ADVISOR_DEVELOPER_INSTRUCTION_TOKENS = (
     'Ledger',
     '追加 agent',
 )
-QUEST_AWARENESS_CONTROLLER_DEVELOPER_INSTRUCTION_TOKENS = (
+WARDEN_DEVELOPER_INSTRUCTION_TOKENS = (
     '矛盾した根拠',
     '反復失敗',
     'scope drift',
@@ -570,7 +599,7 @@ def reset_runtime_state(target_root: Path, dry_run: bool) -> None:
 def runtime_schema_incompatibility_message(database: Path, detail: str) -> str:
     return (
         f'既存 runtime DB を v{RUNTIME_SCHEMA_VERSION} の runtime contract と確認できません: {database} ({detail})\n'
-        '2 系以前、v3 metadata だけで物理 schema が一致しない、または旧 runtime 値を含む `state.sqlite` は保持更新できません。'
+        '2 系以前、v3 metadata だけで物理 schema が一致しない、旧agent ID、または旧 runtime 値を含む `state.sqlite` は保持更新できません。'
         '既存状態を保全して初期化する場合は `--backup --reset-runtime`、'
         '導入物全体を入れ直す場合は `--clean-install` を使ってください。'
     )
@@ -932,12 +961,12 @@ def load_worker_roles(source_root: Path) -> dict[str, dict[str, int]]:
         raise SystemExit('settings.yaml workers は mapping にしてください。')
     expected_roles = {
         'adventurer': 1,
-        'integration_owner': 1,
-        'party_leader': 1,
+        'artificer': 1,
+        'captain': 1,
         'inquisitor': 1,
-        'focus_reviewer': 1,
-        'advisor': 1,
-        'quest_sentinel': 1,
+        'examiner': 1,
+        'sage': 1,
+        'warden': 1,
     }
 
     result: dict[str, dict[str, int]] = {}
@@ -952,7 +981,7 @@ def load_worker_roles(source_root: Path) -> dict[str, dict[str, int]]:
     return result
 
 
-def validate_focus_reviewer_worker_contract(source_root: Path) -> None:
+def validate_examiner_worker_contract(source_root: Path) -> None:
     settings_path = source_root / '.agents' / 'orchestra' / 'config' / 'settings.yaml'
     lines = settings_path.read_text(encoding='utf-8').splitlines()
     in_workers = False
@@ -964,7 +993,7 @@ def validate_focus_reviewer_worker_contract(source_root: Path) -> None:
             continue
         if in_workers and line and not line.startswith(' '):
             break
-        if in_workers and line == '  focus_reviewer:':
+        if in_workers and line == '  examiner:':
             in_focus = True
             continue
         if in_focus and line.startswith('  ') and not line.startswith('    '):
@@ -972,7 +1001,7 @@ def validate_focus_reviewer_worker_contract(source_root: Path) -> None:
         if in_focus:
             block.append(line.strip())
     if not block:
-        raise SystemExit('settings.yaml workers.focus_reviewer block が必要です。')
+        raise SystemExit('settings.yaml workers.examiner block が必要です。')
     required_lines = {
         'implementation_authority: false',
         'decision_authority: false',
@@ -995,13 +1024,13 @@ def validate_focus_reviewer_worker_contract(source_root: Path) -> None:
     global_terminal = any(line.strip() == 'custom_agents_terminal: true' for line in lines)
     if missing or forbidden_true or allowed_callers != {'inquisitor'} or not caller_enforcement_valid or not global_terminal:
         raise SystemExit(
-            'settings.yaml の global terminal / focus_reviewer caller / authority contract が不正です: '
+            'settings.yaml の global terminal / examiner caller / authority contract が不正です: '
             + ', '.join(missing + forbidden_true or [f'global_terminal={global_terminal}, allowed_callers={sorted(allowed_callers)}, caller_enforcement={caller_enforcement_valid}'])
         )
 
 
 def validate_codex_agent_preflight(source_root: Path) -> None:
-    validate_focus_reviewer_worker_contract(source_root)
+    validate_examiner_worker_contract(source_root)
     config_path = source_root / '.codex' / 'config.toml'
     config_text = config_path.read_text(encoding='utf-8')
     config = read_toml_document(config_path)
@@ -1061,31 +1090,31 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
         if not isinstance(features, dict) or features.get('multi_agent') is not False:
             raise SystemExit(f'template/.codex/agents/{role}.toml の features.multi_agent は false にしてください。')
 
-    advisor_path = source_root / '.codex' / 'agents' / 'advisor.toml'
-    advisor = read_toml_document(advisor_path)
-    if advisor.get('sandbox_mode') != 'read-only':
-        raise SystemExit('template/.codex/agents/advisor.toml の sandbox_mode は read-only にしてください。')
-    developer_instructions = advisor.get('developer_instructions')
+    sage_path = source_root / '.codex' / 'agents' / 'sage.toml'
+    sage = read_toml_document(sage_path)
+    if sage.get('sandbox_mode') != 'read-only':
+        raise SystemExit('template/.codex/agents/sage.toml の sandbox_mode は read-only にしてください。')
+    developer_instructions = sage.get('developer_instructions')
     if not isinstance(developer_instructions, str):
-        raise SystemExit('template/.codex/agents/advisor.toml の developer_instructions が必要です。')
-    missing_tokens = [token for token in ADVISOR_DEVELOPER_INSTRUCTION_TOKENS if token not in developer_instructions]
+        raise SystemExit('template/.codex/agents/sage.toml の developer_instructions が必要です。')
+    missing_tokens = [token for token in SAGE_DEVELOPER_INSTRUCTION_TOKENS if token not in developer_instructions]
     if missing_tokens:
         raise SystemExit(
-            'template/.codex/agents/advisor.toml の developer_instructions に advisor 契約が不足しています: '
+            'template/.codex/agents/sage.toml の developer_instructions に sage 契約が不足しています: '
             + ', '.join(missing_tokens)
         )
 
-    focus_reviewer_path = source_root / '.codex' / 'agents' / 'focus_reviewer.toml'
-    focus_reviewer = read_toml_document(focus_reviewer_path)
-    if focus_reviewer.get('sandbox_mode') != 'read-only':
-        raise SystemExit('template/.codex/agents/focus_reviewer.toml の sandbox_mode は read-only にしてください。')
-    focus_features = focus_reviewer.get('features')
+    examiner_path = source_root / '.codex' / 'agents' / 'examiner.toml'
+    examiner = read_toml_document(examiner_path)
+    if examiner.get('sandbox_mode') != 'read-only':
+        raise SystemExit('template/.codex/agents/examiner.toml の sandbox_mode は read-only にしてください。')
+    focus_features = examiner.get('features')
     if not isinstance(focus_features, dict) or focus_features.get('multi_agent') is not False:
-        raise SystemExit('template/.codex/agents/focus_reviewer.toml の features.multi_agent は false にしてください。')
-    focus_reviewer_instructions = focus_reviewer.get('developer_instructions')
-    if not isinstance(focus_reviewer_instructions, str):
-        raise SystemExit('template/.codex/agents/focus_reviewer.toml の developer_instructions が必要です。')
-    focus_reviewer_tokens = (
+        raise SystemExit('template/.codex/agents/examiner.toml の features.multi_agent は false にしてください。')
+    examiner_instructions = examiner.get('developer_instructions')
+    if not isinstance(examiner_instructions, str):
+        raise SystemExit('template/.codex/agents/examiner.toml の developer_instructions が必要です。')
+    examiner_tokens = (
         '単一focus',
         'read-only',
         '採否',
@@ -1094,25 +1123,25 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
         'stale evidence',
         '追加 agent',
     )
-    focus_reviewer_missing = [token for token in focus_reviewer_tokens if token not in focus_reviewer_instructions]
-    if focus_reviewer_missing:
+    examiner_missing = [token for token in examiner_tokens if token not in examiner_instructions]
+    if examiner_missing:
         raise SystemExit(
-            'template/.codex/agents/focus_reviewer.toml の developer_instructions に bounded reviewer 契約が不足しています: '
-            + ', '.join(focus_reviewer_missing)
+            'template/.codex/agents/examiner.toml の developer_instructions に bounded reviewer 契約が不足しています: '
+            + ', '.join(examiner_missing)
         )
 
-    controller_path = source_root / '.codex' / 'agents' / 'quest_sentinel.toml'
-    controller = read_toml_document(controller_path)
-    if controller.get('sandbox_mode') != 'read-only':
-        raise SystemExit('template/.codex/agents/quest_sentinel.toml の sandbox_mode は read-only にしてください。')
-    controller_instructions = controller.get('developer_instructions')
-    if not isinstance(controller_instructions, str):
-        raise SystemExit('template/.codex/agents/quest_sentinel.toml の developer_instructions が必要です。')
-    controller_missing = [token for token in QUEST_AWARENESS_CONTROLLER_DEVELOPER_INSTRUCTION_TOKENS if token not in controller_instructions]
-    if controller_missing:
+    warden_path = source_root / '.codex' / 'agents' / 'warden.toml'
+    warden = read_toml_document(warden_path)
+    if warden.get('sandbox_mode') != 'read-only':
+        raise SystemExit('template/.codex/agents/warden.toml の sandbox_mode は read-only にしてください。')
+    warden_instructions = warden.get('developer_instructions')
+    if not isinstance(warden_instructions, str):
+        raise SystemExit('template/.codex/agents/warden.toml の developer_instructions が必要です。')
+    warden_missing = [token for token in WARDEN_DEVELOPER_INSTRUCTION_TOKENS if token not in warden_instructions]
+    if warden_missing:
         raise SystemExit(
-            'template/.codex/agents/quest_sentinel.toml の developer_instructions に quest_sentinel 契約が不足しています: '
-            + ', '.join(controller_missing)
+            'template/.codex/agents/warden.toml の developer_instructions に warden 契約が不足しています: '
+            + ', '.join(warden_missing)
         )
 
 

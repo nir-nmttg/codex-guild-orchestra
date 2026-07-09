@@ -90,22 +90,22 @@ SNAPSHOT_FIELDS = {
     "scope_paths", "untracked_paths", "dirty_state", "diff_hash",
 }
 TERMINAL_ASSIGNMENT_WORKERS = {
-    "adventurer", "integration_owner", "advisor", "cartographer", "courier",
-    "focus_reviewer", "guildmaster", "inquisitor", "party_leader", "quest_sentinel",
+    "adventurer", "artificer", "sage", "cartographer", "courier",
+    "examiner", "guildmaster", "inquisitor", "captain", "warden",
 }
 READ_ONLY_ASSIGNMENT_WORKERS = {
-    "advisor", "cartographer", "focus_reviewer", "guildmaster", "inquisitor", "party_leader", "quest_sentinel",
+    "sage", "cartographer", "examiner", "guildmaster", "inquisitor", "captain", "warden",
 }
 EXPECTED_ASSIGNMENT_ROLES = {
     "adventurer": "bounded_implementation_owner",
-    "integration_owner": "cross_scope_integration_owner",
-    "advisor": "independent_focus_advisor",
+    "artificer": "cross_scope_artificer",
+    "sage": "independent_focus_sage",
     "cartographer": "mapmaking_specialist",
-    "focus_reviewer": "bounded_trial_focus_reviewer",
+    "examiner": "bounded_trial_examiner",
     "guildmaster": "guild_strategy_owner",
     "inquisitor": "trial_lead",
-    "party_leader": "execution_designer",
-    "quest_sentinel": "exceptional_control_diagnostician",
+    "captain": "execution_designer",
+    "warden": "exceptional_control_diagnostician",
     "courier": "ledger_and_git_courier",
 }
 SHA256_ID_RE = re.compile(r"sha256:[0-9a-f]{64}")
@@ -188,11 +188,25 @@ LEGACY_JSON_KEYS = {
     "meta" "cognitive_task_loop",
 }
 RETIRED_AGENT_VALUES = {
+    "advisor",
+    "focus_reviewer",
+    "integration_owner",
+    "party_leader",
+    "quest_sentinel",
     "spark",
     "scout",
     "meta" "cognitive_controller",
 }
 LEGACY_RUNTIME_STRING_VALUES = {
+    "advisor",
+    "focus_reviewer",
+    "integration_owner",
+    "party_leader",
+    "quest_sentinel",
+    "advisory_consultation",
+    "bounded_trial_focus_reviewer",
+    "cross_scope_integration_owner",
+    "independent_focus_advisor",
     "spark",
     "scout",
     "meta" "cognitive",
@@ -684,11 +698,11 @@ def assignment_parent_id(payload: dict[str, Any]) -> str | None:
         raise SystemExit("assignment.owner_assignment_id と assignment.parent_id は同じ owner assignment を指してください。")
     worker_id = payload.get("worker_id")
     kind = payload.get("kind")
-    if (worker_id == "advisor" or kind == "advisory_consultation") and not (owner_assignment_id or parent_id):
-        raise SystemExit("advisor assignment は owner_assignment_id または parent_id が必要です。")
-    if worker_id == "quest_sentinel" or kind in {"quest_awareness_control_monitor", "evidence_state_monitor"}:
+    if (worker_id == "sage" or kind == "sage_consultation") and not (owner_assignment_id or parent_id):
+        raise SystemExit("sage assignment は owner_assignment_id または parent_id が必要です。")
+    if worker_id == "warden" or kind in {"quest_awareness_control_monitor", "evidence_state_monitor"}:
         if not (owner_assignment_id or parent_id):
-            raise SystemExit("quest_sentinel assignment は owner_assignment_id または parent_id が必要です。")
+            raise SystemExit("warden assignment は owner_assignment_id または parent_id が必要です。")
         require_string(payload.get("control_trigger"), "assignment.control_trigger")
     return owner_assignment_id or parent_id or require_string_or_null(payload.get("quest_id"), "assignment.quest_id")
 
@@ -928,7 +942,7 @@ def validate_assignment_machine_contract(payload: dict[str, Any]) -> None:
     for key in ("scope_paths", "untracked_paths"):
         require_relative_path_list(snapshot.get(key), f"assignment.subject_snapshot.{key}")
 
-    if worker_id in {"adventurer", "integration_owner"}:
+    if worker_id in {"adventurer", "artificer"}:
         require_nonempty_string_list(payload.get("success_criteria"), "assignment.success_criteria")
         owned_scope = require_mapping(payload.get("owned_scope"), "assignment.owned_scope")
         if set(owned_scope) != {"read", "edit", "validate"}:
@@ -940,27 +954,27 @@ def validate_assignment_machine_contract(payload: dict[str, Any]) -> None:
             raise SystemExit("assignment.owned_scope.readは全edit pathを包含してください。")
         if authority["edit"] is not True or authority["validate"] is not True:
             raise SystemExit(f"{worker_id} assignmentにはedit/validate authorityが必要です。")
-    elif worker_id in {"cartographer", "guildmaster", "party_leader", "inquisitor"}:
+    elif worker_id in {"cartographer", "guildmaster", "captain", "inquisitor"}:
         require_nonempty_string_list(payload.get("success_criteria"), "assignment.success_criteria")
 
-    if worker_id in {"advisor", "focus_reviewer"}:
+    if worker_id in {"sage", "examiner"}:
         require_string(payload.get("focus"), "assignment.focus")
         require_nonempty_string_list(payload.get("evidence_required"), "assignment.evidence_required")
-    elif worker_id in {"cartographer", "quest_sentinel"}:
+    elif worker_id in {"cartographer", "warden"}:
         require_nonempty_string_list(payload.get("evidence_required"), "assignment.evidence_required")
 
-    if worker_id == "integration_owner":
+    if worker_id == "artificer":
         barrier = require_mapping(payload.get("integration_barrier"), "assignment.integration_barrier")
         if barrier.get("status") != "complete" or barrier.get("mutation_stopped") is not True:
-            raise SystemExit("integration_owner assignmentにはcompleteかつmutation_stoppedのintegration barrierが必要です。")
+            raise SystemExit("artificer assignmentにはcompleteかつmutation_stoppedのintegration barrierが必要です。")
         require_nonempty_string_list(barrier.get("upstream_report_refs"), "assignment.integration_barrier.upstream_report_refs")
         require_string(barrier.get("contract_ref"), "assignment.integration_barrier.contract_ref")
     elif payload.get("integration_barrier") is not None:
-        raise SystemExit("assignment.integration_barrier は integration_owner だけに指定できます。")
+        raise SystemExit("assignment.integration_barrier は artificer だけに指定できます。")
 
-    if worker_id == "focus_reviewer":
+    if worker_id == "examiner":
         if payload.get("owner_worker_id") != "inquisitor":
-            raise SystemExit("focus_reviewer assignment.owner_worker_id は inquisitor にしてください。")
+            raise SystemExit("examiner assignment.owner_worker_id は inquisitor にしてください。")
         lineage = require_mapping(payload.get("caller_lineage"), "assignment.caller_lineage")
         require_string(lineage.get("trial_ref"), "assignment.caller_lineage.trial_ref")
 
@@ -973,7 +987,7 @@ def validate_assignment_relations(connection: sqlite3.Connection, payload: dict[
     quest_id = payload.get("quest_id")
 
     owner_assignment_id = payload.get("owner_assignment_id") or payload.get("parent_id")
-    if worker_id in {"advisor", "quest_sentinel"}:
+    if worker_id in {"sage", "warden"}:
         if not isinstance(owner_assignment_id, str) or not owner_assignment_id:
             raise SystemExit(f"{worker_id} assignmentにはowner_assignment_idまたはparent_idが必要です。")
         owner = connection.execute(
@@ -989,29 +1003,29 @@ def validate_assignment_relations(connection: sqlite3.Connection, payload: dict[
             raise SystemExit("assignment.owner_worker_id がLedger上のownerと一致しません。")
         payload["owner_worker_id"] = owner["worker_id"]
 
-    if worker_id == "focus_reviewer":
+    if worker_id == "examiner":
         lineage = payload["caller_lineage"]
         trial_ref = lineage["trial_ref"]
         if payload.get("trial_id") != trial_ref:
-            raise SystemExit("focus_reviewer assignment.trial_id と caller_lineage.trial_ref を一致させてください。")
+            raise SystemExit("examiner assignment.trial_id と caller_lineage.trial_ref を一致させてください。")
         trial = connection.execute(
             "SELECT quest_id, workflow_id, payload_json FROM trials WHERE trial_id = ?",
             (trial_ref,),
         ).fetchone()
         if trial is None:
-            raise SystemExit(f"focus_reviewerが参照するTrialがLedgerにありません: {trial_ref}")
+            raise SystemExit(f"examinerが参照するTrialがLedgerにありません: {trial_ref}")
         trial_payload = json.loads(trial["payload_json"])
         if trial_payload.get("worker_id") != "inquisitor":
-            raise SystemExit("focus_reviewerが参照するTrial ownerはinquisitorにしてください。")
+            raise SystemExit("examinerが参照するTrial ownerはinquisitorにしてください。")
         if trial["quest_id"] != quest_id or trial["workflow_id"] != workflow_id:
-            raise SystemExit("focus_reviewerのquest/workflowが参照Trialと一致しません。")
+            raise SystemExit("examinerのquest/workflowが参照Trialと一致しません。")
         if lineage.get("required_parent_role") != "inquisitor" or lineage.get("trial_owner_worker_id") != "inquisitor":
-            raise SystemExit("focus_reviewer caller_lineage はinquisitor Trialを指してください。")
+            raise SystemExit("examiner caller_lineage はinquisitor Trialを指してください。")
         subject_assignment_ids = trial_payload.get("subject_assignment_ids")
         if not isinstance(subject_assignment_ids, list) or not subject_assignment_ids or not all(isinstance(item, str) and item for item in subject_assignment_ids):
-            raise SystemExit("focus_reviewerが参照するTrialにはsubject_assignment_idsが必要です。")
+            raise SystemExit("examinerが参照するTrialにはsubject_assignment_idsが必要です。")
         if trial_payload.get("subject_snapshot") != payload.get("subject_snapshot"):
-            raise SystemExit("focus_reviewer assignmentと参照Trialのsubject_snapshotを一致させてください。")
+            raise SystemExit("examiner assignmentと参照Trialのsubject_snapshotを一致させてください。")
         for subject_assignment_id in subject_assignment_ids:
             subject = connection.execute(
                 "SELECT workflow_id, payload_json FROM assignments WHERE assignment_id = ?",
@@ -1024,7 +1038,7 @@ def validate_assignment_relations(connection: sqlite3.Connection, payload: dict[
                 raise SystemExit(f"Trial subject assignmentのquest/workflowが一致しません: {subject_assignment_id}")
         lineage["verification"] = "verified"
 
-    if worker_id == "integration_owner":
+    if worker_id == "artificer":
         barrier = payload["integration_barrier"]
         refs = barrier["upstream_report_refs"]
         if len(refs) != len(set(refs)):
@@ -1047,7 +1061,7 @@ def validate_assignment_relations(connection: sqlite3.Connection, payload: dict[
             contract_row["quest_id"] != quest_id
             or contract_row["workflow_id"] != workflow_id
             or contract_row["status"] not in {"issued", "active"}
-            or contract.get("integration_owner") != "integration_owner"
+            or contract.get("artificer") != "artificer"
             or contract.get("mutation_barrier_required") is not True
             or not isinstance(required_refs, list)
             or not required_refs
@@ -1066,7 +1080,7 @@ def validate_assignment_relations(connection: sqlite3.Connection, payload: dict[
                 nonempty=scope_key == "edit",
             )
         if payload.get("owned_scope") != integration_scope:
-            raise SystemExit("integration_owner.owned_scopeはcommandのintegration_scopeと一致させてください。")
+            raise SystemExit("artificer.owned_scopeはcommandのintegration_scopeと一致させてください。")
         if len(required_refs) != len(set(required_refs)) or set(required_refs) != set(refs):
             raise SystemExit("integration_barrier.upstream_report_refsはcommandのrequired_report_refs完全集合と一致させてください。")
         source_assignment_ids: list[str] = []
@@ -1078,7 +1092,7 @@ def validate_assignment_relations(connection: sqlite3.Connection, payload: dict[
             if report is None:
                 raise SystemExit(f"integration barrierのupstream reportがLedgerにありません: {report_id}")
             report_payload = json.loads(report["payload_json"])
-            if report["worker_id"] not in {"adventurer", "integration_owner"}:
+            if report["worker_id"] not in {"adventurer", "artificer"}:
                 raise SystemExit(f"integration barrierのupstream report ownerが実装workerではありません: {report_id}")
             if report["workflow_id"] != workflow_id or report_payload.get("quest_id") != quest_id:
                 raise SystemExit(f"integration barrierのupstream report lineageが一致しません: {report_id}")
@@ -1113,7 +1127,7 @@ def validate_assignment_relations(connection: sqlite3.Connection, payload: dict[
             if not isinstance(source_scope, dict):
                 raise SystemExit(f"source assignmentにowned_scopeがありません: {source_assignment_id}")
             if any(not path_covered_by_scopes(path, integration_scope["read"]) for path in source_scope.get("edit", [])):
-                raise SystemExit(f"integration_owner.read scopeがupstream edit scopeを包含していません: {source_assignment_id}")
+                raise SystemExit(f"artificer.read scopeがupstream edit scopeを包含していません: {source_assignment_id}")
             if any(not path_covered_by_scopes(path, result_snapshot["scope_paths"]) for path in source_scope.get("edit", [])):
                 raise SystemExit(f"upstream result snapshotがsource edit scopeを包含していません: {report_id}")
             source_assignment_ids.append(source_assignment_id)
