@@ -11,38 +11,10 @@ assignment:
   worker_id: cartographer
   role: mapmaking_specialist
   kind: mapmaking
-  rank: mapmaking
+  terminal_worker: true
   objective: null
-  intent_analysis:
-    request_summary: null
-    inferred_intent: null
-    essential_outcomes: []
-    assumptions: []
-    ambiguities: []
-    confirmation_needed: []
   success_criteria: []
-  non_goals: []
   focus: []
-  quest_awareness:
-    goal: null
-    current_subgoal: null
-    known_facts: []
-    unknowns: []
-    assumptions: []
-    evidence: []
-    current_strategy: mapmaking
-    confidence_percent: null
-    risk_level: medium
-    verification_status: not_checked
-    next_action: null
-    stop_condition: null
-  control_decision:
-    decision: gather_more_evidence
-    rationale: null
-    required_next_action: null
-    triggers: []
-    confidence_threshold_applied: null
-    escalation_required: false
   authority:
     read: true
     edit: false
@@ -50,52 +22,30 @@ assignment:
     local_git: false
     external_actions: false
   boundaries:
-    target_repo_root: null # 実 assignment では `<guild_root>/repositories/<repo>` の実パスへ置換する
+    target_repo_root: null
     read_deny: []
     edit_deny: []
     safety_items: []
-  known_context:
-    evidence_refs: []
-    notes: []
-    compat_context:
-      - source_type: claude
-        path: null
-        sha256: null
-        trust: untrusted
-        applies_to: []
-        status: null
-        disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
-        skip_reason: null
-  autonomy_budget:
-    subassignments: 1
-    extra_file_reads: 20
-    validation_iterations: 0
-    timebox_minutes: null
-  research_plan:
-    questions: []
-    target_paths: []
-    stop_conditions: []
-  advisor_consultation:
-    consideration_required: true
-    assignments: []
-    owner_synthesis_required: true
-    terminal_worker_required: true
-    skip_reason_required_when_not_used: true
-    skip_reason: null
-  output_requirements:
-    include_objective: true
-    include_map: true
-    include_risks: true
-    include_recommended_rank: true
-    include_party_tactics: true
-    include_trial: true
-    include_advisor_synthesis: true
-    include_unknowns: true
-  escalation_triggers: []
+  subject_snapshot:
+    snapshot_id: null
+    digest_version: cgo-snapshot-v1
+    kind: revision_only
+    revision_id: null
+    base_ref: null
+    head_ref: null
+    scope_paths: []
+    untracked_paths: []
+    dirty_state: null
+    diff_hash: null
+  evidence_state:
+    blocking_unknowns: []
+    failed_checks: []
+    scope_drift: false
+    high_risk_triggers: []
+    verification_status: not_checked
+    next_action: null
+    stop_reason: null
   evidence_required: []
-  ledger:
-    event_id: null
-    report_expected: true
-    advisor_report_ids: []
+  risks: []
   status: idle
   timestamp: null

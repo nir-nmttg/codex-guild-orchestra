@@ -14,20 +14,29 @@ expected:
     external_actions: false
   handoff_sufficiency:
     owner_to_trial_ready_requires:
+      - objective
+      - success_criteria
+      - scope
+      - authority
       - changed_files
-      - decisions_made
-      - intent_alignment
-      - quest_awareness
-      - control_decision
+      - evidence_state
       - validation_evidence
-      - research_evidence
       - risks
+      - base_snapshot
+      - result_snapshot
+  self_check:
+    owner_validation_attestation: true
+    completion_allowed: true
+    risk_triggers: []
+    blocking_unknowns: []
+    failed_checks: []
+    scope_drift: false
+    verification_status: verified
   report_required:
-    intent_alignment: true
     validation_evidence: true
-    research_evidence: true
     risks: true
   forbidden:
     commit: true
     push: true
     pull_request: true
+    completion_with_failed_check: true

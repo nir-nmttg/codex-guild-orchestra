@@ -1,0 +1,51 @@
+id: courier_explicit_git_postcondition
+fixture_mode: static_contract_example
+summary: "courier は最新の人間指示で明示された Git 操作だけを行い、実行後の状態を確認する"
+input:
+  latest_human_instruction: "src/import.py と tests/test_import.py を stage して commit してください"
+  target_repo_root: "<guild_root>/repositories/example-app"
+  branch: "codex/fix-csv-import"
+  accepted_revision_id: "commit:ea11390"
+  accepted_diff_hash: "sha256:0f19de22"
+  allowed_paths:
+    - src/import.py
+    - tests/test_import.py
+expected:
+  worker_id: courier
+  authority:
+    read: true
+    edit: false
+    validate: false
+    local_git: true
+    external_actions: false
+  authorization:
+    source: latest_human_instruction
+    explicit_operation: stage_commit
+    target_repo_root: "<guild_root>/repositories/example-app"
+    accepted_revision_id: "commit:ea11390"
+    accepted_diff_hash: "sha256:0f19de22"
+    allowed_paths:
+      - src/import.py
+      - tests/test_import.py
+    implicit_request_allowed: false
+  preconditions:
+    target_repo_root_confirmed: true
+    branch_confirmed: true
+    git_status_inspected: true
+    staged_diff_inspected: true
+    unrelated_changes_excluded: true
+  postconditions:
+    git_status_checked: true
+    commit_hash_recorded: true
+    committed_paths_match_scope: true
+    remaining_changes_reported: true
+    branch_recorded: true
+    upstream_validation_result_recorded: true
+    ledger_event_disposition_recorded: true
+    committed_diff_matches_accepted_hash: true
+    external_state_unchanged: true
+  forbidden:
+    push: true
+    pull_request: true
+    destructive_git: true
+    unrelated_stage: true

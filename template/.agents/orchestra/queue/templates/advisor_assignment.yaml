@@ -10,38 +10,32 @@ assignment:
   quest_id: null
   parent_id: null
   worker_id: advisor
-  role: advisory_specialist
+  role: independent_focus_advisor
   kind: advisory_consultation
   owner_worker_id: null
   owner_assignment_id: null
-  objective: null
-  focus: []
-  dialogue_policy:
-    mode: confidence_based
-    same_focus_only: true
-    confidence_target_percent: 90
-    confidence_delta_min_percent: 3
-    owner_controls_confidence: true
-    raw_discussion_ledger_policy: do_not_record
-    continue_when:
-      - owner_confidence_below_target
-      - new_evidence_added
-      - confidence_delta_meets_minimum
-      - blocking_unknowns_decreased
-    stop_when:
-      - confidence_target_met
-      - no_new_evidence_added
-      - confidence_delta_below_minimum
-      - blocking_unknowns_unchanged
-      - same_unknown_repeated
-      - advisor_cannot_add_verifiable_evidence
-      - owner_cannot_verify_advisor_basis
-      - authority_or_boundary_would_expand
-      - human_confirmation_required
-      - advisor_focus_would_drift
-  decision_authority: false
   terminal_worker: true
-  owner_synthesis_required: true
+  decision_authority: false
+  objective: null
+  # Advisorは具体的で独立した論点がある時だけ起動する。
+  focus: null
+  evidence_required: []
+  stop_conditions:
+    - focus_resolved
+    - no_new_verifiable_evidence
+    - authority_or_boundary_would_expand
+    - human_confirmation_required
+  subject_snapshot:
+    snapshot_id: null
+    digest_version: cgo-snapshot-v1
+    kind: null
+    revision_id: null
+    base_ref: null
+    head_ref: null
+    scope_paths: []
+    untracked_paths: []
+    dirty_state: null
+    diff_hash: null
   authority:
     read: true
     edit: false
@@ -49,35 +43,10 @@ assignment:
     local_git: false
     external_actions: false
   boundaries:
-    target_repo_root: null # 実 assignment では `<guild_root>/repositories/<repo>` の実パスへ置換する
+    target_repo_root: null
     read_deny: []
     edit_deny: []
     safety_items: []
-  known_context:
-    evidence_refs: []
-    notes: []
-    compat_context:
-      - source_type: claude
-        path: null
-        sha256: null
-        trust: untrusted
-        applies_to: []
-        status: null
-        disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
-        skip_reason: null
-  autonomy_budget:
-    subassignments: 0
-    extra_file_reads: 0
-    validation_iterations: 0
-    timebox_minutes: null
-  research_plan:
-    questions: []
-    target_paths: []
-    stop_conditions: []
-  escalation_triggers: []
-  evidence_required: []
-  ledger:
-    event_id: null
-    report_expected: true
+  risks: []
   status: idle
   timestamp: null

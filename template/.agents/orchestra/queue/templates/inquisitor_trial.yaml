@@ -9,41 +9,24 @@ trial:
   id: null
   quest_id: null
   worker_id: inquisitor
-  role: trial_specialist
-  depth: null # none / self_check / peer_review / focused_trial / multi_focus_trial / safety_gate
-  focus: []
+  role: trial_lead
+  depth: null
+  objective: null
+  success_criteria: []
   subject_assignment_ids: []
   subject_report_ids: []
   changed_files: []
-  objective: null
-  intent_analysis:
-    request_summary: null
-    inferred_intent: null
-    essential_outcomes: []
-    assumptions: []
-    ambiguities: []
-    confirmation_needed: []
-  success_criteria: []
-  quest_awareness:
-    goal: null
-    current_subgoal: null
-    known_facts: []
-    unknowns: []
-    assumptions: []
-    evidence: []
-    current_strategy: null
-    confidence_percent: null
-    risk_level: medium
-    verification_status: partially_checked
-    next_action: null
-    stop_condition: null
-  control_decision:
-    decision: run_tests
-    rationale: null
-    required_next_action: null
-    triggers: []
-    confidence_threshold_applied: null
-    escalation_required: false
+  subject_snapshot:
+    snapshot_id: null
+    digest_version: cgo-snapshot-v1
+    kind: working_tree_content
+    revision_id: null
+    base_ref: null
+    head_ref: null
+    scope_paths: []
+    untracked_paths: []
+    dirty_state: null
+    diff_hash: null
   authority:
     read: true
     edit: false
@@ -51,115 +34,35 @@ trial:
     local_git: false
     external_actions: false
   boundaries:
-    target_repo_root: null # 実 Trial では `<guild_root>/repositories/<repo>` の実パスへ置換する
+    target_repo_root: null
     read_deny: []
     edit_deny: []
     safety_items: []
-  trial_checks:
-    - intent_coverage
+  evidence_state:
+    blocking_unknowns: []
+    failed_checks: []
+    scope_drift: false
+    high_risk_triggers: []
+    verification_status: partially_checked
+    next_action: null
+    stop_reason: null
+  core_checks:
     - success_criteria
-    - quest_awareness
-    - control_decision
-    - guild_law
     - authority_boundary
     - scope_boundary
     - safety_items
-    - architecture_consistency
-    - responsibility_split
-    - readability
-    - maintainability
     - validation_evidence
-    - edge_cases
-    - error_handling
-    - security
-    - performance
-    - accessibility
-    - compatibility
     - regression_risk
-  depth_guardrails:
-    multi_focus_trial:
-      requires_focus_split: true
-      allows_focus_advisors: true
-      allows_focus_reviewers: true
-      requires_owner_synthesis: true
-      if_focus_is_insufficient: request_changes
-    safety_gate:
-      requires_human_or_safety_evidence: true
-      if_evidence_is_missing: needs_human
-  focus_advisors:
-    consideration_required: true
-    assignments: []
-    consumes_autonomy_budget: subassignments
-    shared_budget_rule: "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments"
-    owner_synthesis_required: true
-    terminal_worker_required: true
-    skip_reason_required_when_not_used: true
-    skip_reason: null
-  focus_reviewers:
-    count_decision_required: true
-    reviewer_count: null
-    max_reviewers_bound_by:
-      - workers.inquisitor.max_parallel
-      - autonomy_budget.subassignments
-    selection_inputs:
-      - risk
-      - focus
-      - blast_radius
-      - coupling
-      - validation_result
-      - confidence
-      - cost
-    light_change_reviewer_range: "additional reviewer 0..1"
-    multi_reviewer_allowed_for:
-      - multi_focus_trial
-      - safety_gate
-      - high_risk
-      - broad_blast_radius
-      - high_coupling
-      - validation_failed
-      - evidence_limited
-      - independent_focus_needed
-    assignments: []
-    consumes_autonomy_budget: subassignments
-    shared_budget_rule: "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments"
-    focus_split_required_when_multiple: true
-    read_only_required: true
-    owner_synthesis_required: true
-    finding_disposition_required: true
-    skip_reason_required_when_not_used: true
-    cost_reason_required: true
-    cost_reason_required_always: true
-    skip_reason: null
-    cost_reason: null
-  autonomy_budget:
-    subassignments: 1
-    extra_file_reads: 0
-    validation_iterations: 1
-    timebox_minutes: null
-  research_plan:
-    questions: []
-    target_paths: []
-    stop_conditions: []
-    compat_context:
-      - source_type: claude
-        path: null
-        sha256: null
-        trust: untrusted
-        applies_to: []
-        status: null
-        disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
-        skip_reason: null
+  # 実際のrisk triggerに対応するcheckだけを追加する。
+  risk_triggered_checks: []
+  advisor_assignments: []
+  reviewer_assignments: []
   decision_options:
     - accept
     - accept_with_risks
     - request_changes
     - needs_human
     - blocked
-  escalation_triggers: []
   evidence_required: []
-  ledger:
-    event_id: null
-    report_expected: true
-    advisor_report_ids: []
   status: idle
   timestamp: null

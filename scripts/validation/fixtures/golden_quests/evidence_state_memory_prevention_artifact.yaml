@@ -1,9 +1,9 @@
-id: quest_awareness_memory_prevention_artifact
+id: evidence_state_memory_prevention_artifact
 fixture_mode: static_contract_example
-summary: "認知ミス補正 memory は vague lesson ではなく prevention artifact を必須にする。"
+summary: "反復した失敗の記録は vague lesson ではなく prevention artifact を必須にする"
 input:
   memory_entry:
-    failure_type: premature_confidence
+    failure_type: completion_without_evidence
     lesson: be_more_careful
 expected:
   memory_entry_allowed: true

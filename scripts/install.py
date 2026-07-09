@@ -134,10 +134,24 @@ EXPECTED_AGENT_SANDBOX_MODES = {
     'advisor': 'read-only',
     'cartographer': 'read-only',
     'courier': 'workspace-write',
+    'focus_reviewer': 'read-only',
     'guildmaster': 'read-only',
     'inquisitor': 'read-only',
+    'integration_owner': 'workspace-write',
     'quest_sentinel': 'read-only',
     'party_leader': 'read-only',
+}
+EXPECTED_AGENT_MODEL_CONFIGS = {
+    'adventurer': ('gpt-5.6-sol', 'high'),
+    'advisor': ('gpt-5.6-sol', 'high'),
+    'cartographer': ('gpt-5.6-sol', 'high'),
+    'courier': ('gpt-5.3-codex-spark', 'xhigh'),
+    'focus_reviewer': ('gpt-5.6-sol', 'high'),
+    'guildmaster': ('gpt-5.6-sol', 'xhigh'),
+    'inquisitor': ('gpt-5.6-sol', 'high'),
+    'integration_owner': ('gpt-5.6-sol', 'high'),
+    'quest_sentinel': ('gpt-5.6-sol', 'high'),
+    'party_leader': ('gpt-5.6-sol', 'high'),
 }
 EXPECTED_ORCHESTRA_SKILL_DIRS = {
     'branch-implementation-final-review',
@@ -174,10 +188,12 @@ SOURCE_REQUIRED_REL_PATHS = (
     Path('.agents/orchestra/instructions/advisor.md'),
     Path('.agents/orchestra/instructions/cartographer.md'),
     Path('.agents/orchestra/instructions/common.md'),
+    Path('.agents/orchestra/instructions/focus_reviewer.md'),
     Path('.agents/orchestra/instructions/guildmaster.md'),
     Path('.agents/orchestra/instructions/inquisitor.md'),
+    Path('.agents/orchestra/instructions/integration_owner.md'),
     Path('.agents/orchestra/instructions/party_leader.md'),
-    Path('.agents/orchestra/instructions/receptionist.md'),
+    Path('.agents/orchestra/instructions/quest_sentinel.md'),
     Path('.agents/orchestra/instructions/session_recovery.md'),
     Path('.agents/orchestra/logs/daily/README.md'),
     Path('.agents/orchestra/queue/README.md'),
@@ -189,6 +205,8 @@ SOURCE_REQUIRED_REL_PATHS = (
     Path('.agents/orchestra/queue/templates/cartographer_assignment.yaml'),
     Path('.agents/orchestra/queue/templates/cartographer_report.yaml'),
     Path('.agents/orchestra/queue/templates/command.yaml'),
+    Path('.agents/orchestra/queue/templates/focus_reviewer_assignment.yaml'),
+    Path('.agents/orchestra/queue/templates/focus_reviewer_report.yaml'),
     Path('.agents/orchestra/queue/templates/inquisitor_report.yaml'),
     Path('.agents/orchestra/queue/templates/inquisitor_trial.yaml'),
     Path('.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml'),
@@ -200,6 +218,7 @@ SOURCE_REQUIRED_REL_PATHS = (
     Path('.agents/orchestra/scripts/queue_db.py'),
     Path('.agents/orchestra/scripts/queue_audit.py'),
     Path('.agents/orchestra/scripts/queue_schema.sql'),
+    Path('.agents/orchestra/scripts/snapshot_digest.py'),
 )
 SOURCE_REQUIRED_REL_PATHS += tuple(Path('.codex/agents') / f'{role}.toml' for role in sorted(EXPECTED_AGENT_SANDBOX_MODES))
 SOURCE_REQUIRED_REL_PATHS += tuple(Path('.agents/skills') / skill / 'SKILL.md' for skill in sorted(EXPECTED_ORCHESTRA_SKILL_DIRS))
@@ -247,30 +266,26 @@ REMOVED_TEMPLATE_REL_PATHS = [
     Path('.agents/orchestra/queue/templates/adventurer_task.yaml'),
     Path('.agents/orchestra/queue/templates/inquisitor_task.yaml'),
     Path('.agents/skills/' 'meta' 'cognitive-task-loop'),
+    Path('.agents/orchestra/instructions/receptionist.md'),
 ]
 ADVISOR_DEVELOPER_INSTRUCTION_TOKENS = (
-    'terminal worker',
-    '追加 subagent',
+    '一つの focus',
+    'evidence refs',
     '実装',
-    '採否',
+    '品質採否',
     'Ledger',
-    'confidence-based',
-    'confidence delta',
-    'owner が根拠確認',
+    '追加 agent',
 )
 QUEST_AWARENESS_CONTROLLER_DEVELOPER_INSTRUCTION_TOKENS = (
-    'quest_awareness',
-    'control_decision',
-    'confidence',
-    'unknowns',
-    'assumptions',
-    'verification status',
+    '矛盾した根拠',
+    '反復失敗',
+    'scope drift',
+    'blocking unknowns',
+    'security review',
+    'user approval',
     '実装',
-    '採否',
     'Ledger',
-    'Git 操作',
-    '75%',
-    '50%',
+    '追加 agent',
 )
 
 
@@ -917,8 +932,10 @@ def load_worker_roles(source_root: Path) -> dict[str, dict[str, int]]:
         raise SystemExit('settings.yaml workers は mapping にしてください。')
     expected_roles = {
         'adventurer': 1,
+        'integration_owner': 1,
         'party_leader': 1,
         'inquisitor': 1,
+        'focus_reviewer': 1,
         'advisor': 1,
         'quest_sentinel': 1,
     }
@@ -935,11 +952,62 @@ def load_worker_roles(source_root: Path) -> dict[str, dict[str, int]]:
     return result
 
 
+def validate_focus_reviewer_worker_contract(source_root: Path) -> None:
+    settings_path = source_root / '.agents' / 'orchestra' / 'config' / 'settings.yaml'
+    lines = settings_path.read_text(encoding='utf-8').splitlines()
+    in_workers = False
+    in_focus = False
+    block: list[str] = []
+    for line in lines:
+        if line == 'workers:':
+            in_workers = True
+            continue
+        if in_workers and line and not line.startswith(' '):
+            break
+        if in_workers and line == '  focus_reviewer:':
+            in_focus = True
+            continue
+        if in_focus and line.startswith('  ') and not line.startswith('    '):
+            break
+        if in_focus:
+            block.append(line.strip())
+    if not block:
+        raise SystemExit('settings.yaml workers.focus_reviewer block が必要です。')
+    required_lines = {
+        'implementation_authority: false',
+        'decision_authority: false',
+        'severity_authority: false',
+        'synthesis_authority: false',
+        'ledger_authority: false',
+        'git_authority: false',
+        'external_action_authority: false',
+        '- inquisitor',
+    }
+    missing = sorted(required_lines - set(block))
+    forbidden_true = sorted(line for line in block if line.endswith('_authority: true'))
+    allowed_callers: set[str] = set()
+    if 'allowed_callers:' in block:
+        index = block.index('allowed_callers:') + 1
+        while index < len(block) and block[index].startswith('- '):
+            allowed_callers.add(block[index][2:].strip())
+            index += 1
+    caller_enforcement_valid = any(line.startswith('caller_enforcement:') and 'policy-only' in line and 'runtime ACL' in line for line in block)
+    global_terminal = any(line.strip() == 'custom_agents_terminal: true' for line in lines)
+    if missing or forbidden_true or allowed_callers != {'inquisitor'} or not caller_enforcement_valid or not global_terminal:
+        raise SystemExit(
+            'settings.yaml の global terminal / focus_reviewer caller / authority contract が不正です: '
+            + ', '.join(missing + forbidden_true or [f'global_terminal={global_terminal}, allowed_callers={sorted(allowed_callers)}, caller_enforcement={caller_enforcement_valid}'])
+        )
+
+
 def validate_codex_agent_preflight(source_root: Path) -> None:
+    validate_focus_reviewer_worker_contract(source_root)
     config_path = source_root / '.codex' / 'config.toml'
     config_text = config_path.read_text(encoding='utf-8')
     config = read_toml_document(config_path)
     required_config_values = {
+        'model': 'gpt-5.6-sol',
+        'model_reasoning_effort': 'high',
         'sandbox_mode': 'read-only',
         'approval_policy': 'on-request',
         'approvals_reviewer': 'auto_review',
@@ -949,6 +1017,8 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
     for key, expected in required_config_values.items():
         if config.get(key) != expected:
             raise SystemExit(f'template/.codex/config.toml の {key} は {expected} にしてください。')
+    if 'model_context_window' in config:
+        raise SystemExit('model_context_window は model catalog に追随させ、Root config で固定しないでください。')
     sandbox_workspace_write = config.get('sandbox_workspace_write')
     if not isinstance(sandbox_workspace_write, dict) or sandbox_workspace_write.get('network_access') is not False:
         raise SystemExit('template/.codex/config.toml の sandbox_workspace_write.network_access は false にしてください。')
@@ -960,8 +1030,8 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
     agents_config = config.get('agents')
     if not isinstance(agents_config, dict):
         raise SystemExit('template/.codex/config.toml の [agents] が必要です。')
-    if agents_config.get('max_depth') != 4:
-        raise SystemExit('template/.codex/config.toml の agents.max_depth は 4 にしてください。')
+    if agents_config.get('max_depth') != 1 or agents_config.get('max_threads') != 6:
+        raise SystemExit('template/.codex/config.toml の agents は max_depth=1 / max_threads=6 にしてください。')
 
     agents_dir = source_root / '.codex' / 'agents'
     expected_agent_files = {f'{role}.toml' for role in EXPECTED_AGENT_SANDBOX_MODES}
@@ -982,13 +1052,19 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
             raise SystemExit(f'template/.codex/agents/{role}.toml の name は {role} にしてください。')
         if agent.get('sandbox_mode') != expected_sandbox:
             raise SystemExit(f'template/.codex/agents/{role}.toml の sandbox_mode は {expected_sandbox} にしてください。')
+        expected_model, expected_effort = EXPECTED_AGENT_MODEL_CONFIGS[role]
+        if agent.get('model') != expected_model:
+            raise SystemExit(f'template/.codex/agents/{role}.toml の model は {expected_model} にしてください。')
+        if agent.get('model_reasoning_effort') != expected_effort:
+            raise SystemExit(f'template/.codex/agents/{role}.toml の model_reasoning_effort は {expected_effort} にしてください。')
+        features = agent.get('features')
+        if not isinstance(features, dict) or features.get('multi_agent') is not False:
+            raise SystemExit(f'template/.codex/agents/{role}.toml の features.multi_agent は false にしてください。')
 
     advisor_path = source_root / '.codex' / 'agents' / 'advisor.toml'
     advisor = read_toml_document(advisor_path)
     if advisor.get('sandbox_mode') != 'read-only':
         raise SystemExit('template/.codex/agents/advisor.toml の sandbox_mode は read-only にしてください。')
-    if advisor.get('model_reasoning_effort') != 'xhigh':
-        raise SystemExit('template/.codex/agents/advisor.toml の model_reasoning_effort は xhigh にしてください。')
     developer_instructions = advisor.get('developer_instructions')
     if not isinstance(developer_instructions, str):
         raise SystemExit('template/.codex/agents/advisor.toml の developer_instructions が必要です。')
@@ -999,12 +1075,36 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
             + ', '.join(missing_tokens)
         )
 
+    focus_reviewer_path = source_root / '.codex' / 'agents' / 'focus_reviewer.toml'
+    focus_reviewer = read_toml_document(focus_reviewer_path)
+    if focus_reviewer.get('sandbox_mode') != 'read-only':
+        raise SystemExit('template/.codex/agents/focus_reviewer.toml の sandbox_mode は read-only にしてください。')
+    focus_features = focus_reviewer.get('features')
+    if not isinstance(focus_features, dict) or focus_features.get('multi_agent') is not False:
+        raise SystemExit('template/.codex/agents/focus_reviewer.toml の features.multi_agent は false にしてください。')
+    focus_reviewer_instructions = focus_reviewer.get('developer_instructions')
+    if not isinstance(focus_reviewer_instructions, str):
+        raise SystemExit('template/.codex/agents/focus_reviewer.toml の developer_instructions が必要です。')
+    focus_reviewer_tokens = (
+        '単一focus',
+        'read-only',
+        '採否',
+        '重大度決定',
+        '同一subject snapshot',
+        'stale evidence',
+        '追加 agent',
+    )
+    focus_reviewer_missing = [token for token in focus_reviewer_tokens if token not in focus_reviewer_instructions]
+    if focus_reviewer_missing:
+        raise SystemExit(
+            'template/.codex/agents/focus_reviewer.toml の developer_instructions に bounded reviewer 契約が不足しています: '
+            + ', '.join(focus_reviewer_missing)
+        )
+
     controller_path = source_root / '.codex' / 'agents' / 'quest_sentinel.toml'
     controller = read_toml_document(controller_path)
     if controller.get('sandbox_mode') != 'read-only':
         raise SystemExit('template/.codex/agents/quest_sentinel.toml の sandbox_mode は read-only にしてください。')
-    if controller.get('model_reasoning_effort') != 'high':
-        raise SystemExit('template/.codex/agents/quest_sentinel.toml の model_reasoning_effort は high にしてください。')
     controller_instructions = controller.get('developer_instructions')
     if not isinstance(controller_instructions, str):
         raise SystemExit('template/.codex/agents/quest_sentinel.toml の developer_instructions が必要です。')

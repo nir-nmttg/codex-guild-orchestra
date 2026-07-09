@@ -16,9 +16,7 @@ expected:
   handoff_sufficiency:
     intake_to_charter_ready: true
     charter_to_owner_ready: true
-  advisor:
-    considered: true
-    decision_authority: false
+  advisor_required: false
   forbidden:
     implementation: true
     git_write: true

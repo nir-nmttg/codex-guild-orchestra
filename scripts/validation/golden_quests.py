@@ -1,4 +1,4 @@
-"""golden Quest fixture の静的検証。"""
+"""Evidence-based golden Quest contract validation."""
 
 from __future__ import annotations
 
@@ -8,23 +8,41 @@ from .core import ROOT, load_yaml, mapping, require, sequence
 GOLDEN_ROOT = "scripts/validation/fixtures/golden_quests"
 EXPECTED_FIXTURES = {
     "advisor_dialogue_same_focus_stop.yaml",
-    "focused_trial_reviewer_budget.yaml",
+    "advisor_owner_synthesis.yaml",
+    "claude_helper_only_disposition.yaml",
+    "courier_explicit_git_postcondition.yaml",
+    "evidence_state_blocked_contract.yaml",
+    "evidence_state_contradictory_evidence.yaml",
+    "evidence_state_failed_check.yaml",
+    "evidence_state_memory_prevention_artifact.yaml",
+    "evidence_state_scope_drift.yaml",
+    "evidence_state_security_trigger.yaml",
+    "evidence_state_unverified_outcome.yaml",
+    "focus_reviewer_bounded_contract.yaml",
+    "focused_trial_risk_triggered_review.yaml",
+    "focused_trial_revision_bound_input.yaml",
+    "guild_quest_routing.yaml",
     "ledger_injection_negative.yaml",
     "mapmaking_readonly_no_edit.yaml",
-    "quest_awareness_confidence_below_50_stop.yaml",
-    "quest_awareness_confidence_below_75.yaml",
-    "quest_awareness_contradictory_evidence.yaml",
-    "quest_awareness_failed_check_first_failure.yaml",
-    "quest_awareness_memory_prevention_artifact.yaml",
-    "quest_awareness_scope_drift.yaml",
-    "quest_awareness_security_sensitive.yaml",
+    "party_integration_barrier_stable_revision.yaml",
+    "safety_approval_scope_absolute_deny.yaml",
     "safety_gate_needs_human.yaml",
+    "sentinel_evidence_trigger.yaml",
     "solo_small_fix_no_git.yaml",
 }
 
 
 def _fixture(rel_name: str) -> dict[str, object]:
-    return mapping(load_yaml(f"{GOLDEN_ROOT}/{rel_name}"), rel_name)
+    document = mapping(load_yaml(f"{GOLDEN_ROOT}/{rel_name}"), rel_name)
+    require(document.get("id") == rel_name.removesuffix(".yaml"), f"{rel_name}.id は filename と一致させてください。")
+    require(document.get("fixture_mode") == "static_contract_example", f"{rel_name}.fixture_mode が不正です。")
+    require(isinstance(document.get("summary"), str) and document["summary"], f"{rel_name}.summary が必要です。")
+    require("input" in document and "expected" in document, f"{rel_name} は input / expected が必要です。")
+    return document
+
+
+def _expected(rel_name: str) -> dict[str, object]:
+    return mapping(_fixture(rel_name).get("expected"), f"{rel_name}.expected")
 
 
 def _authority(value: object, label: str) -> dict[str, object]:
@@ -35,25 +53,12 @@ def _authority(value: object, label: str) -> dict[str, object]:
     return authority
 
 
-def _forbidden(value: object, label: str) -> dict[str, object]:
+def _forbidden(value: object, label: str) -> set[str]:
     forbidden = mapping(value, label)
     require(forbidden, f"{label} は空にできません。")
     for key, item in forbidden.items():
         require(item is True, f"{label}.{key} は true にしてください。")
-    return forbidden
-
-
-def _required_next_action(value: object, label: str) -> str:
-    require(isinstance(value, str) and value, f"{label} は空でない文字列にしてください。")
-    return value
-
-
-def _base_fixture(doc: dict[str, object], rel_name: str) -> dict[str, object]:
-    require(doc.get("id") == rel_name.removesuffix(".yaml"), f"{rel_name}.id は filename と一致させてください。")
-    require(doc.get("fixture_mode") == "static_contract_example", f"{rel_name}.fixture_mode は static_contract_example にしてください。")
-    require(isinstance(doc.get("summary"), str) and doc["summary"], f"{rel_name}.summary が必要です。")
-    require("input" in doc and "expected" in doc, f"{rel_name} は input / expected が必要です。")
-    return mapping(doc["expected"], f"{rel_name}.expected")
+    return set(forbidden)
 
 
 def validate_golden_quests() -> None:
@@ -62,106 +67,163 @@ def validate_golden_quests() -> None:
     actual = {path.name for path in root.glob("*.yaml")}
     require(actual == EXPECTED_FIXTURES, "golden Quest fixture 一覧が期待値と一致しません: " + ", ".join(sorted(actual)))
 
-    mapmaking = _base_fixture(_fixture("mapmaking_readonly_no_edit.yaml"), "mapmaking_readonly_no_edit.yaml")
-    require(mapmaking.get("rank") == "mapmaking", "mapmaking fixture は rank=mapmaking にしてください。")
-    require(mapmaking.get("assignment_kind") == "mapmaking", "mapmaking fixture は assignment_kind=mapmaking にしてください。")
-    require(mapmaking.get("worker_id") == "cartographer", "mapmaking fixture は cartographer にしてください。")
-    mapmaking_authority = _authority(mapmaking.get("authority"), "mapmaking.expected.authority")
-    require(mapmaking_authority == {"read": True, "edit": False, "validate": False, "local_git": False, "external_actions": False}, "mapmaking fixture は read-only にしてください。")
-    advisor = mapping(mapmaking.get("advisor"), "mapmaking.expected.advisor")
-    require(advisor.get("considered") is True and advisor.get("decision_authority") is False, "mapmaking fixture は advisor 検討と decision_authority=false を要求してください。")
-    _forbidden(mapmaking.get("forbidden"), "mapmaking.expected.forbidden")
+    # Read-only mapmaking stays safe without forcing a ceremonial advisor pass.
+    mapmaking = _expected("mapmaking_readonly_no_edit.yaml")
+    require(mapmaking.get("rank") == "mapmaking" and mapmaking.get("worker_id") == "cartographer", "mapmaking fixture identity が不正です。")
+    require(_authority(mapmaking.get("authority"), "mapmaking.authority") == {"read": True, "edit": False, "validate": False, "local_git": False, "external_actions": False}, "mapmaking は read-only にしてください。")
+    require(mapmaking.get("advisor_required") is False, "mapmaking は具体的な独立 focus がない advisor 起動を必須にしないでください。")
+    _forbidden(mapmaking.get("forbidden"), "mapmaking.forbidden")
 
-    solo = _base_fixture(_fixture("solo_small_fix_no_git.yaml"), "solo_small_fix_no_git.yaml")
-    require(solo.get("rank") == "solo_quest" and solo.get("worker_id") == "adventurer", "solo fixture は solo_quest / adventurer にしてください。")
-    solo_authority = _authority(solo.get("authority"), "solo.expected.authority")
-    require(solo_authority["edit"] is True and solo_authority["validate"] is True, "solo fixture は edit / validate を許可してください。")
-    require(solo_authority["local_git"] is False and solo_authority["external_actions"] is False, "solo fixture は local git / external action を禁止してください。")
-    solo_handoff = mapping(solo.get("handoff_sufficiency"), "solo.expected.handoff_sufficiency")
-    solo_required = set(sequence(solo_handoff.get("owner_to_trial_ready_requires"), "solo.expected.handoff_sufficiency.owner_to_trial_ready_requires"))
-    require({"changed_files", "decisions_made", "intent_alignment", "quest_awareness", "control_decision", "validation_evidence", "research_evidence", "risks"} <= solo_required, "solo fixture は owner_to_trial の required evidence を要求してください。")
-    report_required = mapping(solo.get("report_required"), "solo.expected.report_required")
-    require(report_required.get("intent_alignment") is True and report_required.get("validation_evidence") is True and report_required.get("research_evidence") is True and report_required.get("risks") is True, "solo fixture は intent_alignment / validation_evidence / research_evidence / risks を要求してください。")
-    _forbidden(solo.get("forbidden"), "solo.expected.forbidden")
+    # A small verified change can finish without a 12-gate form.
+    solo = _expected("solo_small_fix_no_git.yaml")
+    require(solo.get("rank") == "solo_quest" and solo.get("worker_id") == "adventurer", "solo fixture identity が不正です。")
+    solo_authority = _authority(solo.get("authority"), "solo.authority")
+    require(solo_authority["edit"] is True and solo_authority["validate"] is True and solo_authority["local_git"] is False and solo_authority["external_actions"] is False, "solo authority が不正です。")
+    handoff = mapping(solo.get("handoff_sufficiency"), "solo.handoff_sufficiency")
+    handoff_core = set(sequence(handoff.get("owner_to_trial_ready_requires"), "solo.handoff_sufficiency.owner_to_trial_ready_requires"))
+    require({"objective", "success_criteria", "scope", "authority", "evidence_state", "validation_evidence", "risks", "base_snapshot", "result_snapshot"} <= handoff_core, "solo handoff core が不足しています。")
+    self_check = mapping(solo.get("self_check"), "solo.self_check")
+    require(self_check.get("completion_allowed") is True and self_check.get("verification_status") == "verified", "solo completion は verified evidence を必要とします。")
+    for key in ("risk_triggers", "blocking_unknowns", "failed_checks"):
+        require(sequence(self_check.get(key), f"solo.self_check.{key}") == [], f"solo.self_check.{key} は空にしてください。")
+    require(self_check.get("scope_drift") is False, "solo completion で scope drift を許可しないでください。")
+    _forbidden(solo.get("forbidden"), "solo.forbidden")
 
-    safety = _base_fixture(_fixture("safety_gate_needs_human.yaml"), "safety_gate_needs_human.yaml")
-    require(safety.get("trial_depth") == "safety_gate" and safety.get("outcome") == "needs_human", "safety fixture は safety_gate / needs_human にしてください。")
-    safety_authority = _authority(safety.get("authority"), "safety.expected.authority")
-    require(not any(safety_authority[key] for key in ("edit", "validate", "local_git", "external_actions")), "safety fixture は read 以外を禁止してください。")
-    require({"deploy", "secret"} <= set(sequence(safety.get("human_confirmation_required"), "safety.expected.human_confirmation_required")), "safety fixture は deploy / secret の人間確認を要求してください。")
-    _forbidden(safety.get("forbidden"), "safety.expected.forbidden")
+    # Integration and Trial remain bound to stable, machine-generated revisions.
+    party_doc = _fixture("party_integration_barrier_stable_revision.yaml")
+    party_input = mapping(party_doc.get("input"), "party.input")
+    party = mapping(party_doc.get("expected"), "party.expected")
+    barrier = mapping(party.get("integration_barrier"), "party.integration_barrier")
+    require(barrier.get("required") is True and barrier.get("all_required_reports_complete") is True and barrier.get("single_integration_owner_required") is True, "party integration barrier が不足しています。")
+    require(party_input.get("integration_owner") == "integration_owner", "party integration ownerは専用workerにしてください。")
+    require(barrier.get("integration_owner") == party_input.get("integration_owner") and barrier.get("integration_before_barrier_allowed") is False, "party integration owner/barrier が不正です。")
+    stable = mapping(party.get("stable_snapshot"), "party.stable_snapshot")
+    require(stable.get("revision_id") == party_input.get("final_revision_id") and stable.get("diff_hash") == party_input.get("final_diff_hash"), "party stable snapshot が input と一致しません。")
+    for key in ("trial_bound_to_revision", "ledger_bound_to_revision", "revision_change_invalidates_trial", "revision_change_reopens_barrier"):
+        require(stable.get(key) is True, f"party.stable_snapshot.{key} は true にしてください。")
+    _forbidden(party.get("forbidden"), "party.forbidden")
 
-    trial = _base_fixture(_fixture("focused_trial_reviewer_budget.yaml"), "focused_trial_reviewer_budget.yaml")
-    require(trial.get("trial_depth") == "focused_trial" and trial.get("worker_id") == "inquisitor", "focused trial fixture は inquisitor focused_trial にしてください。")
-    _authority(trial.get("authority"), "focused_trial.expected.authority")
-    focus_reviewers = mapping(trial.get("focus_reviewers"), "focused_trial.expected.focus_reviewers")
-    require(focus_reviewers.get("count_decision_required") is True, "focused trial fixture は reviewer 数判断を要求してください。")
-    require(set(sequence(focus_reviewers.get("max_bound_by"), "focused_trial.expected.focus_reviewers.max_bound_by")) == {"workers.inquisitor.max_parallel", "autonomy_budget.subassignments"}, "focused trial fixture の reviewer 上限が不足しています。")
-    require(focus_reviewers.get("cost_reason_required") is True and focus_reviewers.get("finding_disposition_required") is True, "focused trial fixture は cost reason / finding disposition を要求してください。")
-    trial_handoff = mapping(trial.get("handoff_sufficiency"), "focused_trial.expected.handoff_sufficiency")
-    trial_required = set(sequence(trial_handoff.get("trial_to_ledger_final_ready_requires"), "focused_trial.expected.handoff_sufficiency.trial_to_ledger_final_ready_requires"))
-    require({"decision", "findings", "intent_coverage", "quest_awareness", "control_decision", "validation_evidence", "advisor_dialogue_synthesis", "reviewer_synthesis", "finding_dispositions", "risks"} <= trial_required, "focused trial fixture は trial_to_ledger_final の required evidence を要求してください。")
+    revision_doc = _fixture("focused_trial_revision_bound_input.yaml")
+    revision_input = mapping(revision_doc.get("input"), "revision.input")
+    revision = mapping(revision_doc.get("expected"), "revision.expected")
+    binding = mapping(revision.get("revision_binding"), "revision.revision_binding")
+    for key in ("base_ref", "head_ref", "revision_id", "diff_hash", "subject_assignment_ids", "subject_report_ids", "changed_files"):
+        require(binding.get(key) == revision_input.get(key), f"revision binding {key} が input と一致しません。")
+    require(binding.get("stale_evidence_outcome") == "stop" and binding.get("revision_change_requires_rerun") is True, "stale Trial evidence は停止・再実行してください。")
+    _forbidden(revision.get("forbidden"), "revision.forbidden")
 
-    advisor = _base_fixture(_fixture("advisor_dialogue_same_focus_stop.yaml"), "advisor_dialogue_same_focus_stop.yaml")
-    require(advisor.get("worker_id") == "advisor" and advisor.get("decision_authority") is False and advisor.get("terminal_worker") is True, "advisor fixture は terminal worker / decision_authority=false にしてください。")
-    dialogue = mapping(advisor.get("dialogue_policy"), "advisor.expected.dialogue_policy")
-    require(dialogue.get("mode") == "confidence_based" and dialogue.get("same_focus_only") is True, "advisor fixture は confidence_based / same_focus_only を要求してください。")
-    require("authority_or_boundary_would_expand" in sequence(dialogue.get("stop_when"), "advisor.expected.dialogue_policy.stop_when"), "advisor fixture は authority/boundary 拡大で停止してください。")
-    _forbidden(advisor.get("forbidden"), "advisor.expected.forbidden")
+    # Independent review is risk-triggered, bounded, read-only and non-decision.
+    risk_trial = _expected("focused_trial_risk_triggered_review.yaml")
+    require(risk_trial.get("trial_depth") == "focused_trial" and risk_trial.get("worker_id") == "inquisitor", "risk-triggered Trial identity が不正です。")
+    reviewer_assignment = mapping(risk_trial.get("reviewer_assignment"), "risk_trial.reviewer_assignment")
+    require(reviewer_assignment == {"worker_id": "focus_reviewer", "risk_trigger": "security", "focus": "authorization_boundary", "read_only": True, "terminal_worker": True}, "reviewer assignment は concrete risk focus に限定してください。")
+    require(set(sequence(risk_trial.get("handoff_core"), "risk_trial.handoff_core")) == {"objective", "success_criteria", "scope", "authority", "evidence_state", "snapshot", "risks"}, "Trial handoff core が不正です。")
+    _forbidden(risk_trial.get("forbidden"), "risk_trial.forbidden")
 
-    ledger = _base_fixture(_fixture("ledger_injection_negative.yaml"), "ledger_injection_negative.yaml")
-    require(ledger.get("outcome") == "reject_untrusted_instruction", "ledger negative fixture は reject_untrusted_instruction にしてください。")
-    policy = mapping(ledger.get("ledger_policy"), "ledger.expected.ledger_policy")
-    require(policy.get("raw_discussion_recorded") is False and policy.get("secret_values_recorded") is False, "ledger negative fixture は raw discussion / secret 保存を禁止してください。")
-    require(policy.get("decision_rationale_recorded") is True and policy.get("evidence_refs_recorded") is True, "ledger negative fixture は decision rationale / evidence refs を要求してください。")
-    _forbidden(ledger.get("forbidden"), "ledger.expected.forbidden")
+    reviewer_doc = _fixture("focus_reviewer_bounded_contract.yaml")
+    reviewer_input = mapping(reviewer_doc.get("input"), "reviewer.input")
+    reviewer = mapping(reviewer_doc.get("expected"), "reviewer.expected")
+    require(reviewer.get("worker_id") == "focus_reviewer" and reviewer.get("assignment_owner") == "inquisitor", "focus reviewer identity が不正です。")
+    require(reviewer.get("risk_trigger_required") is True and reviewer_input.get("risk_trigger") and reviewer.get("concrete_focus_required") is True and reviewer_input.get("focus"), "focus reviewer は risk trigger と concrete focus が必要です。")
+    for key in ("read_only_required", "owner_synthesis_required", "finding_disposition_required", "recursive_multi_agent_disabled"):
+        require(reviewer.get(key) is True, f"reviewer.{key} は true にしてください。")
+    require(reviewer.get("caller_enforcement") == "queue_lineage", "focus reviewer caller は queue lineage で検証してください。")
+    assignment_snapshot = mapping(reviewer_input.get("assignment_snapshot"), "reviewer.assignment_snapshot")
+    require(assignment_snapshot == mapping(reviewer_input.get("matching_report_snapshot"), "reviewer.matching_snapshot"), "matching reviewer snapshot が不正です。")
+    require(assignment_snapshot != mapping(reviewer_input.get("mismatched_report_snapshot"), "reviewer.mismatched_snapshot"), "mismatched reviewer snapshot を区別してください。")
+    _forbidden(reviewer.get("forbidden"), "reviewer.forbidden")
 
-    confidence75 = _base_fixture(_fixture("quest_awareness_confidence_below_75.yaml"), "quest_awareness_confidence_below_75.yaml")
-    require(confidence75.get("control_decision") == "gather_more_evidence", "confidence<75 fixture は gather_more_evidence にしてください。")
-    require(confidence75.get("finalize_allowed") is False, "confidence<75 fixture は finalize を禁止してください。")
-    require(confidence75.get("quest_sentinel_considered") is True, "confidence<75 fixture は quest_sentinel 検討を要求してください。")
-    require(_required_next_action(confidence75.get("required_next_action"), "confidence<75.expected.required_next_action") == "inspect_diff_or_run_additional_verification", "confidence<75 fixture は追加 evidence / 検証を next action にしてください。")
-    confidence75_forbidden = _forbidden(confidence75.get("forbidden"), "confidence<75.expected.forbidden")
-    require({"finalize_without_more_evidence", "raise_confidence_without_evidence"} <= set(confidence75_forbidden), "confidence<75 fixture の forbidden が不足しています。")
-    require("controller_" "considered" not in confidence75, "confidence<75 fixture は旧 controller_" "considered key を使わないでください。")
+    # Advisor is optional, evidence-driven and never owns the decision.
+    advisor = _expected("advisor_dialogue_same_focus_stop.yaml")
+    require(advisor.get("worker_id") == "advisor" and advisor.get("decision_authority") is False and advisor.get("terminal_worker") is True, "advisor authority が不正です。")
+    policy = mapping(advisor.get("evidence_policy"), "advisor.evidence_policy")
+    require(policy.get("concrete_focus_required") is True, "advisor は concrete focus がある時だけ使ってください。")
+    require({"no_new_evidence_added", "blocking_unknowns_unchanged", "authority_or_boundary_would_expand"} <= set(sequence(policy.get("stop_when"), "advisor.evidence_policy.stop_when")), "advisor evidence stop conditions が不足しています。")
+    _forbidden(advisor.get("forbidden"), "advisor.forbidden")
 
-    confidence50 = _base_fixture(_fixture("quest_awareness_confidence_below_50_stop.yaml"), "quest_awareness_confidence_below_50_stop.yaml")
-    require(confidence50.get("control_decision") == "revise_plan", "confidence<50 fixture は revise_plan にしてください。")
-    require(confidence50.get("speculative_editing_allowed") is False, "confidence<50 fixture は speculative editing を禁止してください。")
-    require(_required_next_action(confidence50.get("required_next_action"), "confidence<50.expected.required_next_action") == "reconstruct_task_contract", "confidence<50 fixture は task contract 再構成を next action にしてください。")
-    confidence50_forbidden = _forbidden(confidence50.get("forbidden"), "confidence<50.expected.forbidden")
-    require({"speculative_fix_stacking", "final_report_as_complete"} <= set(confidence50_forbidden), "confidence<50 fixture の forbidden が不足しています。")
+    advisor_synthesis_doc = _fixture("advisor_owner_synthesis.yaml")
+    advisor_input = mapping(advisor_synthesis_doc.get("input"), "advisor_synthesis.input")
+    advisor_synthesis = mapping(advisor_synthesis_doc.get("expected"), "advisor_synthesis.expected")
+    owner = mapping(advisor_synthesis.get("owner_synthesis"), "advisor_synthesis.owner_synthesis")
+    require(owner.get("required") is True and owner.get("owner_worker_id") == advisor_input.get("owner_worker_id") and owner.get("final_decision_by_owner_only") is True, "advisor owner synthesis が不正です。")
+    require(owner.get("advisor_judgment_is_not_owner_decision") is True and owner.get("evidence_verification_required") is True, "advisor finding は owner 検証を必要とします。")
+    _forbidden(advisor_synthesis.get("forbidden"), "advisor_synthesis.forbidden")
 
-    failed = _base_fixture(_fixture("quest_awareness_failed_check_first_failure.yaml"), "quest_awareness_failed_check_first_failure.yaml")
-    require(failed.get("control_decision") == "run_tests", "failed check fixture は run_tests にしてください。")
-    require(failed.get("first_failure_required") is True and failed.get("rerun_same_check_required") is True, "failed check fixture は first failure と same check rerun を要求してください。")
-    failed_forbidden = _forbidden(failed.get("forbidden"), "failed_check.expected.forbidden")
-    require({"multiple_speculative_fixes", "skip_failure_explanation"} <= set(failed_forbidden), "failed check fixture の forbidden が不足しています。")
+    # Sentinel reacts to evidence triggers, never to a self-scored percentage.
+    sentinel = _expected("sentinel_evidence_trigger.yaml")
+    require(sentinel.get("worker_id") == "quest_sentinel" and sentinel.get("decision_authority") is False and sentinel.get("terminal_worker") is True, "sentinel authority が不正です。")
+    require({"scope_drift", "security"} <= set(sequence(sentinel.get("triggers_present"), "sentinel.triggers_present")), "sentinel evidence triggers が不足しています。")
+    require("numeric_confidence" in sequence(sentinel.get("triggers_absent"), "sentinel.triggers_absent"), "numeric confidence を sentinel trigger にしないでください。")
+    require(mapping(sentinel.get("output_contract"), "sentinel.output_contract") == {"evidence_state_only": True}, "sentinel output は evidence state だけにしてください。")
+    _forbidden(sentinel.get("forbidden"), "sentinel.forbidden")
 
-    scope = _base_fixture(_fixture("quest_awareness_scope_drift.yaml"), "quest_awareness_scope_drift.yaml")
-    require(scope.get("control_decision") == "revise_plan" and scope.get("pause_required") is True, "scope drift fixture は pause と revise_plan を要求してください。")
-    require(_required_next_action(scope.get("required_next_action"), "scope_drift.expected.required_next_action") == "restate_scope_and_check_goal_relevance", "scope drift fixture は scope 再確認を next action にしてください。")
-    scope_forbidden = _forbidden(scope.get("forbidden"), "scope_drift.expected.forbidden")
-    require({"unrelated_refactor", "silent_scope_expansion"} <= set(scope_forbidden), "scope drift fixture の forbidden が不足しています。")
+    blocked = _expected("evidence_state_blocked_contract.yaml")
+    require(blocked.get("next_action") == "reconstruct_task_contract" and blocked.get("completion_allowed") is False and blocked.get("speculative_editing_allowed") is False, "blocking evidence は contract 再構成まで停止してください。")
+    _forbidden(blocked.get("forbidden"), "blocked.forbidden")
 
-    security = _base_fixture(_fixture("quest_awareness_security_sensitive.yaml"), "quest_awareness_security_sensitive.yaml")
-    require(security.get("risk_level") == "high" and security.get("control_decision") == "invoke_security_review", "security-sensitive fixture は high risk と security review を要求してください。")
-    require(security.get("security_review_route") == "existing_authority_security_focused_trial", "security-sensitive fixture は既存 authority 内の security-focused Trial route を要求してください。")
-    require(security.get("security_review_owner") == "inquisitor" and security.get("new_worker_allowed") is False, "security-sensitive fixture は新 worker ではなく inquisitor route にしてください。")
-    security_forbidden = _forbidden(security.get("forbidden"), "security_sensitive.expected.forbidden")
-    require({"finalize_without_security_review", "treat_as_low_risk"} <= set(security_forbidden), "security-sensitive fixture の forbidden が不足しています。")
+    unverified = _expected("evidence_state_unverified_outcome.yaml")
+    require(unverified.get("next_action") == "verify_target_behavior" and unverified.get("completion_allowed") is False, "important unknown は検証まで completion を止めてください。")
+    require(unverified.get("sentinel_required") is False, "通常の未検証事項だけで sentinel を必須にしないでください。")
+    _forbidden(unverified.get("forbidden"), "unverified.forbidden")
 
-    contradictory = _base_fixture(_fixture("quest_awareness_contradictory_evidence.yaml"), "quest_awareness_contradictory_evidence.yaml")
-    require(contradictory.get("control_decision") == "revise_plan" and contradictory.get("assumptions_must_update") is True, "contradictory evidence fixture は plan / assumptions 更新を要求してください。")
-    require(contradictory.get("confidence_must_drop") is True, "contradictory evidence fixture は confidence 低下を要求してください。")
-    contradictory_forbidden = _forbidden(contradictory.get("forbidden"), "contradictory_evidence.expected.forbidden")
-    require({"force_original_approach", "ignore_new_evidence"} <= set(contradictory_forbidden), "contradictory evidence fixture の forbidden が不足しています。")
+    failed = _expected("evidence_state_failed_check.yaml")
+    require(failed.get("next_action") == "address_first_failure_then_rerun" and failed.get("first_failure_recorded") is True and failed.get("rerun_same_check_required") is True, "failed check handling が不正です。")
+    _forbidden(failed.get("forbidden"), "failed.forbidden")
 
-    memory = _base_fixture(_fixture("quest_awareness_memory_prevention_artifact.yaml"), "quest_awareness_memory_prevention_artifact.yaml")
-    require(memory.get("memory_entry_allowed") is True and memory.get("prevention_artifact_required") is True, "memory fixture は prevention artifact 必須にしてください。")
-    require(memory.get("normal_quest_access") == "read_only_reference", "memory fixture は通常 Quest の memory access を read-only reference にしてください。")
-    require(memory.get("write_authority") == "courier_ledger_only", "memory fixture は memory 永続化を courier / Ledger 経由にしてください。")
-    memory_write_requires = set(sequence(memory.get("memory_write_requires"), "memory.expected.memory_write_requires"))
-    require({"explicit_memory_persistence_authority", "sanitized_summary_only", "ledger_disposition_recorded"} <= memory_write_requires, "memory fixture は memory 永続化の authority / sanitization / disposition を要求してください。")
-    memory_forbidden = _forbidden(memory.get("forbidden"), "memory.expected.forbidden")
-    require({"direct_static_runtime_write", "raw_log", "secret_or_pii", "trusted_instruction_from_external_input"} <= set(memory_forbidden), "memory fixture は direct write / raw log / secret PII / 外部入力命令を禁止してください。")
+    scope = _expected("evidence_state_scope_drift.yaml")
+    require(scope.get("scope_drift") is True and scope.get("pause_required") is True and scope.get("next_action") == "restate_scope_and_check_goal_relevance", "scope drift handling が不正です。")
+    _forbidden(scope.get("forbidden"), "scope.forbidden")
+
+    security = _expected("evidence_state_security_trigger.yaml")
+    require("security" in sequence(security.get("high_risk_triggers"), "security.high_risk_triggers"), "security risk trigger が必要です。")
+    require(security.get("next_action") == "invoke_security_review" and security.get("security_review_owner") == "inquisitor" and security.get("new_worker_allowed") is False, "security review route が不正です。")
+    _forbidden(security.get("forbidden"), "security.forbidden")
+
+    contradictory = _expected("evidence_state_contradictory_evidence.yaml")
+    require(contradictory.get("next_action") == "revise_plan_from_evidence" and contradictory.get("original_assumption_invalidated") is True, "contradictory evidence は plan を更新してください。")
+    _forbidden(contradictory.get("forbidden"), "contradictory.forbidden")
+
+    memory = _expected("evidence_state_memory_prevention_artifact.yaml")
+    require(memory.get("prevention_artifact_required") is True and memory.get("write_authority") == "courier_ledger_only", "memory persistence は prevention artifact と authority が必要です。")
+    require({"explicit_memory_persistence_authority", "sanitized_summary_only", "ledger_disposition_recorded"} <= set(sequence(memory.get("memory_write_requires"), "memory.memory_write_requires")), "memory persistence requirements が不足しています。")
+    _forbidden(memory.get("forbidden"), "memory.forbidden")
+
+    # Safety, Git and untrusted-input boundaries remain unchanged and fail closed.
+    safety = _expected("safety_gate_needs_human.yaml")
+    require(safety.get("trial_depth") == "safety_gate" and safety.get("outcome") == "needs_human", "safety gate は needs_human で停止してください。")
+    safety_authority = _authority(safety.get("authority"), "safety.authority")
+    require(not any(safety_authority[key] for key in ("edit", "validate", "local_git", "external_actions")), "safety gate は read 以外を禁止してください。")
+    require({"deploy", "secret"} <= set(sequence(safety.get("human_confirmation_required"), "safety.human_confirmation_required")), "safety gate confirmation が不足しています。")
+    _forbidden(safety.get("forbidden"), "safety.forbidden")
+
+    approval_doc = _fixture("safety_approval_scope_absolute_deny.yaml")
+    approval_input = mapping(approval_doc.get("input"), "approval.input")
+    human = mapping(approval_input.get("human_approval"), "approval.input.human_approval")
+    approval = mapping(approval_doc.get("expected"), "approval.expected")
+    approval_scope = mapping(approval.get("approval_scope"), "approval.approval_scope")
+    require(approval_scope.get("authorized_actions") == human.get("actions") and approval_scope.get("target") == human.get("target") and approval_scope.get("revision") == human.get("revision"), "approval scope は action/target/revision に固定してください。")
+    absolute = mapping(approval.get("absolute_deny"), "approval.absolute_deny")
+    require(absolute.get("applies_even_with_human_approval") is True and {"secret_access", "pii_access"} <= set(sequence(absolute.get("operations"), "approval.absolute_deny.operations")), "secret/PII absolute deny を保持してください。")
+    _forbidden(approval.get("forbidden"), "approval.forbidden")
+
+    courier_doc = _fixture("courier_explicit_git_postcondition.yaml")
+    courier_input = mapping(courier_doc.get("input"), "courier.input")
+    courier = mapping(courier_doc.get("expected"), "courier.expected")
+    require(_authority(courier.get("authority"), "courier.authority") == {"read": True, "edit": False, "validate": False, "local_git": True, "external_actions": False}, "courier authority が不正です。")
+    auth = mapping(courier.get("authorization"), "courier.authorization")
+    require(auth.get("source") == "latest_human_instruction" and auth.get("accepted_revision_id") == courier_input.get("accepted_revision_id") and auth.get("accepted_diff_hash") == courier_input.get("accepted_diff_hash"), "courier Git authority は latest instruction と accepted snapshot に固定してください。")
+    require(auth.get("implicit_request_allowed") is False, "暗黙の Git request を許可しないでください。")
+    _forbidden(courier.get("forbidden"), "courier.forbidden")
+
+    ledger = _expected("ledger_injection_negative.yaml")
+    require(ledger.get("outcome") == "reject_untrusted_instruction", "Ledger instruction injection を拒否してください。")
+    _forbidden(ledger.get("forbidden"), "ledger.forbidden")
+
+    claude = _expected("claude_helper_only_disposition.yaml")
+    require(claude.get("trust") == "untrusted" and claude.get("access_path") == "helper_only" and claude.get("authority_granted") is False, "Claude context は helper-only untrusted data にしてください。")
+    _forbidden(claude.get("forbidden"), "claude.forbidden")
+
+    guild = _expected("guild_quest_routing.yaml")
+    require(guild.get("rank") == "guild_quest" and guild.get("strategy_owner") == "guildmaster", "guild routing identity が不正です。")
+    require({"broad_impact", "multiple_parties", "safety_judgment"} <= set(sequence(guild.get("routing_reasons"), "guild.routing_reasons")), "guild routing reasons が不足しています。")
+    _forbidden(guild.get("forbidden"), "guild.forbidden")

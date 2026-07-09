@@ -1,18 +1,16 @@
 id: advisor_dialogue_same_focus_stop
 fixture_mode: static_contract_example
-summary: "advisor dialogue は同じ focus で evidence が増える時だけ続ける"
+summary: "advisor は具体的な focus で verifiable evidence を追加できる間だけ続ける"
 input:
   request: "設計の見落としだけ助言してください"
 expected:
   worker_id: advisor
   decision_authority: false
   terminal_worker: true
-  dialogue_policy:
-    mode: confidence_based
-    same_focus_only: true
+  evidence_policy:
+    concrete_focus_required: true
     stop_when:
       - no_new_evidence_added
-      - confidence_delta_below_minimum
       - blocking_unknowns_unchanged
       - authority_or_boundary_would_expand
   forbidden:

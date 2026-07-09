@@ -1,0 +1,50 @@
+id: focus_reviewer_bounded_contract
+fixture_mode: static_contract_example
+summary: "focus reviewer は具体的 risk focus に限定し、inquisitor が統合する"
+input:
+  trial_depth: multi_focus_trial
+  risk_trigger: security
+  focus: authorization_boundary
+  assignment_snapshot:
+    snapshot_id: "sha256:stable"
+    revision_id: "abc123"
+    diff_hash: "sha256:change"
+  matching_report_snapshot:
+    snapshot_id: "sha256:stable"
+    revision_id: "abc123"
+    diff_hash: "sha256:change"
+  mismatched_report_snapshot:
+    snapshot_id: "sha256:stale"
+    revision_id: "def456"
+    diff_hash: "sha256:other"
+expected:
+  worker_id: focus_reviewer
+  assignment_owner: inquisitor
+  reviewer_role: bounded_trial_focus_reviewer
+  risk_trigger_required: true
+  concrete_focus_required: true
+  read_only_required: true
+  owner_synthesis_required: true
+  finding_disposition_required: true
+  advisor_role: false
+  final_decision_owner: inquisitor
+  assignment_identity_required:
+    worker_id: focus_reviewer
+    owner_worker_id: inquisitor
+  caller_enforcement: queue_lineage
+  queue_lineage_required:
+    trial_ref: true
+    trial_owner_worker_id: inquisitor
+    unverifiable_status: invalid_assignment
+  matching_snapshot_status: matched
+  mismatched_snapshot_status: stale_evidence
+  recursive_multi_agent_disabled: true
+  forbidden:
+    missing_risk_trigger: true
+    focus_expansion: true
+    reviewer_write_access: true
+    reviewer_acceptance_decision: true
+    non_inquisitor_caller: true
+    unverified_caller_lineage: true
+    stale_evidence_reuse: true
+    recursive_subagent: true

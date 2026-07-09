@@ -1,0 +1,34 @@
+id: focused_trial_risk_triggered_review
+fixture_mode: static_contract_example
+summary: "focused Trial は具体的な risk が独立確認を必要とする時だけ reviewer を割り当てる"
+input:
+  request: "認可境界の変更を確認してください"
+  high_risk_triggers:
+    - security
+expected:
+  trial_depth: focused_trial
+  worker_id: inquisitor
+  authority:
+    read: true
+    edit: false
+    validate: true
+    local_git: false
+    external_actions: false
+  reviewer_assignment:
+    worker_id: focus_reviewer
+    risk_trigger: security
+    focus: authorization_boundary
+    read_only: true
+    terminal_worker: true
+  handoff_core:
+    - objective
+    - success_criteria
+    - scope
+    - authority
+    - evidence_state
+    - snapshot
+    - risks
+  forbidden:
+    reviewer_without_risk_trigger: true
+    reviewer_final_decision: true
+    stale_snapshot_review: true

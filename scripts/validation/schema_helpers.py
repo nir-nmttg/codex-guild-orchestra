@@ -6,10 +6,7 @@ from .core import mapping, require, sequence
 from .rules import (
     ARTIFACT_REQUIRED_FIELDS,
     AUTHORITY_KEYS,
-    AUTONOMY_KEYS,
-    CONTROL_DECISION_KEYS,
-    CONTROL_DECISIONS,
-    QUEST_AWARENESS_KEYS,
+    EVIDENCE_STATE_KEYS,
     STRUCTURED_DATA_USAGE_FIELDS,
 )
 
@@ -37,62 +34,42 @@ def validate_boundaries(value: object, label: str) -> None:
         sequence(boundaries[key], f"{label}.{key}")
 
 
-def validate_autonomy_budget(value: object, label: str) -> None:
-    budget = mapping(value, label)
-    require(set(budget) == AUTONOMY_KEYS, f"{label} は autonomy_budget key と一致させてください。")
-    for key in AUTONOMY_KEYS - {"timebox_minutes"}:
-        require(isinstance(budget[key], int) and not isinstance(budget[key], bool) and budget[key] >= 0, f"{label}.{key} は 0 以上の整数にしてください。")
-    require(budget["timebox_minutes"] is None or isinstance(budget["timebox_minutes"], int), f"{label}.timebox_minutes は null または整数にしてください。")
+def validate_subject_snapshot(value: object, label: str) -> None:
+    snapshot = mapping(value, label)
+    required = {
+        "snapshot_id",
+        "digest_version",
+        "kind",
+        "revision_id",
+        "base_ref",
+        "head_ref",
+        "scope_paths",
+        "untracked_paths",
+        "dirty_state",
+        "diff_hash",
+    }
+    require(set(snapshot) == required, f"{label} は canonical subject snapshot key と一致させてください。")
+    require(snapshot.get("digest_version") == "cgo-snapshot-v1", f"{label}.digest_version は cgo-snapshot-v1 にしてください。")
+    require(snapshot.get("kind") in {"revision_only", "working_tree_content", "commit_range", None}, f"{label}.kind が不正です。")
+    sequence(snapshot.get("scope_paths"), f"{label}.scope_paths")
+    sequence(snapshot.get("untracked_paths"), f"{label}.untracked_paths")
+    require(snapshot.get("dirty_state") in {"clean", "dirty", None}, f"{label}.dirty_state は clean / dirty / null にしてください。")
 
 
-def validate_quest_awareness(value: object, label: str) -> None:
+def validate_evidence_state(value: object, label: str) -> None:
+    """ownerの次アクションを変え得る小さな状態だけを検証する。"""
+
     state = mapping(value, label)
-    require(set(state) == QUEST_AWARENESS_KEYS, f"{label} は quest_awareness key と一致させてください。")
-    for key in ("known_facts", "unknowns", "assumptions", "evidence"):
+    require(set(state) == EVIDENCE_STATE_KEYS, f"{label} は compact evidence_state key と一致させてください。")
+    for key in ("blocking_unknowns", "failed_checks", "high_risk_triggers"):
         sequence(state[key], f"{label}.{key}")
-    require(state.get("risk_level") in {"low", "medium", "high", None}, f"{label}.risk_level は low / medium / high / null にしてください。")
-    require(state.get("verification_status") in {"not_checked", "partially_checked", "verified", "failed", None}, f"{label}.verification_status が不正です。")
-    confidence = state.get("confidence_percent")
-    require(confidence is None or (isinstance(confidence, int) and not isinstance(confidence, bool) and 0 <= confidence <= 100), f"{label}.confidence_percent は null または 0..100 の整数にしてください。")
-
-
-def validate_control_decision(value: object, label: str) -> None:
-    decision = mapping(value, label)
-    require(set(decision) == CONTROL_DECISION_KEYS, f"{label} は control_decision key と一致させてください。")
-    require(decision.get("decision") in CONTROL_DECISIONS | {None}, f"{label}.decision が不正です。")
-    sequence(decision.get("triggers"), f"{label}.triggers")
-    require(isinstance(decision.get("escalation_required"), bool), f"{label}.escalation_required は bool にしてください。")
-
-
-def validate_percent(value: object, label: str) -> None:
-    require(isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 100, f"{label} は 1 から 100 の整数にしてください。")
-
-
-def validate_dialogue_policy(value: object, label: str) -> None:
-    dialogue = mapping(value, label)
-    require(dialogue.get("mode") == "confidence_based", f"{label}.mode は confidence_based にしてください。")
-    require(dialogue.get("same_focus_only") is True, f"{label}.same_focus_only は true にしてください。")
-    require(dialogue.get("owner_controls_confidence") is True, f"{label}.owner_controls_confidence は true にしてください。")
-    require(dialogue.get("raw_discussion_ledger_policy") == "do_not_record", f"{label}.raw_discussion_ledger_policy は do_not_record にしてください。")
-    continue_when = set(sequence(dialogue.get("continue_when"), f"{label}.continue_when"))
-    require({"owner_confidence_below_target", "new_evidence_added", "confidence_delta_meets_minimum", "blocking_unknowns_decreased"} <= continue_when, f"{label}.continue_when が不足しています。")
-    stop_when = set(sequence(dialogue.get("stop_when"), f"{label}.stop_when"))
+    require(isinstance(state.get("scope_drift"), bool), f"{label}.scope_drift は bool にしてください。")
     require(
-        {
-            "confidence_target_met",
-            "no_new_evidence_added",
-            "confidence_delta_below_minimum",
-            "blocking_unknowns_unchanged",
-            "same_unknown_repeated",
-            "advisor_cannot_add_verifiable_evidence",
-            "owner_cannot_verify_advisor_basis",
-            "authority_or_boundary_would_expand",
-            "human_confirmation_required",
-            "advisor_focus_would_drift",
-        }
-        <= stop_when,
-        f"{label}.stop_when が不足しています。",
+        state.get("verification_status") in {"not_checked", "partially_checked", "verified", "failed", "blocked"},
+        f"{label}.verification_status が不正です。",
     )
+    require(state.get("next_action") is None or isinstance(state.get("next_action"), str), f"{label}.next_action は null または文字列にしてください。")
+    require(state.get("stop_reason") is None or isinstance(state.get("stop_reason"), str), f"{label}.stop_reason は null または文字列にしてください。")
 
 
 def validate_compat_context(value: object, label: str) -> None:

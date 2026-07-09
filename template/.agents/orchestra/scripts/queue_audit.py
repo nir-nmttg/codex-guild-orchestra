@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 import sys
 from typing import Any
@@ -82,6 +83,14 @@ MEMORY_CANDIDATE_MARKER_KEYS = (MEMORY_CANDIDATE_MESSAGE_TYPE, "memory_candidate
 
 QUEST_RANKS = {"mapmaking", "errand", "solo_quest", "party_quest", "guild_quest"}
 TRIAL_DEPTHS = {"none", "self_check", "peer_review", "focused_trial", "multi_focus_trial", "safety_gate"}
+QUEST_STATUSES = {"drafted", "active", "needs_human", "blocked", "done", "cancelled"}
+REQUEST_STATUSES = {"drafted", "queued", "accepted", "cancelled"}
+COMMAND_STATUSES = {"drafted", "issued", "active", "done", "cancelled"}
+ASSIGNMENT_STATUSES = {"idle", "active", "needs_human", "blocked", "done", "failed"}
+REPORT_STATUSES = {"draft", "recorded", "accepted", "needs_changes"}
+TRIAL_STATUSES = {"idle", "active", "needs_human", "blocked", "done"}
+MESSAGE_STATUSES = {"unread", "read", "archived"}
+TRIAL_DECISIONS = {"accept", "accept_with_risks", "request_changes", "needs_human", "blocked"}
 ALLOWED_OPERATIONS = {"append", "update", "replace", "mark_completed"}
 REQUIRED_EVENT_INPUT_FIELDS = {
     "event_id",
@@ -97,6 +106,32 @@ REQUIRED_EVENT_INPUT_FIELDS = {
 }
 STRUCTURED_DATA_USAGE_FIELDS = {"structured_inputs", "decision_rationale", "evidence_refs"}
 EVENT_SAFETY_FIELDS = {"safety_items", "human_confirmation_required"}
+AUTHORITY_FIELDS = {"read", "edit", "validate", "local_git", "external_actions"}
+SNAPSHOT_FIELDS = {
+    "snapshot_id", "digest_version", "kind", "revision_id", "base_ref", "head_ref",
+    "scope_paths", "untracked_paths", "dirty_state", "diff_hash",
+}
+TERMINAL_ASSIGNMENT_WORKERS = {
+    "adventurer", "integration_owner", "advisor", "cartographer", "courier",
+    "focus_reviewer", "guildmaster", "inquisitor", "party_leader", "quest_sentinel",
+}
+READ_ONLY_ASSIGNMENT_WORKERS = {
+    "advisor", "cartographer", "focus_reviewer", "guildmaster", "inquisitor", "party_leader", "quest_sentinel",
+}
+EXPECTED_ASSIGNMENT_ROLES = {
+    "adventurer": "bounded_implementation_owner",
+    "integration_owner": "cross_scope_integration_owner",
+    "advisor": "independent_focus_advisor",
+    "cartographer": "mapmaking_specialist",
+    "focus_reviewer": "bounded_trial_focus_reviewer",
+    "guildmaster": "guild_strategy_owner",
+    "inquisitor": "trial_lead",
+    "party_leader": "execution_designer",
+    "quest_sentinel": "exceptional_control_diagnostician",
+    "courier": "ledger_and_git_courier",
+}
+SHA256_ID_RE = re.compile(r"sha256:[0-9a-f]{64}")
+COMMIT_OID_RE = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 ALLOWED_EVENT_TYPES = {
     "quest_created",
     "quest_updated",
@@ -434,6 +469,47 @@ def validate_report_trial_depths(value: Any, label: str, errors: list[str]) -> N
             errors.append(f"{label}{json_path[1:]}: Trial depth は {expected} のいずれかにしてください: {depth}")
 
 
+def audit_entity_payload_identity(
+    payload: dict[str, Any],
+    *,
+    entity_type: str,
+    entity_id: str,
+    workflow_id: Any,
+    label: str,
+    errors: list[str],
+) -> None:
+    nested_names = {
+        "quest": ("quest",),
+        "request": ("request",),
+        "command": ("command",),
+        "assignment": ("assignment",),
+        "report": ("report",),
+        "trial": ("trial",),
+    }
+    canonical = payload
+    for name in nested_names.get(entity_type, ()):
+        if isinstance(payload.get(name), dict):
+            canonical = payload[name]
+            break
+    id_keys = {
+        "quest": ("id", "quest_id"),
+        "request": ("id", "request_id"),
+        "command": ("id", "command_id"),
+        "assignment": ("id", "assignment_id"),
+        "report": ("id", "report_id"),
+        "trial": ("id", "trial_id"),
+        "message": ("id", "message_id"),
+    }
+    if entity_type in id_keys:
+        payload_id = next((canonical.get(key) for key in id_keys[entity_type] if canonical.get(key) is not None), None)
+        if not isinstance(payload_id, str) or not payload_id:
+            errors.append(f"{label}: canonical {entity_type} idがありません。")
+        elif payload_id != entity_id:
+            errors.append(f"{label}: entity_idとpayload idが一致しません: {entity_id} != {payload_id}")
+    if canonical.get("workflow_id") is not None and canonical.get("workflow_id") != workflow_id:
+        errors.append(f"{label}: event workflow_idとpayload workflow_idが一致しません。")
+
+
 def expected_assignment_parent_id(payload: dict[str, Any], label: str, errors: list[str]) -> str | None:
     owner_assignment_id = payload.get("owner_assignment_id")
     parent_id = payload.get("parent_id")
@@ -449,7 +525,7 @@ def expected_assignment_parent_id(payload: dict[str, Any], label: str, errors: l
     kind = payload.get("kind")
     if (worker_id == "advisor" or kind == "advisory_consultation") and not (owner_assignment_id or parent_id):
         errors.append(f"{label}: advisor assignment は owner_assignment_id または parent_id が必要です。")
-    if worker_id == "quest_sentinel" or kind == "quest_awareness_control_monitor":
+    if worker_id == "quest_sentinel" or kind in {"quest_awareness_control_monitor", "evidence_state_monitor"}:
         if not (owner_assignment_id or parent_id):
             errors.append(f"{label}: quest_sentinel assignment は owner_assignment_id または parent_id が必要です。")
         control_trigger = payload.get("control_trigger")
@@ -460,6 +536,146 @@ def expected_assignment_parent_id(payload: dict[str, Any], label: str, errors: l
         errors.append(f"{label}.quest_id: null または空でない文字列にしてください。")
         quest_id = None
     return owner_assignment_id or parent_id or quest_id
+
+
+def audit_nonempty_string_list(value: Any, label: str, errors: list[str]) -> None:
+    if not isinstance(value, list) or not value or not all(isinstance(item, str) and item for item in value):
+        errors.append(f"{label}: 空でない文字列のnon-empty listが必要です。")
+
+
+def audit_relative_path_list(value: Any, label: str, errors: list[str], *, nonempty: bool = False) -> None:
+    if not isinstance(value, list) or (nonempty and not value):
+        errors.append(f"{label}: repo-relative path listが必要です。")
+        return
+    for item in value:
+        if not isinstance(item, str) or not item:
+            errors.append(f"{label}: 空でないrepo-relative path文字列だけにしてください。")
+            continue
+        path = Path(item)
+        if path.is_absolute() or any(part in {"", ".", "..", ".git"} for part in path.parts):
+            errors.append(f"{label}: 安全でないrepo-relative pathです: {item}")
+
+
+def path_covered_by_scopes(path: str, scopes: list[str]) -> bool:
+    path_parts = Path(path).parts
+    return any(path_parts[: len(Path(scope).parts)] == Path(scope).parts for scope in scopes)
+
+
+def audit_assignment_machine_contract(payload: dict[str, Any], label: str, errors: list[str]) -> None:
+    worker_id = payload.get("worker_id")
+    if worker_id not in TERMINAL_ASSIGNMENT_WORKERS:
+        errors.append(f"{label}.worker_id: managed terminal worker ではありません: {worker_id}")
+        return
+    if payload.get("terminal_worker") is not True:
+        errors.append(f"{label}.terminal_worker: true が必要です。")
+    expected_role = EXPECTED_ASSIGNMENT_ROLES.get(worker_id)
+    if expected_role is not None and payload.get("role") != expected_role:
+        errors.append(f"{label}.role: worker_id={worker_id} に対応する {expected_role} が必要です。")
+    if not isinstance(payload.get("objective"), str) or not payload.get("objective"):
+        errors.append(f"{label}.objective: 空でない文字列が必要です。")
+
+    authority = payload.get("authority")
+    if not isinstance(authority, dict) or set(authority) != AUTHORITY_FIELDS or not all(isinstance(authority[key], bool) for key in AUTHORITY_FIELDS):
+        errors.append(f"{label}.authority: bool の canonical 5 fields が必要です。")
+    elif authority.get("external_actions") is True or authority.get("local_git") is True:
+        errors.append(f"{label}.authority: assignment 作成時の権限を超えています。")
+    elif authority.get("read") is not True:
+        errors.append(f"{label}.authority.read: managed assignmentではtrueが必要です。")
+    elif worker_id in READ_ONLY_ASSIGNMENT_WORKERS and authority.get("edit") is True:
+        errors.append(f"{label}.authority.edit: read-only worker {worker_id} には許可できません。")
+
+    boundaries = payload.get("boundaries")
+    if not isinstance(boundaries, dict) or not isinstance(boundaries.get("target_repo_root"), str) or not boundaries.get("target_repo_root"):
+        errors.append(f"{label}.boundaries.target_repo_root: 空でない文字列が必要です。")
+    elif any(not isinstance(boundaries.get(key), list) for key in ("read_deny", "edit_deny", "safety_items")):
+        errors.append(f"{label}.boundaries: deny/safety fields は list にしてください。")
+
+    snapshot = payload.get("subject_snapshot")
+    if not isinstance(snapshot, dict) or set(snapshot) != SNAPSHOT_FIELDS:
+        errors.append(f"{label}.subject_snapshot: canonical snapshot fields が必要です。")
+    else:
+        snapshot_id = snapshot.get("snapshot_id")
+        if not isinstance(snapshot_id, str) or SHA256_ID_RE.fullmatch(snapshot_id) is None:
+            errors.append(f"{label}.subject_snapshot.snapshot_id: helper形式のsha256が必要です。")
+        if snapshot.get("digest_version") != "cgo-snapshot-v1":
+            errors.append(f"{label}.subject_snapshot.digest_version: cgo-snapshot-v1 が必要です。")
+        if snapshot.get("kind") not in {"revision_only", "working_tree_content", "commit_range"}:
+            errors.append(f"{label}.subject_snapshot.kind: 不正です。")
+        if not isinstance(snapshot.get("revision_id"), str) or COMMIT_OID_RE.fullmatch(snapshot["revision_id"]) is None:
+            errors.append(f"{label}.subject_snapshot.revision_id: commit OIDが必要です。")
+        if snapshot.get("dirty_state") not in {"clean", "dirty"}:
+            errors.append(f"{label}.subject_snapshot.dirty_state: clean / dirtyが必要です。")
+        kind = snapshot.get("kind")
+        diff_hash = snapshot.get("diff_hash")
+        if kind == "revision_only":
+            if (
+                diff_hash is not None
+                or snapshot.get("base_ref") is not None
+                or snapshot.get("head_ref") is not None
+                or snapshot.get("dirty_state") != "clean"
+                or snapshot.get("untracked_paths") != []
+            ):
+                errors.append(f"{label}.subject_snapshot: revision_onlyはclean、diff/base/head=null、untracked_paths=[]にしてください。")
+        else:
+            if not isinstance(diff_hash, str) or SHA256_ID_RE.fullmatch(diff_hash) is None or snapshot_id != diff_hash:
+                errors.append(f"{label}.subject_snapshot: content snapshotのid/hashが不正です。")
+            if not isinstance(snapshot.get("base_ref"), str) or COMMIT_OID_RE.fullmatch(snapshot["base_ref"]) is None:
+                errors.append(f"{label}.subject_snapshot.base_ref: commit OIDが必要です。")
+            if not snapshot.get("scope_paths"):
+                errors.append(f"{label}.subject_snapshot.scope_paths: content snapshotではnon-emptyにしてください。")
+            if kind == "working_tree_content" and snapshot.get("head_ref") is not None:
+                errors.append(f"{label}.subject_snapshot.head_ref: working_tree_contentではnullにしてください。")
+            if kind == "commit_range":
+                if not isinstance(snapshot.get("head_ref"), str) or COMMIT_OID_RE.fullmatch(snapshot["head_ref"]) is None:
+                    errors.append(f"{label}.subject_snapshot.head_ref: commit_rangeではcommit OIDが必要です。")
+                if snapshot.get("untracked_paths") != []:
+                    errors.append(f"{label}.subject_snapshot.untracked_paths: commit_rangeでは空にしてください。")
+        audit_relative_path_list(snapshot.get("scope_paths"), f"{label}.subject_snapshot.scope_paths", errors)
+        audit_relative_path_list(snapshot.get("untracked_paths"), f"{label}.subject_snapshot.untracked_paths", errors)
+
+    if worker_id == "focus_reviewer":
+        lineage = payload.get("caller_lineage")
+        if payload.get("owner_worker_id") != "inquisitor" or not isinstance(lineage, dict):
+            errors.append(f"{label}.caller_lineage: inquisitor owner の queue lineage が必要です。")
+        elif not isinstance(lineage.get("trial_ref"), str) or not lineage.get("trial_ref") or lineage.get("verification") != "verified":
+            errors.append(f"{label}.caller_lineage: verified trial_ref が必要です。")
+
+    if worker_id in {"adventurer", "integration_owner"}:
+        audit_nonempty_string_list(payload.get("success_criteria"), f"{label}.success_criteria", errors)
+        owned_scope = payload.get("owned_scope")
+        if not isinstance(owned_scope, dict) or set(owned_scope) != {"read", "edit", "validate"}:
+            errors.append(f"{label}.owned_scope: read/edit/validateのcanonical fieldsが必要です。")
+        else:
+            audit_relative_path_list(owned_scope["read"], f"{label}.owned_scope.read", errors)
+            audit_relative_path_list(owned_scope["edit"], f"{label}.owned_scope.edit", errors, nonempty=True)
+            audit_relative_path_list(owned_scope["validate"], f"{label}.owned_scope.validate", errors)
+            if isinstance(owned_scope["read"], list) and isinstance(owned_scope["edit"], list) and all(isinstance(item, str) for item in owned_scope["read"] + owned_scope["edit"]):
+                if any(not path_covered_by_scopes(path, owned_scope["read"]) for path in owned_scope["edit"]):
+                    errors.append(f"{label}.owned_scope.read: 全edit pathを包含してください。")
+        if isinstance(authority, dict) and (authority.get("edit") is not True or authority.get("validate") is not True):
+            errors.append(f"{label}.authority: {worker_id}にはedit/validate authorityが必要です。")
+    elif worker_id in {"cartographer", "guildmaster", "party_leader", "inquisitor"}:
+        audit_nonempty_string_list(payload.get("success_criteria"), f"{label}.success_criteria", errors)
+
+    if worker_id in {"advisor", "focus_reviewer"}:
+        if not isinstance(payload.get("focus"), str) or not payload.get("focus"):
+            errors.append(f"{label}.focus: 空でない具体的focusが必要です。")
+        audit_nonempty_string_list(payload.get("evidence_required"), f"{label}.evidence_required", errors)
+    elif worker_id in {"cartographer", "quest_sentinel"}:
+        audit_nonempty_string_list(payload.get("evidence_required"), f"{label}.evidence_required", errors)
+
+    if worker_id == "integration_owner":
+        barrier = payload.get("integration_barrier")
+        if not isinstance(barrier, dict) or barrier.get("status") != "complete" or barrier.get("mutation_stopped") is not True:
+            errors.append(f"{label}.integration_barrier: completeかつmutation_stoppedのbarrierが必要です。")
+        else:
+            audit_nonempty_string_list(barrier.get("upstream_report_refs"), f"{label}.integration_barrier.upstream_report_refs", errors)
+            if not isinstance(barrier.get("contract_ref"), str) or not barrier.get("contract_ref"):
+                errors.append(f"{label}.integration_barrier.contract_ref: 空でないcommand refが必要です。")
+            if barrier.get("verification") != "verified":
+                errors.append(f"{label}.integration_barrier.verification: verifiedが必要です。")
+    elif payload.get("integration_barrier") is not None:
+        errors.append(f"{label}.integration_barrier: integration_owner以外には指定できません。")
 
 
 def audit_schema(connection: sqlite3.Connection, errors: list[str]) -> bool:
@@ -573,6 +789,16 @@ def audit_events(connection: sqlite3.Connection, errors: list[str]) -> None:
             if usage.get("decision_rationale") is not None and not isinstance(usage.get("decision_rationale"), str):
                 errors.append(f"{label}.structured_data_usage_json.decision_rationale: null または文字列にしてください。")
 
+        payload = parse_json(row["payload_json"], f"{label}.payload_json", errors)
+        if isinstance(payload, dict):
+            audit_entity_payload_identity(
+                payload,
+                entity_type=entity_type,
+                entity_id=row["entity_id"],
+                workflow_id=row["workflow_id"],
+                label=f"{label}.payload_json",
+                errors=errors,
+            )
         safety = parse_json(row["event_safety_json"], f"{label}.event_safety_json", errors)
         if isinstance(safety, dict):
             for key in EVENT_SAFETY_FIELDS:
@@ -581,7 +807,6 @@ def audit_events(connection: sqlite3.Connection, errors: list[str]) -> None:
             for key in EVENT_SAFETY_FIELDS:
                 if not isinstance(safety.get(key), list):
                     errors.append(f"{label}.event_safety_json.{key}: list にしてください。")
-            payload = parse_json(row["payload_json"], f"{label}.payload_json", errors)
             if isinstance(payload, dict):
                 if entity_type == "message":
                     validate_message_trust(payload, f"{label}.payload_json", errors)
@@ -611,6 +836,191 @@ def audit_rank_and_trial_values(connection: sqlite3.Connection, errors: list[str
             errors.append(f"trials[{row['trial_id']}].depth: 未定義の Trial depth です: {row['depth']}")
 
 
+def audit_status_values(connection: sqlite3.Connection, errors: list[str]) -> None:
+    checks = (
+        ("quests", "quest_id", QUEST_STATUSES),
+        ("requests", "request_id", REQUEST_STATUSES),
+        ("commands", "command_id", COMMAND_STATUSES),
+        ("assignments", "assignment_id", ASSIGNMENT_STATUSES),
+        ("reports", "report_id", REPORT_STATUSES),
+        ("trials", "trial_id", TRIAL_STATUSES),
+        ("inbox_messages", "message_id", MESSAGE_STATUSES),
+    )
+    for table, id_column, allowed in checks:
+        try:
+            rows = connection.execute(f"SELECT {id_column}, status FROM {table}").fetchall()
+        except sqlite3.Error as exc:
+            errors.append(f"{table}: status読み取りに失敗しました: {exc}")
+            continue
+        for row in rows:
+            if row["status"] not in allowed:
+                errors.append(f"{table}[{row[id_column]}].status: 未定義値です: {row['status']}")
+
+
+def audit_materialized_columns(connection: sqlite3.Connection, errors: list[str]) -> None:
+    specs = {
+        "quests": ("quest_id", "quest", {"workflow_id": "workflow_id", "rank": "rank", "status": "status"}),
+        "requests": ("request_id", "request", {"quest_id": "quest_id", "workflow_id": "workflow_id", "status": "status"}),
+        "commands": ("command_id", "command", {"quest_id": "quest_id", "workflow_id": "workflow_id", "status": "status"}),
+        "assignments": (
+            "assignment_id",
+            "assignment",
+            {"worker_id": "worker_id", "kind": "kind", "workflow_id": "workflow_id", "status": "status"},
+        ),
+        "reports": (
+            "report_id",
+            "report",
+            {"worker_id": "worker_id", "workflow_id": "workflow_id", "decision": "decision", "status": "status"},
+        ),
+        "trials": (
+            "trial_id",
+            "trial",
+            {"quest_id": "quest_id", "workflow_id": "workflow_id", "depth": "depth", "status": "status"},
+        ),
+        "inbox_messages": (
+            "message_id",
+            "message",
+            {"recipient": "recipient", "workflow_id": "workflow_id", "status": "status", "created_at": "created_at"},
+        ),
+    }
+    id_aliases = {
+        "quest": ("id", "quest_id"),
+        "request": ("id", "request_id"),
+        "command": ("id", "command_id"),
+        "assignment": ("id", "assignment_id"),
+        "report": ("id", "report_id"),
+        "trial": ("id", "trial_id"),
+        "message": ("id", "message_id"),
+    }
+    for table, (id_column, entity_type, columns) in specs.items():
+        rows = connection.execute(f"SELECT * FROM {table}").fetchall()
+        for row in rows:
+            label = f"{table}[{row[id_column]}]"
+            payload = parse_json(row["payload_json"], f"{label}.payload_json", errors)
+            if not isinstance(payload, dict):
+                continue
+            payload_id = next((payload.get(key) for key in id_aliases[entity_type] if payload.get(key) is not None), None)
+            if payload_id != row[id_column]:
+                errors.append(f"{label}: materialized idとpayload idが一致しません。")
+            for column, payload_key in columns.items():
+                if row[column] != payload.get(payload_key):
+                    errors.append(f"{label}.{column}: materialized valueとpayload.{payload_key}が一致しません。")
+            latest_event = connection.execute(
+                "SELECT payload_json FROM events WHERE entity_type = ? AND entity_id = ? ORDER BY rowid DESC LIMIT 1",
+                (entity_type, row[id_column]),
+            ).fetchone()
+            if latest_event is None:
+                errors.append(f"{label}: 対応するeventがありません。")
+                continue
+            event_payload = parse_json(latest_event["payload_json"], f"events[{entity_type}={row[id_column]}].payload_json", errors)
+            canonical_event_payload = event_payload.get(entity_type) if isinstance(event_payload, dict) and isinstance(event_payload.get(entity_type), dict) else event_payload
+            if canonical_event_payload != payload:
+                errors.append(f"{label}: latest event payloadとmaterialized payloadが一致しません。")
+
+
+def audit_helper_snapshot(value: Any, label: str, errors: list[str]) -> None:
+    if not isinstance(value, dict) or set(value) != SNAPSHOT_FIELDS:
+        errors.append(f"{label}: canonical snapshot fieldsが必要です。")
+        return
+    if value.get("digest_version") != "cgo-snapshot-v1" or value.get("kind") not in {"revision_only", "working_tree_content", "commit_range"}:
+        errors.append(f"{label}: digest_version/kindが不正です。")
+    if not isinstance(value.get("snapshot_id"), str) or SHA256_ID_RE.fullmatch(value["snapshot_id"]) is None:
+        errors.append(f"{label}.snapshot_id: helper形式sha256が必要です。")
+    if not isinstance(value.get("revision_id"), str) or COMMIT_OID_RE.fullmatch(value["revision_id"]) is None:
+        errors.append(f"{label}.revision_id: commit OIDが必要です。")
+    audit_relative_path_list(value.get("scope_paths"), f"{label}.scope_paths", errors)
+    audit_relative_path_list(value.get("untracked_paths"), f"{label}.untracked_paths", errors)
+    kind = value.get("kind")
+    if value.get("dirty_state") not in {"clean", "dirty"}:
+        errors.append(f"{label}.dirty_state: clean/dirtyが必要です。")
+    if kind == "revision_only":
+        if value.get("dirty_state") != "clean" or value.get("base_ref") is not None or value.get("head_ref") is not None or value.get("diff_hash") is not None or value.get("untracked_paths") != []:
+            errors.append(f"{label}: revision_only canonical invariantが不正です。")
+    elif kind in {"working_tree_content", "commit_range"}:
+        if not isinstance(value.get("diff_hash"), str) or SHA256_ID_RE.fullmatch(value["diff_hash"]) is None or value.get("snapshot_id") != value.get("diff_hash"):
+            errors.append(f"{label}: content snapshot id/hashが不正です。")
+        if not isinstance(value.get("base_ref"), str) or COMMIT_OID_RE.fullmatch(value["base_ref"]) is None or not value.get("scope_paths"):
+            errors.append(f"{label}: content snapshot base/scopeが不正です。")
+        if kind == "working_tree_content" and value.get("head_ref") is not None:
+            errors.append(f"{label}.head_ref: working_tree_contentではnullが必要です。")
+        if kind == "commit_range" and (
+            not isinstance(value.get("head_ref"), str)
+            or COMMIT_OID_RE.fullmatch(value["head_ref"]) is None
+            or value.get("untracked_paths") != []
+        ):
+            errors.append(f"{label}: commit_range head/untracked invariantが不正です。")
+
+
+def audit_trial_contracts(connection: sqlite3.Connection, errors: list[str]) -> None:
+    rows = connection.execute("SELECT trial_id, quest_id, workflow_id, depth, status, payload_json FROM trials").fetchall()
+    for row in rows:
+        label = f"trials[{row['trial_id']}]"
+        payload = parse_json(row["payload_json"], f"{label}.payload_json", errors)
+        if not isinstance(payload, dict):
+            continue
+        if payload.get("worker_id") != "inquisitor" or payload.get("role") != "trial_lead":
+            errors.append(f"{label}: worker_id/roleはinquisitor/trial_leadにしてください。")
+        if not isinstance(payload.get("objective"), str) or not payload.get("objective"):
+            errors.append(f"{label}.objective: 空でない文字列が必要です。")
+        audit_nonempty_string_list(payload.get("success_criteria"), f"{label}.success_criteria", errors)
+        expected_authority = {"read": True, "edit": False, "validate": True, "local_git": False, "external_actions": False}
+        if payload.get("authority") != expected_authority:
+            errors.append(f"{label}.authority: read-only validation authorityが必要です。")
+        boundaries = payload.get("boundaries")
+        if not isinstance(boundaries, dict) or not isinstance(boundaries.get("target_repo_root"), str) or not boundaries.get("target_repo_root"):
+            errors.append(f"{label}.boundaries.target_repo_root: 空でない文字列が必要です。")
+        audit_helper_snapshot(payload.get("subject_snapshot"), f"{label}.subject_snapshot", errors)
+        assignment_ids = payload.get("subject_assignment_ids")
+        report_ids = payload.get("subject_report_ids")
+        if not isinstance(assignment_ids, list) or not assignment_ids or not all(isinstance(item, str) and item for item in assignment_ids):
+            errors.append(f"{label}.subject_assignment_ids: non-empty文字列listが必要です。")
+            assignment_ids = []
+        if not isinstance(report_ids, list) or not all(isinstance(item, str) and item for item in report_ids):
+            errors.append(f"{label}.subject_report_ids: 文字列listが必要です。")
+            report_ids = []
+        for assignment_id in assignment_ids:
+            assignment = connection.execute("SELECT workflow_id, status, payload_json FROM assignments WHERE assignment_id = ?", (assignment_id,)).fetchone()
+            assignment_payload = parse_json(assignment["payload_json"], f"assignments[{assignment_id}].payload_json", errors) if assignment else None
+            if assignment is None or assignment["workflow_id"] != row["workflow_id"] or not isinstance(assignment_payload, dict) or assignment_payload.get("quest_id") != row["quest_id"] or assignment["status"] != "done":
+                errors.append(f"{label}: subject assignment lineage/statusが不正です: {assignment_id}")
+        for report_id in report_ids:
+            report = connection.execute("SELECT workflow_id, status, payload_json FROM reports WHERE report_id = ?", (report_id,)).fetchone()
+            report_payload = parse_json(report["payload_json"], f"reports[{report_id}].payload_json", errors) if report else None
+            if report is None or report["workflow_id"] != row["workflow_id"] or not isinstance(report_payload, dict) or report_payload.get("quest_id") != row["quest_id"] or report["status"] not in {"recorded", "accepted"} or report_payload.get("assignment_id") not in assignment_ids:
+                errors.append(f"{label}: subject report lineage/statusが不正です: {report_id}")
+
+
+def audit_inquisitor_reports(connection: sqlite3.Connection, errors: list[str]) -> None:
+    rows = connection.execute("SELECT report_id, workflow_id, status, payload_json FROM reports WHERE worker_id = 'inquisitor'").fetchall()
+    for row in rows:
+        label = f"reports[{row['report_id']}]"
+        payload = parse_json(row["payload_json"], f"{label}.payload_json", errors)
+        if not isinstance(payload, dict):
+            continue
+        trial_id = payload.get("trial_id")
+        trial = connection.execute("SELECT quest_id, workflow_id, depth, status, payload_json FROM trials WHERE trial_id = ?", (trial_id,)).fetchone()
+        if trial is None:
+            errors.append(f"{label}: 参照Trialがありません: {trial_id}")
+            continue
+        trial_payload = parse_json(trial["payload_json"], f"trials[{trial_id}].payload_json", errors)
+        if (
+            not isinstance(trial_payload, dict)
+            or trial["quest_id"] != payload.get("quest_id")
+            or trial["workflow_id"] != row["workflow_id"]
+            or trial["status"] not in {"active", "done"}
+            or payload.get("trial_depth") != trial["depth"]
+            or payload.get("target_repo_root") != trial_payload.get("boundaries", {}).get("target_repo_root")
+            or payload.get("subject_snapshot") != trial_payload.get("subject_snapshot")
+        ):
+            errors.append(f"{label}: quest/workflow/depth/target/snapshotが参照Trialと一致しません。")
+        decision = payload.get("decision")
+        if decision is not None and decision not in TRIAL_DECISIONS:
+            errors.append(f"{label}.decision: 不正です。")
+        if row["status"] in {"recorded", "accepted"} and decision not in TRIAL_DECISIONS:
+            errors.append(f"{label}.decision: 完了reportにはdecisionが必要です。")
+        audit_helper_snapshot(payload.get("subject_snapshot"), f"{label}.subject_snapshot", errors)
+
+
 def audit_retired_agent_columns(connection: sqlite3.Connection, errors: list[str]) -> None:
     checks = (
         ("events", "event_id", "actor"),
@@ -632,7 +1042,7 @@ def audit_retired_agent_columns(connection: sqlite3.Connection, errors: list[str
 
 def audit_assignment_parent_contract(connection: sqlite3.Connection, errors: list[str]) -> None:
     try:
-        rows = connection.execute("SELECT assignment_id, parent_id, payload_json FROM assignments").fetchall()
+        rows = connection.execute("SELECT assignment_id, parent_id, workflow_id, payload_json FROM assignments").fetchall()
     except sqlite3.Error as exc:
         errors.append(f"assignments: parent_id 読み取りに失敗しました: {exc}")
         return
@@ -641,19 +1051,193 @@ def audit_assignment_parent_contract(connection: sqlite3.Connection, errors: lis
         payload = parse_json(row["payload_json"], label, errors)
         if not isinstance(payload, dict):
             continue
+        audit_assignment_machine_contract(payload, label, errors)
         expected_parent_id = expected_assignment_parent_id(payload, label, errors)
         if row["parent_id"] != expected_parent_id:
             errors.append(
                 f"assignments[{row['assignment_id']}].parent_id: payload の owner/parent relation と一致しません: "
                 f"{row['parent_id']} != {expected_parent_id}"
             )
+        worker_id = payload.get("worker_id")
+        workflow_id = payload.get("workflow_id") or row["workflow_id"]
+        quest_id = payload.get("quest_id")
 
+        if worker_id in {"advisor", "quest_sentinel"}:
+            owner_id = payload.get("owner_assignment_id") or payload.get("parent_id")
+            owner = connection.execute(
+                "SELECT worker_id, workflow_id, payload_json FROM assignments WHERE assignment_id = ?",
+                (owner_id,),
+            ).fetchone()
+            if owner is None:
+                errors.append(f"{label}: assignment ownerがLedgerにありません: {owner_id}")
+            else:
+                owner_payload = parse_json(owner["payload_json"], f"assignments[{owner_id}].payload_json", errors)
+                if owner["workflow_id"] != workflow_id or not isinstance(owner_payload, dict) or owner_payload.get("quest_id") != quest_id:
+                    errors.append(f"{label}: assignment ownerのquest/workflow lineageが一致しません。")
+                if payload.get("owner_worker_id") != owner["worker_id"]:
+                    errors.append(f"{label}.owner_worker_id: Ledger上のownerと一致しません。")
+
+        if worker_id == "focus_reviewer":
+            lineage = payload.get("caller_lineage")
+            if not isinstance(lineage, dict):
+                continue
+            trial_ref = lineage.get("trial_ref")
+            if payload.get("trial_id") != trial_ref:
+                errors.append(f"{label}: trial_idとcaller_lineage.trial_refが一致しません。")
+            trial = connection.execute(
+                "SELECT quest_id, workflow_id, payload_json FROM trials WHERE trial_id = ?",
+                (trial_ref,),
+            ).fetchone()
+            if trial is None:
+                errors.append(f"{label}: 参照TrialがLedgerにありません: {trial_ref}")
+            else:
+                trial_payload = parse_json(trial["payload_json"], f"trials[{trial_ref}].payload_json", errors)
+                if not isinstance(trial_payload, dict) or trial_payload.get("worker_id") != "inquisitor":
+                    errors.append(f"{label}: 参照Trial ownerはinquisitorにしてください。")
+                if trial["quest_id"] != quest_id or trial["workflow_id"] != workflow_id:
+                    errors.append(f"{label}: quest/workflowが参照Trialと一致しません。")
+                if lineage.get("required_parent_role") != "inquisitor" or lineage.get("trial_owner_worker_id") != "inquisitor":
+                    errors.append(f"{label}: caller_lineageはinquisitor Trialを指してください。")
+                if isinstance(trial_payload, dict):
+                    subject_ids = trial_payload.get("subject_assignment_ids")
+                    if not isinstance(subject_ids, list) or not subject_ids or not all(isinstance(item, str) and item for item in subject_ids):
+                        errors.append(f"{label}: 参照Trialにはsubject_assignment_idsが必要です。")
+                    else:
+                        for subject_id in subject_ids:
+                            subject = connection.execute(
+                                "SELECT workflow_id, payload_json FROM assignments WHERE assignment_id = ?",
+                                (subject_id,),
+                            ).fetchone()
+                            if subject is None:
+                                errors.append(f"{label}: Trial subject assignmentがありません: {subject_id}")
+                                continue
+                            subject_payload = parse_json(subject["payload_json"], f"assignments[{subject_id}].payload_json", errors)
+                            if subject["workflow_id"] != workflow_id or not isinstance(subject_payload, dict) or subject_payload.get("quest_id") != quest_id:
+                                errors.append(f"{label}: Trial subject assignmentのquest/workflowが一致しません: {subject_id}")
+                    if trial_payload.get("subject_snapshot") != payload.get("subject_snapshot"):
+                        errors.append(f"{label}: assignmentとTrialのsubject_snapshotが一致しません。")
+
+        if worker_id == "integration_owner":
+            barrier = payload.get("integration_barrier")
+            if not isinstance(barrier, dict):
+                continue
+            refs = barrier.get("upstream_report_refs")
+            if not isinstance(refs, list) or not all(isinstance(item, str) and item for item in refs):
+                continue
+            if len(refs) != len(set(refs)):
+                errors.append(f"{label}.integration_barrier.upstream_report_refs: 重複があります。")
+            contract_ref = barrier.get("contract_ref")
+            contract_row = connection.execute(
+                "SELECT quest_id, workflow_id, status, payload_json FROM commands WHERE command_id = ?",
+                (contract_ref,),
+            ).fetchone()
+            if contract_row is None:
+                errors.append(f"{label}: integration barrier contractがLedgerにありません: {contract_ref}")
+            else:
+                command_payload = parse_json(contract_row["payload_json"], f"commands[{contract_ref}].payload_json", errors)
+                contract = command_payload.get("integration_contract") if isinstance(command_payload, dict) else None
+                required_refs = contract.get("required_report_refs") if isinstance(contract, dict) else None
+                required_assignments = contract.get("required_assignment_ids") if isinstance(contract, dict) else None
+                integration_scope = contract.get("integration_scope") if isinstance(contract, dict) else None
+                if (
+                    contract_row["quest_id"] != quest_id
+                    or contract_row["workflow_id"] != workflow_id
+                    or contract_row["status"] not in {"issued", "active"}
+                    or not isinstance(contract, dict)
+                    or contract.get("integration_owner") != "integration_owner"
+                    or contract.get("mutation_barrier_required") is not True
+                    or not isinstance(required_refs, list)
+                    or not required_refs
+                    or not all(isinstance(item, str) and item for item in required_refs)
+                    or not isinstance(required_assignments, list)
+                    or not required_assignments
+                    or not all(isinstance(item, str) and item for item in required_assignments)
+                    or not isinstance(integration_scope, dict)
+                    or set(integration_scope) != {"read", "edit", "validate"}
+                ):
+                    errors.append(f"{label}: integration barrier command契約が不正です。")
+                elif len(required_refs) != len(set(required_refs)) or set(required_refs) != set(refs):
+                    errors.append(f"{label}: upstream_report_refsがcommandのrequired_report_refs完全集合と一致しません。")
+                else:
+                    for scope_key in ("read", "edit", "validate"):
+                        audit_relative_path_list(integration_scope[scope_key], f"{label}.integration_scope.{scope_key}", errors, nonempty=scope_key == "edit")
+                    if payload.get("owned_scope") != integration_scope:
+                        errors.append(f"{label}: integration owner scopeがcommand contractと一致しません。")
+            source_assignment_ids: list[str] = []
+            for report_id in refs:
+                report = connection.execute(
+                    "SELECT worker_id, workflow_id, status, payload_json FROM reports WHERE report_id = ?",
+                    (report_id,),
+                ).fetchone()
+                if report is None:
+                    errors.append(f"{label}: upstream reportがLedgerにありません: {report_id}")
+                    continue
+                report_payload = parse_json(report["payload_json"], f"reports[{report_id}].payload_json", errors)
+                if report["worker_id"] not in {"adventurer", "integration_owner"}:
+                    errors.append(f"{label}: upstream report ownerが実装workerではありません: {report_id}")
+                if report["workflow_id"] != workflow_id or not isinstance(report_payload, dict) or report_payload.get("quest_id") != quest_id:
+                    errors.append(f"{label}: upstream report lineageが一致しません: {report_id}")
+                if report["status"] not in {"recorded", "accepted"}:
+                    errors.append(f"{label}: upstream reportが完了していません: {report_id}")
+                if not isinstance(report_payload, dict):
+                    continue
+                source_assignment_id = report_payload.get("assignment_id")
+                if not isinstance(source_assignment_id, str) or not source_assignment_id:
+                    errors.append(f"{label}: upstream reportにassignment_idがありません: {report_id}")
+                    continue
+                source = connection.execute(
+                    "SELECT worker_id, workflow_id, status, payload_json FROM assignments WHERE assignment_id = ?",
+                    (source_assignment_id,),
+                ).fetchone()
+                if source is None:
+                    errors.append(f"{label}: source assignmentがありません: {source_assignment_id}")
+                    continue
+                source_payload = parse_json(source["payload_json"], f"assignments[{source_assignment_id}].payload_json", errors)
+                if (
+                    source["worker_id"] != report["worker_id"]
+                    or source["workflow_id"] != workflow_id
+                    or not isinstance(source_payload, dict)
+                    or source_payload.get("quest_id") != quest_id
+                    or source["status"] != "done"
+                ):
+                    errors.append(f"{label}: source assignment lineage/statusが不正です: {report_id}")
+                elif report_payload.get("target_repo_root") != source_payload.get("boundaries", {}).get("target_repo_root"):
+                    errors.append(f"{label}: report targetがsource assignmentと一致しません: {report_id}")
+                elif report_payload.get("base_snapshot") != source_payload.get("subject_snapshot"):
+                    errors.append(f"{label}: report base snapshotがsource assignmentと一致しません: {report_id}")
+                result_snapshot = report_payload.get("result_snapshot")
+                if not isinstance(result_snapshot, dict) or set(result_snapshot) != SNAPSHOT_FIELDS:
+                    errors.append(f"{label}: upstream reportにcanonical result_snapshotがありません: {report_id}")
+                elif isinstance(source_payload, dict) and isinstance(source_payload.get("owned_scope"), dict):
+                    source_edit = source_payload["owned_scope"].get("edit")
+                    integration_read = integration_scope.get("read") if isinstance(integration_scope, dict) else None
+                    result_scopes = result_snapshot.get("scope_paths")
+                    if isinstance(source_edit, list) and isinstance(integration_read, list) and any(
+                        isinstance(path, str) and not path_covered_by_scopes(path, integration_read) for path in source_edit
+                    ):
+                        errors.append(f"{label}: integration read scopeがsource edit scopeを包含しません: {source_assignment_id}")
+                    if isinstance(source_edit, list) and isinstance(result_scopes, list) and any(
+                        isinstance(path, str) and not path_covered_by_scopes(path, result_scopes) for path in source_edit
+                    ):
+                        errors.append(f"{label}: result snapshotがsource edit scopeを包含しません: {report_id}")
+                source_assignment_ids.append(source_assignment_id)
+            if contract_row is not None and isinstance(command_payload, dict) and isinstance(contract, dict):
+                required_assignments = contract.get("required_assignment_ids")
+                if (
+                    isinstance(required_assignments, list)
+                    and all(isinstance(item, str) and item for item in required_assignments)
+                    and (
+                        len(required_assignments) != len(set(required_assignments))
+                        or len(source_assignment_ids) != len(set(source_assignment_ids))
+                        or set(source_assignment_ids) != set(required_assignments)
+                    )
+                ):
+                    errors.append(f"{label}: source assignmentsがcommandのrequired_assignment_ids完全集合と一致しません。")
 
 def main() -> int:
     args = parse_args()
     database_path = args.runtime_root / "queue" / SQLITE_DB_NAME
-    static_root = args.static_root.resolve(strict=False)
-    guild_root = static_root.parent.parent
+    guild_root = args.runtime_root.resolve(strict=False).parent
     errors: list[str] = []
 
     with connect_read(database_path) as connection:
@@ -664,6 +1248,10 @@ def main() -> int:
             counts = audit_json_columns(connection, guild_root, errors)
             audit_events(connection, errors)
             audit_rank_and_trial_values(connection, errors)
+            audit_status_values(connection, errors)
+            audit_materialized_columns(connection, errors)
+            audit_trial_contracts(connection, errors)
+            audit_inquisitor_reports(connection, errors)
             audit_retired_agent_columns(connection, errors)
             audit_assignment_parent_contract(connection, errors)
 

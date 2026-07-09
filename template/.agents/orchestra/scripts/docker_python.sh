@@ -64,17 +64,17 @@ scan_path_args() {
   local previous=""
   for arg in "$@"; do
     case "$previous" in
-      --target|--source|--runtime-root|--static-root|--target-repo-root)
+      --target|--source|--runtime-root|--static-root|--target-repo-root|--repo)
         nearest_existing_mount "$arg"
         previous=""
         continue
         ;;
     esac
     case "$arg" in
-      --target=*|--source=*|--runtime-root=*|--static-root=*|--target-repo-root=*)
+      --target=*|--source=*|--runtime-root=*|--static-root=*|--target-repo-root=*|--repo=*)
         nearest_existing_mount "${arg#*=}"
         ;;
-      --target|--source|--runtime-root|--static-root|--target-repo-root)
+      --target|--source|--runtime-root|--static-root|--target-repo-root|--repo)
         previous="$arg"
         ;;
       *)

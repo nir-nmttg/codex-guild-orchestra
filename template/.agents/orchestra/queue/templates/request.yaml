@@ -7,21 +7,17 @@ structured_data_usage:
   evidence_refs: []
 requests: []
 
-# 例:
+# compact request例。identity、authority、target、snapshotはqueue/snapshot helperが固定し、
+# ownerはtask固有fieldだけを渡す。
 # requests:
 #   - id: req_001
 #     quest_id: quest_001
-#     rank: party_quest
 #     objective: "目的の要約"
-#     intent_analysis:
-#       request_summary: "依頼文の短い要約"
-#       inferred_intent: "依頼の背景にある推定意図"
-#       essential_outcomes: []
-#       assumptions: []
-#       ambiguities: []
-#       confirmation_needed: []
 #     success_criteria: []
-#     non_goals: []
+#     scope:
+#       read: []
+#       edit: []
+#       validate: []
 #     authority:
 #       read: true
 #       edit: true
@@ -33,69 +29,25 @@ requests: []
 #       read_deny: []
 #       edit_deny: []
 #       safety_items: []
-#     guild_law:
-#       human_confirmation_required: []
-#       immutable_refs:
-#         - "settings.yaml.guild_law"
-#     known_context:
-#       evidence_refs: []
-#       notes: []
-#       compat_context:
-#         - source_type: claude
-#           path: null
-#           sha256: null
-#           trust: untrusted
-#           applies_to: []
-#           status: null
-#           disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
-#           skip_reason: null
-#     quest_awareness:
-#       goal: null
-#       current_subgoal: null
-#       known_facts: []
-#       unknowns: []
-#       assumptions: []
-#       evidence: []
-#       current_strategy: null
-#       confidence_percent: null
-#       risk_level: medium
+#     evidence_state:
+#       blocking_unknowns: []
+#       failed_checks: []
+#       scope_drift: false
+#       high_risk_triggers: []
 #       verification_status: not_checked
 #       next_action: null
-#       stop_condition: null
-#     autonomy_budget:
-#       subassignments: 2
-#       extra_file_reads: 20
-#       validation_iterations: 2
-#       timebox_minutes: null
-#     party_tactics:
-#       assignment_mode: split_by_scope
-#       lead: party_leader
-#       implementers: [adventurer]
-#       trialists: [inquisitor]
-#       advisor_consideration_required: true
-#       advisor_candidates: [advisor]
-#       advisor_synthesis_required: true
-#       advisor_skip_reason_required_when_not_used: true
-#       advisor_skip_reason: null
-#       research_plan: []
-#     trial_plan:
-#       depth: focused_trial
-#       focus: []
-#     handoff_sufficiency:
-#       intake_to_charter_ready: false
-#       required_evidence:
-#         - intent_analysis
-#         - quest_awareness
-#         - objective
-#         - success_criteria
-#         - non_goals
-#         - authority
-#         - boundaries
-#         - evidence_required
-#       missing: []
-#     escalation_triggers: []
-#     evidence_required: []
-#     ledger:
-#       workflow_id: "wf_001"
-#       event_id: "evt_001"
+#       stop_reason: null
+#     subject_snapshot:
+#       snapshot_id: null
+#       digest_version: cgo-snapshot-v1
+#       kind: revision_only
+#       revision_id: null
+#       base_ref: null
+#       head_ref: null
+#       scope_paths: []
+#       untracked_paths: []
+#       dirty_state: clean
+#       diff_hash: null
+#     risks: []
+#     evidence_refs: []
 #     status: drafted

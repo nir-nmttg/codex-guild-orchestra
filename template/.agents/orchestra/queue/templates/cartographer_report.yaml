@@ -12,89 +12,35 @@ report:
   worker_id: cartographer
   target_repo_root: null
   status: draft
-  summary: null
   objective: null
-  intent_analysis:
-    request_summary: null
-    inferred_intent: null
-    essential_outcomes: []
-    assumptions: []
-    ambiguities: []
-    confirmation_needed: []
-  success_criteria: []
+  summary: null
   terrain_map:
-    existing_structure: []
     relevant_paths: []
     dependencies: []
+    risk_zones: []
     candidate_routes: []
-  recommended_implementation_strategy:
-    approach: null
-    essential_outcomes_addressed: []
-    alternatives_considered: []
-    minimality_rationale: null
-    scope_guardrails: []
-  quest_awareness:
-    goal: null
-    current_subgoal: null
-    known_facts: []
-    unknowns: []
-    assumptions: []
-    evidence: []
-    current_strategy: null
-    confidence_percent: null
-    risk_level: medium
-    verification_status: not_checked
+  recommendation: null
+  recommended_owner_role: null
+  recommended_trial_depth: null
+  evidence_state:
+    blocking_unknowns: []
+    failed_checks: []
+    scope_drift: false
+    high_risk_triggers: []
+    verification_status: partially_checked
     next_action: null
-    stop_condition: null
-  control_decision:
-    decision: proceed
-    rationale: null
-    required_next_action: null
-    triggers: []
-    confidence_threshold_applied: null
-    escalation_required: false
-  risk_zones: []
-  recommended_quest_rank:
-    rank: mapmaking
-    rationale: null
-  recommended_party_tactics:
-    assignment_mode: null
-    owners: []
-    research_plan: []
-    validation_expectations: []
-  recommended_trial:
-    depth: null
-    focus: []
-    rationale: null
-  advisor_usage:
-    considered: true
-    used: null
-    skip_reason_required_when_not_used: true
-    skip_reason: null
-  advisor_synthesis:
-    adopted_findings: []
-    rejected_findings: []
-    unresolved_findings: []
-    owner_confidence_percent: null
     stop_reason: null
-    raw_discussion_recorded: false
-  unknowns: []
-  research_evidence:
-    files_read: []
-    verified_findings: []
-    compat_context:
-      - source_type: claude
-        path: null
-        sha256: null
-        trust: untrusted
-        applies_to: []
-        status: null
-        disposition: null # applied / rejected_conflict / ignored_irrelevant / skipped_unsafe
-        skip_reason: null
-    skip_reason: null
-  confidence: evidence_limited
+  subject_snapshot:
+    snapshot_id: null
+    digest_version: cgo-snapshot-v1
+    kind: revision_only
+    revision_id: null
+    base_ref: null
+    head_ref: null
+    scope_paths: []
+    untracked_paths: []
+    dirty_state: null
+    diff_hash: null
   risks: []
-  escalations: []
-  scope_changes_requested: []
   evidence_refs: []
   timestamp: null

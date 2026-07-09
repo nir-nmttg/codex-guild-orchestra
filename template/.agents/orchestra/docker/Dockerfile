@@ -5,7 +5,7 @@ ENV PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends bash ca-certificates \
+    && apt-get install -y --no-install-recommends bash ca-certificates git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace

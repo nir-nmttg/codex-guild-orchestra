@@ -8,6 +8,8 @@ QUEUE_TEMPLATE_PATHS = (
     "template/.agents/orchestra/queue/templates/adventurer_inbox.yaml",
     "template/.agents/orchestra/queue/templates/cartographer_assignment.yaml",
     "template/.agents/orchestra/queue/templates/cartographer_report.yaml",
+    "template/.agents/orchestra/queue/templates/focus_reviewer_assignment.yaml",
+    "template/.agents/orchestra/queue/templates/focus_reviewer_report.yaml",
     "template/.agents/orchestra/queue/templates/inquisitor_trial.yaml",
     "template/.agents/orchestra/queue/templates/inquisitor_report.yaml",
     "template/.agents/orchestra/queue/templates/quest_sentinel_assignment.yaml",
@@ -46,8 +48,10 @@ REQUIRED_PATHS = [
     "template/.codex/agents/advisor.toml",
     "template/.codex/agents/cartographer.toml",
     "template/.codex/agents/courier.toml",
+    "template/.codex/agents/focus_reviewer.toml",
     "template/.codex/agents/guildmaster.toml",
     "template/.codex/agents/inquisitor.toml",
+    "template/.codex/agents/integration_owner.toml",
     "template/.codex/agents/quest_sentinel.toml",
     "template/.codex/agents/party_leader.toml",
     "template/.agents/orchestra/config/settings.yaml",
@@ -55,12 +59,14 @@ REQUIRED_PATHS = [
     "template/.agents/orchestra/docs/agent-memory.md",
     "template/.agents/orchestra/instructions/common.md",
     "template/.agents/orchestra/instructions/advisor.md",
-    "template/.agents/orchestra/instructions/receptionist.md",
     "template/.agents/orchestra/instructions/cartographer.md",
+    "template/.agents/orchestra/instructions/focus_reviewer.md",
     "template/.agents/orchestra/instructions/guildmaster.md",
     "template/.agents/orchestra/instructions/party_leader.md",
+    "template/.agents/orchestra/instructions/quest_sentinel.md",
     "template/.agents/orchestra/instructions/adventurer.md",
     "template/.agents/orchestra/instructions/inquisitor.md",
+    "template/.agents/orchestra/instructions/integration_owner.md",
     "template/.agents/orchestra/instructions/session_recovery.md",
     "template/.agents/orchestra/logs/daily/README.md",
     "template/.agents/orchestra/queue/README.md",
@@ -74,19 +80,25 @@ REQUIRED_PATHS = [
     "template/.agents/orchestra/scripts/queue_db.py",
     "template/.agents/orchestra/scripts/queue_audit.py",
     "template/.agents/orchestra/scripts/queue_schema.sql",
+    "template/.agents/orchestra/scripts/snapshot_digest.py",
     "scripts/install.py",
+    "scripts/model_selection_eval.py",
+    "scripts/model_selection_eval.yaml",
+    "scripts/validation/model_selection.py",
+    "scripts/validation/snapshot_digest.py",
     "scripts/validation/golden_quests.py",
     "scripts/validation/fixtures/golden_quests/advisor_dialogue_same_focus_stop.yaml",
-    "scripts/validation/fixtures/golden_quests/focused_trial_reviewer_budget.yaml",
+    "scripts/validation/fixtures/golden_quests/focused_trial_risk_triggered_review.yaml",
     "scripts/validation/fixtures/golden_quests/ledger_injection_negative.yaml",
     "scripts/validation/fixtures/golden_quests/mapmaking_readonly_no_edit.yaml",
-    "scripts/validation/fixtures/golden_quests/quest_awareness_confidence_below_50_stop.yaml",
-    "scripts/validation/fixtures/golden_quests/quest_awareness_confidence_below_75.yaml",
-    "scripts/validation/fixtures/golden_quests/quest_awareness_contradictory_evidence.yaml",
-    "scripts/validation/fixtures/golden_quests/quest_awareness_failed_check_first_failure.yaml",
-    "scripts/validation/fixtures/golden_quests/quest_awareness_memory_prevention_artifact.yaml",
-    "scripts/validation/fixtures/golden_quests/quest_awareness_scope_drift.yaml",
-    "scripts/validation/fixtures/golden_quests/quest_awareness_security_sensitive.yaml",
+    "scripts/validation/fixtures/golden_quests/evidence_state_blocked_contract.yaml",
+    "scripts/validation/fixtures/golden_quests/evidence_state_unverified_outcome.yaml",
+    "scripts/validation/fixtures/golden_quests/evidence_state_contradictory_evidence.yaml",
+    "scripts/validation/fixtures/golden_quests/evidence_state_failed_check.yaml",
+    "scripts/validation/fixtures/golden_quests/evidence_state_memory_prevention_artifact.yaml",
+    "scripts/validation/fixtures/golden_quests/evidence_state_scope_drift.yaml",
+    "scripts/validation/fixtures/golden_quests/evidence_state_security_trigger.yaml",
+    "scripts/validation/fixtures/golden_quests/sentinel_evidence_trigger.yaml",
     "scripts/validation/fixtures/golden_quests/safety_gate_needs_human.yaml",
     "scripts/validation/fixtures/golden_quests/solo_small_fix_no_git.yaml",
     "scripts/clean_install.sh",
@@ -97,90 +109,27 @@ REQUIRED_PATHS = [
 
 QUEST_RANKS = {"mapmaking", "errand", "solo_quest", "party_quest", "guild_quest"}
 TRIAL_DEPTHS = {"none", "self_check", "peer_review", "focused_trial", "multi_focus_trial", "safety_gate"}
-TRIAL_REQUIRED_CHECKS = {
-    "intent_coverage",
+# Compact, evidence-based state carried between owners.  Unlike the retired
+# quest-awareness scorecard this contains only facts that can change control
+# flow.  Numeric self-confidence is deliberately not part of the contract.
+EVIDENCE_STATE_KEYS = {
+    "blocking_unknowns",
+    "failed_checks",
+    "scope_drift",
+    "high_risk_triggers",
+    "verification_status",
+    "next_action",
+    "stop_reason",
+}
+
+CORE_TRIAL_CHECKS = {
     "success_criteria",
-    "quest_awareness",
-    "control_decision",
-    "guild_law",
     "authority_boundary",
     "scope_boundary",
     "safety_items",
-    "architecture_consistency",
-    "responsibility_split",
-    "readability",
-    "maintainability",
     "validation_evidence",
     "regression_risk",
 }
-INTENT_ANALYSIS_KEYS = {
-    "request_summary",
-    "inferred_intent",
-    "essential_outcomes",
-    "assumptions",
-    "ambiguities",
-    "confirmation_needed",
-}
-IMPLEMENTATION_STRATEGY_KEYS = {
-    "approach",
-    "essential_outcomes_addressed",
-    "alternatives_considered",
-    "minimality_rationale",
-    "scope_guardrails",
-}
-INTENT_ALIGNMENT_KEYS = {
-    "matched_outcomes",
-    "deviations",
-    "over_implementation_avoided",
-    "assumptions_validated",
-    "remaining_questions",
-}
-INTENT_COVERAGE_REPORT_KEYS = {
-    "covered_outcomes",
-    "missing_outcomes",
-    "over_implementation_risks",
-    "ambiguity_handling",
-}
-QUEST_AWARENESS_KEYS = {
-    "goal",
-    "current_subgoal",
-    "known_facts",
-    "unknowns",
-    "assumptions",
-    "evidence",
-    "current_strategy",
-    "confidence_percent",
-    "risk_level",
-    "verification_status",
-    "next_action",
-    "stop_condition",
-}
-CONTROL_DECISION_KEYS = {
-    "decision",
-    "rationale",
-    "required_next_action",
-    "triggers",
-    "confidence_threshold_applied",
-    "escalation_required",
-}
-CONTROL_DECISIONS = {
-    "proceed",
-    "gather_more_evidence",
-    "revise_plan",
-    "run_tests",
-    "invoke_quest_sentinel",
-    "invoke_security_review",
-    "stop_for_user_approval",
-}
-TRIAL_CONDITIONAL_CHECKS = {
-    "edge_cases",
-    "error_handling",
-    "security",
-    "performance",
-    "accessibility",
-    "compatibility",
-}
-TRIAL_DEPTH_GUARDRAILS = {"multi_focus_trial", "safety_gate"}
 OPERATIONS = {"append", "update", "replace", "mark_completed"}
 ARTIFACT_REQUIRED_FIELDS = ["artifact_type", "schema_version", "workflow_id", "structured_data_usage"]
 STRUCTURED_DATA_USAGE_FIELDS = ["structured_inputs", "decision_rationale", "evidence_refs"]
@@ -198,7 +147,6 @@ EVENT_INPUT_REQUIRED_FIELDS = [
 ]
 EVENT_SAFETY_FIELDS = ["safety_items", "human_confirmation_required"]
 AUTHORITY_KEYS = {"read", "edit", "validate", "local_git", "external_actions"}
-AUTONOMY_KEYS = {"subassignments", "extra_file_reads", "validation_iterations", "timebox_minutes"}
 LEDGER_TABLES = {
     "queue_metadata",
     "events",
@@ -252,97 +200,6 @@ EVENT_ENTITY_TYPE_RULES = {
     "dashboard_updated": {"dashboard"},
     "state_compacted": {"state"},
 }
-SAFETY_TOKENS = (
-    "target_repo_root",
-    "<guild_root>/repositories/<repo>",
-    "secret",
-    "token",
-    "credential",
-    "PII",
-    "破壊的操作",
-    "公開 API",
-    "未信頼",
-    "人間確認",
-)
-GUILD_TERMS = (
-    "Guild Law",
-    "Quest Charter",
-    "Party Tactics",
-    "Trial",
-    "Ledger",
-)
-DEFAULT_INTAKE_TOKENS = (
-    "Default Guild Intake",
-    "always_guild_intake",
-    "use-guild-workflow",
-    "target_repo_root",
-    "full Quest",
-)
-DEFAULT_INTAKE_CONFIRMATION_TOKENS = (
-    "guild_law.human_confirmation_required_for",
-    "破壊的操作",
-    "依存追加",
-    "migration",
-    "deploy",
-    "本番データ",
-    "課金",
-    "認可",
-    "公開API互換性変更",
-    "仕様判断",
-    "MCP server",
-    "外部 network access",
-    "秘密情報",
-    "認証情報",
-    "PII",
-)
-STATE_CHANGE_GUARD_TOKENS = (
-    "local Git 書き込み",
-    "外部送信",
-    "Web 状態更新",
-    "PR ready",
-    "明示指示",
-    "人間の再確認",
-)
-STATE_CHANGE_GUARD_OPERATION_TOKENS = (
-    "git add",
-    "git commit",
-    "branch 作成",
-    "branch rename",
-    "tag",
-    "stash",
-    "reset",
-    "clean",
-    "push",
-    "PR 作成 / 更新",
-    "Issue / comment / Slack / Linear",
-    "ブラウザ送信",
-    "保存、削除、公開、承認、設定変更",
-    "deploy",
-)
-GUILD_SKILL_PRIORITY_TOKENS = (
-    "類似 Skill",
-    "owner: codex-guild-orchestra",
-    "ギルド側 Skill",
-    "非ギルド Skill",
-    "plugin",
-    "connector",
-    "Quest Charter",
-    "authority",
-    "boundaries",
-)
-LEGACY_PRIMARY_TERMS = (
-    "root_session_to_adventurer_with_inquisitor_review",
-    "root_session_to_courier_no_queue_no_subagents",
-    "scale_risk_model",
-    "inquisitor_count_by_scale",
-    "small.review_task_fields",
-    "planning/tiny/small/medium/large",
-)
-LEGACY_ROUTE_COMMENT_TERMS = (
-    "小規模",
-    "大規模",
-    "planning/tiny/small/medium/large",
-)
 VOCABULARY_DRIFT_TERMS = (
     "task_id",
     "quest_queue",
@@ -370,6 +227,9 @@ ACTIVE_PROSE_PATHS = (
     "docs/use-cases/05-safety-escalation.md",
     "docs/use-cases/06-ledger-and-local-git.md",
     "docs/use-cases/07-claude-context.md",
+    "docs/use-cases/08-guild-quest-strategy-and-parties.md",
+    "docs/use-cases/09-quest-sentinel-control-loop.md",
+    "docs/use-cases/10-advisor-owner-synthesis.md",
     "scripts/install.py",
     "template/AGENTS.md",
     "template/.codex/config.toml",
@@ -377,8 +237,10 @@ ACTIVE_PROSE_PATHS = (
     "template/.codex/agents/advisor.toml",
     "template/.codex/agents/cartographer.toml",
     "template/.codex/agents/courier.toml",
+    "template/.codex/agents/focus_reviewer.toml",
     "template/.codex/agents/guildmaster.toml",
     "template/.codex/agents/inquisitor.toml",
+    "template/.codex/agents/integration_owner.toml",
     "template/.codex/agents/quest_sentinel.toml",
     "template/.codex/agents/party_leader.toml",
     "template/.agents/orchestra/README.md",
@@ -390,10 +252,12 @@ ACTIVE_PROSE_PATHS = (
     "template/.agents/orchestra/instructions/advisor.md",
     "template/.agents/orchestra/instructions/cartographer.md",
     "template/.agents/orchestra/instructions/common.md",
+    "template/.agents/orchestra/instructions/focus_reviewer.md",
     "template/.agents/orchestra/instructions/guildmaster.md",
     "template/.agents/orchestra/instructions/inquisitor.md",
+    "template/.agents/orchestra/instructions/integration_owner.md",
     "template/.agents/orchestra/instructions/party_leader.md",
-    "template/.agents/orchestra/instructions/receptionist.md",
+    "template/.agents/orchestra/instructions/quest_sentinel.md",
     "template/.agents/orchestra/instructions/session_recovery.md",
     "template/.agents/orchestra/logs/daily/README.md",
 )
@@ -410,23 +274,4 @@ ACTIVE_PROSE_DRIFT_TERMS = (
     "動的 state",
     "role instruction",
     "golden task",
-)
-AMBIGUOUS_INQUISITOR_TERMS = (
-    "lead inquisitor",
-    "lead Inquisitor",
-    "lead `inquisitor`",
-)
-FOCUS_REVIEWER_CONTRACT_TOKENS = (
-    "focus reviewer",
-    "追加",
-    "workers.inquisitor.max_parallel",
-    "autonomy_budget.subassignments",
-    "focus 分割",
-    "read-only",
-    "owner synthesis",
-    "finding disposition",
-    "skip reason",
-    "cost reason",
-    "focus_advisors.assignments + focus_reviewers.assignments <= autonomy_budget.subassignments",
-    "Trial 統合担当の `inquisitor`",
 )
