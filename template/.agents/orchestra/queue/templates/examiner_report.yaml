@@ -40,9 +40,12 @@ report:
     start_match: null
     report_match: null
     status: null # matched / stale_evidence / invalid_assignment
+  # no-findingsでもsummaryと1件以上のevidence_refsが必須。
   summary: null
+  # 各itemは {id: <Trial内で一意>, summary: <根拠付き要約>}。
   finding_candidates: []
   evidence_refs: []
+  # finding_candidatesと同じstable-ID schema。final Inquisitorが全IDを処置する。
   important_unknowns: []
   residual_risks: []
   status: draft

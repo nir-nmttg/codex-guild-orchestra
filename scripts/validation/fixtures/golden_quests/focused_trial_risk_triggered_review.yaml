@@ -18,6 +18,8 @@ expected:
     parent_waits_and_synthesizes: true
     child_terminal: true
     child_snapshot_same_helper_object: true
+    child_target_same_as_parent: true
+    child_preserves_parent_deny_and_safety: true
   authority:
     read: true
     edit: false
@@ -47,3 +49,6 @@ expected:
     unverified_lineage: true
     missing_examiner_report_before_final: true
     examiner_report_from_other_trial: true
+    examiner_without_substantive_evidence: true
+    undispositioned_examiner_item: true
+    child_drops_parent_boundary: true

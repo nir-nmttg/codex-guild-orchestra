@@ -13,6 +13,7 @@ report:
   target_repo_root: null
   status: draft
   decision: null
+  # 完了reportではsummaryと1件以上のevidence_refsが必須。
   summary: null
   trial_depth: null
   subject_snapshot:
@@ -46,6 +47,7 @@ report:
   # 完了時は、このTrialに属する全examiner assignmentの完了report ID完全集合。
   examiner_reports: []
   finding_dispositions:
+    # 全examiner reportのcandidate/unknown IDを3分類のいずれかへexactly once記録する。
     adopted: []
     rejected: []
     unresolved: []

@@ -22,6 +22,7 @@ assignment:
     trial_owner_worker_id: inquisitor
     trial_ref: null
     verification: null
+  # 空でない具体的triggerが必須。親Trialのrisk-triggered focusから導出する。
   risk_trigger: null
   focus: null
   subject_snapshot:
@@ -42,6 +43,7 @@ assignment:
     local_git: false
     external_actions: false
   boundaries:
+    # targetは親Trialと完全一致。deny/safetyは親の全項目を保持し、追加だけを許可する。
     target_repo_root: null
     read_deny: []
     edit_deny: []

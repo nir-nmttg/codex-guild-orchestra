@@ -127,6 +127,8 @@ def validate_golden_quests() -> None:
             "parent_waits_and_synthesizes": True,
             "child_terminal": True,
             "child_snapshot_same_helper_object": True,
+            "child_target_same_as_parent": True,
+            "child_preserves_parent_deny_and_safety": True,
         },
         "nested Trial topologyはRoot(depth0)→Inquisitor(depth1)→Examiner(depth2)に限定してください。",
     )
@@ -146,6 +148,20 @@ def validate_golden_quests() -> None:
     require(reviewer.get("trial_lineage_validation") == "mechanical", "examiner Trial lineageは機械検証してください。")
     require(reviewer.get("runtime_identity_acl") is False and reviewer.get("event_actor_is_identity_backed_caller") is False, "queue lineageやevent.actorをidentity-backed runtime ACLと表現しないでください。")
     require(reviewer.get("child_snapshot_must_equal_parent_trial") is True, "examiner child snapshotは親Trialと完全一致させてください。")
+    for key in (
+        "child_target_must_equal_parent_trial",
+        "child_deny_and_safety_must_preserve_parent",
+        "child_authority_must_equal_parent_trial",
+        "examiner_summary_required",
+        "examiner_evidence_refs_required",
+        "evidence_item_id_unique_within_trial",
+        "final_summary_required",
+        "final_evidence_refs_required",
+        "final_disposition_exactly_once",
+        "accepted_decision_forbids_unresolved",
+    ):
+        require(reviewer.get(key) is True, f"reviewer.{key} は true にしてください。")
+    require(set(sequence(reviewer.get("evidence_item_schema"), "reviewer.evidence_item_schema")) == {"id", "summary"}, "examiner evidence item schemaはstable id/summaryにしてください。")
     require(set(sequence(reviewer.get("report_binding_required"), "reviewer.report_binding_required")) == {"examiner_assignment", "inquisitor_trial", "quest", "workflow", "subject_snapshot"}, "examiner report bindingが不足しています。")
     require(reviewer.get("caller_lineage_check_normalized_by_queue") is True and reviewer.get("final_report_requires_all_examiner_reports") is True, "examiner reportの機械lineage正規化とfinal completeness gateが必要です。")
     assignment_snapshot = mapping(reviewer_input.get("assignment_snapshot"), "reviewer.assignment_snapshot")

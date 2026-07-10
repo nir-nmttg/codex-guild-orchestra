@@ -172,6 +172,9 @@ def validate_queue_db_smoke() -> None:
         target_repo = guild_root / "repositories/example-app"
         snapshot_helper = ROOT / "template/.agents/orchestra/scripts/snapshot_digest.py"
         _init_target_repo(target_repo)
+        sibling_repo = guild_root / "repositories/sibling-app"
+        sibling_clone = _run_git(guild_root, "clone", "--no-local", str(target_repo), str(sibling_repo))
+        require(sibling_clone.returncode == 0, "runtime smoke sibling repoのcloneに失敗しました: " + sibling_clone.stderr)
         revision_snapshot = _snapshot(snapshot_helper, target_repo)
         app_result_snapshot = _snapshot(snapshot_helper, target_repo, "working_tree_content", "--scope", "app.py")
         other_result_snapshot = _snapshot(snapshot_helper, target_repo, "working_tree_content", "--scope", "other.py")
@@ -363,7 +366,12 @@ def validate_queue_db_smoke() -> None:
                 "subject_report_ids": [],
                 "subject_snapshot": revision_snapshot,
                 "authority": {"read": True, "edit": False, "validate": True, "local_git": False, "external_actions": False},
-                "boundaries": {"target_repo_root": str(target_repo), "read_deny": [], "edit_deny": [], "safety_items": []},
+                "boundaries": {
+                    "target_repo_root": str(target_repo),
+                    "read_deny": ["private/**"],
+                    "edit_deny": ["**"],
+                    "safety_items": ["no_secret_access"],
+                },
                 "status": "active",
             }},
             "event_safety": {"safety_items": [], "human_confirmation_required": []},
@@ -397,11 +405,17 @@ def validate_queue_db_smoke() -> None:
                 "role": "bounded_trial_examiner",
                 "terminal_worker": True,
                 "objective": "authorization focusの根拠を独立確認する",
+                "risk_trigger": "security",
                 "focus": "authorization before write",
                 "evidence_required": ["file/lineと再現可能な根拠"],
                 "caller_lineage": {"required_parent_role": "inquisitor", "trial_owner_worker_id": "inquisitor", "trial_ref": "trial_focus_smoke", "verification": None},
                 "authority": {"read": True, "edit": False, "validate": True, "local_git": False, "external_actions": False},
-                "boundaries": {"target_repo_root": str(target_repo), "read_deny": [], "edit_deny": [], "safety_items": []},
+                "boundaries": {
+                    "target_repo_root": str(target_repo),
+                    "read_deny": ["private/**"],
+                    "edit_deny": ["**"],
+                    "safety_items": ["no_secret_access", "no_external_action"],
+                },
                 "subject_snapshot": revision_snapshot,
                 "status": "done",
             }},
@@ -409,6 +423,30 @@ def validate_queue_db_smoke() -> None:
         }
         focus_assignment = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(focus_assignment_event))
         require(focus_assignment.returncode == 0, "queue_db.py は実在Trialと一致するfocus assignmentを受け付けてください: " + focus_assignment.stderr)
+
+        missing_risk_event = json.loads(json.dumps(focus_assignment_event))
+        missing_risk_event["event_id"] = "evt_assignment_focus_missing_risk"
+        missing_risk_event["entity"]["id"] = "assignment_focus_missing_risk"
+        missing_risk_event["payload"]["assignment"]["id"] = "assignment_focus_missing_risk"
+        missing_risk_event["payload"]["assignment"].pop("risk_trigger")
+        missing_risk = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(missing_risk_event))
+        require(missing_risk.returncode != 0 and "risk_trigger" in missing_risk.stderr, "queue_db.py はrisk_triggerなしのexaminer assignmentを拒否してください。")
+
+        dropped_safety_event = json.loads(json.dumps(focus_assignment_event))
+        dropped_safety_event["event_id"] = "evt_assignment_focus_dropped_safety"
+        dropped_safety_event["entity"]["id"] = "assignment_focus_dropped_safety"
+        dropped_safety_event["payload"]["assignment"]["id"] = "assignment_focus_dropped_safety"
+        dropped_safety_event["payload"]["assignment"]["boundaries"]["safety_items"] = []
+        dropped_safety = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(dropped_safety_event))
+        require(dropped_safety.returncode != 0 and "safety_items" in dropped_safety.stderr, "queue_db.py は親Trialのsafety boundaryを落とすexaminer assignmentを拒否してください。")
+
+        sibling_target_event = json.loads(json.dumps(focus_assignment_event))
+        sibling_target_event["event_id"] = "evt_assignment_focus_sibling_target"
+        sibling_target_event["entity"]["id"] = "assignment_focus_sibling_target"
+        sibling_target_event["payload"]["assignment"]["id"] = "assignment_focus_sibling_target"
+        sibling_target_event["payload"]["assignment"]["boundaries"]["target_repo_root"] = str(sibling_repo)
+        sibling_target = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(sibling_target_event))
+        require(sibling_target.returncode != 0 and "target_repo_root" in sibling_target.stderr, "queue_db.py は親Trialと異なるtargetのexaminer assignmentを拒否してください。")
 
         wrong_caller_event = json.loads(json.dumps(focus_assignment_event))
         wrong_caller_event["event_id"] = "evt_assignment_focus_wrong_caller"
@@ -455,6 +493,9 @@ def validate_queue_db_smoke() -> None:
                 "trial_depth": "focused_trial",
                 "subject_snapshot": revision_snapshot,
                 "examiner_reports": [],
+                "summary": "authorization focusを統合した",
+                "evidence_refs": ["app.py:1"],
+                "finding_dispositions": {"adopted": [], "rejected": [], "unresolved": []},
             }},
             "event_safety": {"safety_items": [], "human_confirmation_required": []},
         }
@@ -487,11 +528,16 @@ def validate_queue_db_smoke() -> None:
                 "terminal_worker": True,
                 "decision_authority": False,
                 "severity_authority": False,
-                "risk_trigger": None,
+                "risk_trigger": "security",
                 "focus": "authorization before write",
                 "subject_snapshot": revision_snapshot,
                 "caller_lineage_check": {"required_parent_role": "root", "trial_owner_worker_id": "root", "trial_ref": "self_claim", "verified": False, "status": "unverifiable"},
                 "snapshot_check": {"start_match": False, "report_match": False, "status": "stale_evidence"},
+                "summary": "authorization boundaryに要修正候補がある",
+                "finding_candidates": [{"id": "finding.authorization", "summary": "write前のauthorization checkを確認する"}],
+                "evidence_refs": ["app.py:1"],
+                "important_unknowns": [{"id": "unknown.coverage", "summary": "全呼出経路のcoverageは未確認"}],
+                "residual_risks": ["未確認経路が残る"],
                 "status": "recorded",
             }},
             "event_safety": {"safety_items": [], "human_confirmation_required": []},
@@ -521,10 +567,26 @@ def validate_queue_db_smoke() -> None:
         stale_examiner_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(stale_examiner_report_event))
         require(stale_examiner_report.returncode != 0 and "snapshot" in stale_examiner_report.stderr, "queue_db.py はstale examiner report snapshotを拒否してください。")
 
+        missing_evidence_report_event = json.loads(json.dumps(examiner_report_event))
+        missing_evidence_report_event["event_id"] = "evt_report_examiner_missing_evidence"
+        missing_evidence_report_event["entity"]["id"] = "report_examiner_missing_evidence"
+        missing_evidence_report_event["payload"]["report"]["id"] = "report_examiner_missing_evidence"
+        missing_evidence_report_event["payload"]["report"]["evidence_refs"] = []
+        missing_evidence_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(missing_evidence_report_event))
+        require(missing_evidence_report.returncode != 0 and "evidence_refs" in missing_evidence_report.stderr, "queue_db.py はevidenceなしのexaminer reportを拒否してください。")
+
         examiner_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(examiner_report_event))
         require(examiner_report.returncode == 0, "queue_db.py はassignment/Trialへbindしたexaminer reportを受け付けてください: " + examiner_report.stderr)
 
         inquisitor_report_event["payload"]["report"]["examiner_reports"] = ["report_examiner_smoke"]
+        undispositioned_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(inquisitor_report_event))
+        require(undispositioned_report.returncode != 0 and "exactly once" in undispositioned_report.stderr, "queue_db.py は未処置examiner finding/unknownのあるinquisitor finalを拒否してください。")
+
+        inquisitor_report_event["payload"]["report"]["finding_dispositions"] = {
+            "adopted": ["finding.authorization"],
+            "rejected": ["unknown.coverage"],
+            "unresolved": [],
+        }
         inquisitor_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(inquisitor_report_event))
         require(inquisitor_report.returncode == 0, "queue_db.py はTrialにbindしたinquisitor reportを受け付けてください: " + inquisitor_report.stderr)
 
@@ -800,6 +862,39 @@ def validate_queue_db_smoke() -> None:
 
         audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
         require(audit.returncode == 0, "queue_audit.py の smoke が失敗しました: " + (audit.stderr or audit.stdout))
+
+        with sqlite3.connect(database) as connection:
+            original_report_payload = connection.execute(
+                "SELECT payload_json FROM reports WHERE report_id = 'report_examiner_smoke'"
+            ).fetchone()[0]
+            original_event_payload = connection.execute(
+                "SELECT payload_json FROM events WHERE event_id = 'evt_report_examiner_smoke'"
+            ).fetchone()[0]
+            bad_report_payload = json.loads(original_report_payload)
+            bad_report_payload["owner_worker_id"] = "root"
+            bad_event_payload = json.loads(original_event_payload)
+            bad_event_payload["report"]["owner_worker_id"] = "root"
+            connection.execute(
+                "UPDATE reports SET payload_json = ? WHERE report_id = 'report_examiner_smoke'",
+                (json.dumps(bad_report_payload),),
+            )
+            connection.execute(
+                "UPDATE events SET payload_json = ? WHERE event_id = 'evt_report_examiner_smoke'",
+                (json.dumps(bad_event_payload),),
+            )
+            connection.commit()
+        wrong_owner_audit = _run_python(audit_script, "--runtime-root", runtime_root, "--static-root", ROOT / "template/.agents/orchestra", "--json")
+        require(wrong_owner_audit.returncode != 0 and "owner_worker_id" in wrong_owner_audit.stdout, "queue_audit.py はinquisitor以外のexaminer report ownerを拒否してください。")
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "UPDATE reports SET payload_json = ? WHERE report_id = 'report_examiner_smoke'",
+                (original_report_payload,),
+            )
+            connection.execute(
+                "UPDATE events SET payload_json = ? WHERE event_id = 'evt_report_examiner_smoke'",
+                (original_event_payload,),
+            )
+            connection.commit()
 
         with sqlite3.connect(database) as connection:
             connection.execute("UPDATE events SET entity_id = ? WHERE event_id = 'evt_smoke_quest_created'", ("quest_other",))

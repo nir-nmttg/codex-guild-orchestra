@@ -557,6 +557,52 @@ def audit_nonempty_string_list(value: Any, label: str, errors: list[str]) -> Non
         errors.append(f"{label}: 空でない文字列のnon-empty listが必要です。")
 
 
+def audit_evidence_items(value: Any, label: str, errors: list[str]) -> set[str]:
+    if not isinstance(value, list):
+        errors.append(f"{label}: evidence item listが必要です。")
+        return set()
+    item_ids: set[str] = set()
+    for index, item in enumerate(value):
+        item_label = f"{label}[{index}]"
+        if not isinstance(item, dict) or set(item) != {"id", "summary"}:
+            errors.append(f"{item_label}: id/summaryだけを持つobjectが必要です。")
+            continue
+        item_id = item.get("id")
+        summary = item.get("summary")
+        if not isinstance(item_id, str) or not item_id:
+            errors.append(f"{item_label}.id: 空でない文字列が必要です。")
+            continue
+        if not isinstance(summary, str) or not summary:
+            errors.append(f"{item_label}.summary: 空でない文字列が必要です。")
+        if item_id in item_ids:
+            errors.append(f"{label}: idが重複しています: {item_id}")
+        item_ids.add(item_id)
+    return item_ids
+
+
+def audit_finding_dispositions(value: Any, expected_ids: set[str], decision: Any, label: str, errors: list[str]) -> None:
+    if not isinstance(value, dict) or set(value) != {"adopted", "rejected", "unresolved"}:
+        errors.append(f"{label}: adopted/rejected/unresolvedのcanonical fieldsが必要です。")
+        return
+    seen: set[str] = set()
+    for key in ("adopted", "rejected", "unresolved"):
+        refs = value.get(key)
+        if not isinstance(refs, list) or not all(isinstance(item, str) and item for item in refs):
+            errors.append(f"{label}.{key}: evidence item ID listが必要です。")
+            continue
+        if len(refs) != len(set(refs)):
+            errors.append(f"{label}.{key}: IDが重複しています。")
+        overlap = seen.intersection(refs)
+        if overlap:
+            errors.append(f"{label}: IDはexactly once処置してください: {sorted(overlap)[0]}")
+        seen.update(refs)
+    if seen != expected_ids:
+        errors.append(f"{label}: 全candidate/unknown IDをexactly once処置してください。")
+    unresolved = value.get("unresolved")
+    if decision in {"accept", "accept_with_risks"} and isinstance(unresolved, list) and unresolved:
+        errors.append(f"{label}.unresolved: decision={decision}では空にしてください。")
+
+
 def audit_relative_path_list(value: Any, label: str, errors: list[str], *, nonempty: bool = False) -> None:
     if not isinstance(value, list) or (nonempty and not value):
         errors.append(f"{label}: repo-relative path listが必要です。")
@@ -675,6 +721,8 @@ def audit_assignment_machine_contract(payload: dict[str, Any], label: str, error
         if not isinstance(payload.get("focus"), str) or not payload.get("focus"):
             errors.append(f"{label}.focus: 空でない具体的focusが必要です。")
         audit_nonempty_string_list(payload.get("evidence_required"), f"{label}.evidence_required", errors)
+        if worker_id == "examiner" and (not isinstance(payload.get("risk_trigger"), str) or not payload.get("risk_trigger")):
+            errors.append(f"{label}.risk_trigger: 空でない文字列が必要です。")
     elif worker_id in {"cartographer", "warden"}:
         audit_nonempty_string_list(payload.get("evidence_required"), f"{label}.evidence_required", errors)
 
@@ -1053,8 +1101,17 @@ def audit_examiner_reports(connection: sqlite3.Connection, errors: list[str]) ->
             or payload.get("snapshot_check") != {"start_match": True, "report_match": True, "status": "matched"}
         ):
             errors.append(f"{label}: assignment/Trial/quest/workflow/snapshot/verified lineageが不正です。")
+        if payload.get("owner_worker_id") != "inquisitor":
+            errors.append(f"{label}.owner_worker_id: inquisitorが必要です。")
         if payload.get("terminal_worker") is not True or payload.get("decision_authority") is not False or payload.get("severity_authority") is not False:
             errors.append(f"{label}: terminal/non-decision/non-severity contractが不正です。")
+        if not isinstance(payload.get("summary"), str) or not payload.get("summary"):
+            errors.append(f"{label}.summary: 空でない文字列が必要です。")
+        audit_nonempty_string_list(payload.get("evidence_refs"), f"{label}.evidence_refs", errors)
+        candidate_ids = audit_evidence_items(payload.get("finding_candidates"), f"{label}.finding_candidates", errors)
+        unknown_ids = audit_evidence_items(payload.get("important_unknowns"), f"{label}.important_unknowns", errors)
+        if candidate_ids.intersection(unknown_ids):
+            errors.append(f"{label}: finding candidate/important unknown IDが重複しています。")
         audit_helper_snapshot(payload.get("subject_snapshot"), f"{label}.subject_snapshot", errors)
 
 
@@ -1087,11 +1144,15 @@ def audit_inquisitor_reports(connection: sqlite3.Connection, errors: list[str]) 
         if row["status"] in {"recorded", "accepted"} and decision not in TRIAL_DECISIONS:
             errors.append(f"{label}.decision: 完了reportにはdecisionが必要です。")
         if row["status"] in {"recorded", "accepted"}:
+            if not isinstance(payload.get("summary"), str) or not payload.get("summary"):
+                errors.append(f"{label}.summary: 空でない文字列が必要です。")
+            audit_nonempty_string_list(payload.get("evidence_refs"), f"{label}.evidence_refs", errors)
             assignment_rows = connection.execute(
                 "SELECT assignment_id, status, payload_json FROM assignments WHERE worker_id = 'examiner' AND workflow_id = ?",
                 (row["workflow_id"],),
             ).fetchall()
             expected_report_ids: set[str] = set()
+            evidence_item_ids: set[str] = set()
             for assignment_row in assignment_rows:
                 assignment_payload = parse_json(assignment_row["payload_json"], f"assignments[{assignment_row['assignment_id']}].payload_json", errors)
                 if not isinstance(assignment_payload, dict) or assignment_payload.get("trial_id") != trial_id:
@@ -1122,6 +1183,23 @@ def audit_inquisitor_reports(connection: sqlite3.Connection, errors: list[str]) 
                         }
                     ):
                         errors.append(f"{label}: examiner report lineage/snapshotが不正です: {examiner_row['report_id']}")
+                    report_item_ids = audit_evidence_items(
+                        examiner_payload.get("finding_candidates"),
+                        f"reports[{examiner_row['report_id']}].finding_candidates",
+                        errors,
+                    )
+                    unknown_ids = audit_evidence_items(
+                        examiner_payload.get("important_unknowns"),
+                        f"reports[{examiner_row['report_id']}].important_unknowns",
+                        errors,
+                    )
+                    if report_item_ids.intersection(unknown_ids):
+                        errors.append(f"{label}: examiner report内のevidence item IDが重複しています: {examiner_row['report_id']}")
+                    report_item_ids.update(unknown_ids)
+                    duplicate_ids = evidence_item_ids.intersection(report_item_ids)
+                    if duplicate_ids:
+                        errors.append(f"{label}: Trial内のexaminer evidence item IDが重複しています: {sorted(duplicate_ids)[0]}")
+                    evidence_item_ids.update(report_item_ids)
                     matching_ids.append(examiner_row["report_id"])
                 if not matching_ids:
                     errors.append(f"{label}: 完了examiner reportがありません: {assignment_row['assignment_id']}")
@@ -1129,6 +1207,13 @@ def audit_inquisitor_reports(connection: sqlite3.Connection, errors: list[str]) 
             examiner_refs = payload.get("examiner_reports")
             if not isinstance(examiner_refs, list) or not all(isinstance(item, str) and item for item in examiner_refs) or len(examiner_refs) != len(set(examiner_refs)) or set(examiner_refs) != expected_report_ids:
                 errors.append(f"{label}.examiner_reports: 完了examiner reportの完全集合ではありません。")
+            audit_finding_dispositions(
+                payload.get("finding_dispositions"),
+                evidence_item_ids,
+                decision,
+                f"{label}.finding_dispositions",
+                errors,
+            )
         audit_helper_snapshot(payload.get("subject_snapshot"), f"{label}.subject_snapshot", errors)
 
 
@@ -1227,6 +1312,22 @@ def audit_assignment_parent_contract(connection: sqlite3.Connection, errors: lis
                                 errors.append(f"{label}: Trial subject assignmentのquest/workflowが一致しません: {subject_id}")
                     if trial_payload.get("subject_snapshot") != payload.get("subject_snapshot"):
                         errors.append(f"{label}: assignmentとTrialのsubject_snapshotが一致しません。")
+                    trial_boundaries = trial_payload.get("boundaries")
+                    child_boundaries = payload.get("boundaries")
+                    if not isinstance(trial_boundaries, dict) or not isinstance(child_boundaries, dict):
+                        errors.append(f"{label}: Trial/examiner boundariesが不正です。")
+                    else:
+                        if child_boundaries.get("target_repo_root") != trial_boundaries.get("target_repo_root"):
+                            errors.append(f"{label}: target_repo_rootが参照Trialと一致しません。")
+                        for key in ("read_deny", "edit_deny", "safety_items"):
+                            parent_items = trial_boundaries.get(key)
+                            child_items = child_boundaries.get(key)
+                            if not isinstance(parent_items, list) or not isinstance(child_items, list):
+                                errors.append(f"{label}: Trial/examiner boundaries.{key}はlistにしてください。")
+                            elif any(item not in child_items for item in parent_items):
+                                errors.append(f"{label}: 親Trialのboundaries.{key}を削除できません。")
+                    if payload.get("authority") != trial_payload.get("authority"):
+                        errors.append(f"{label}: authorityが親Trialのread-only authorityと一致しません。")
 
         if worker_id == "artificer":
             barrier = payload.get("integration_barrier")
