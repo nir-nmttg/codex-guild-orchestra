@@ -384,8 +384,19 @@ def validate_install_upgrade_smoke() -> None:
             "install.py の通常再installは利用者が選んだRoot high/xhigh/maxを保持してください。",
         )
 
+        xhigh_root_config = root_config_path.read_text(encoding="utf-8").replace(
+            'model_reasoning_effort = "max"', 'model_reasoning_effort = "xhigh"', 1
+        )
+        root_config_path.write_text(xhigh_root_config, encoding="utf-8")
+        xhigh_reinstalled = _run_install("--target", target, "--mode", "copy")
+        require(xhigh_reinstalled.returncode == 0, "install.py のRoot xhigh再install smokeが失敗しました: " + xhigh_reinstalled.stderr)
+        require(
+            'model_reasoning_effort = "xhigh"' in root_config_path.read_text(encoding="utf-8"),
+            "install.py の通常再installは利用者が選んだRoot xhighを保持してください。",
+        )
+
         invalid_root_config = root_config_path.read_text(encoding="utf-8").replace(
-            'model_reasoning_effort = "max"', 'model_reasoning_effort = "medium"', 1
+            'model_reasoning_effort = "xhigh"', 'model_reasoning_effort = "medium"', 1
         )
         root_config_path.write_text(invalid_root_config, encoding="utf-8")
         normalized = _run_install("--target", target, "--mode", "copy")

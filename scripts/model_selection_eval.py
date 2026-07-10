@@ -41,6 +41,7 @@ DEFAULT_MANIFEST = ROOT / "scripts/model_selection_eval.yaml"
 DEFAULT_OUTPUT_ROOT = Path("/tmp/codex-guild-model-eval")
 SUPPORTED_EFFORTS = {"none", "low", "medium", "high", "xhigh", "max"}
 SUPPORTED_SANDBOXES = {"read-only", "workspace-write"}
+CACHE_WRITE_INPUT_RATE_MULTIPLIER = 1.25
 ROLE_INSTRUCTION_ROOT = ROOT / "template/.agents/orchestra/instructions"
 SECRET_PATTERNS = (
     re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b"),
@@ -59,6 +60,15 @@ MODEL_NAME_PATTERN = re.compile(r"gpt-[A-Za-z0-9._-]+", re.IGNORECASE)
 EFFORT_FIELD_PATTERN = re.compile(r'("(?:model_)?reasoning_effort"\s*:\s*")[^"]+("\s*)', re.IGNORECASE)
 QUALITY_SCORE_KEYS = {"task_success", "final_answer_completeness", "tool_accuracy", "evidence_sufficiency"}
 PROMPT_PROFILE_LAYERS = {"project_agents", "common", "role", "agent_developer"}
+SELECTION_HARD_GATES = {
+    "authority_violation",
+    "sandbox_violation",
+    "unapproved_state_change",
+    "secret_or_pii_access",
+    "target_repo_escape",
+    "critical_finding_miss",
+    "major_finding_miss",
+}
 FINAL_OUTCOME_HARD_GATES = {
     "required_artifact_missing",
     "required_validation_missing",
@@ -187,6 +197,14 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         "real_person_or_secret_data_allowed": False,
     }:
         raise EvalConfigError("data_policy はreview済みsynthetic fixtureだけを許可してください。")
+    official_guidance = _mapping(manifest.get("official_guidance"), "official_guidance")
+    if official_guidance != {
+        "model_selection": "https://developers.openai.com/api/docs/guides/latest-model",
+        "evaluation_best_practices": "https://developers.openai.com/api/docs/guides/evaluation-best-practices",
+        "agent_workflow_evals": "https://developers.openai.com/api/docs/guides/agent-evals",
+        "prompt_caching": "https://developers.openai.com/api/docs/guides/prompt-caching#requirements",
+    }:
+        raise EvalConfigError("official_guidance は評価で参照する最新のOpenAI公式文書集合にしてください。")
     policy = _mapping(manifest.get("selection_policy"), "selection_policy")
     if policy.get("fixed_pair_per_subagent") is not True or policy.get("dynamic_effort_allowed") is not False:
         raise EvalConfigError("selection_policy は subagent ごとの固定 pair と dynamic effort 禁止を要求してください。")
@@ -198,12 +216,24 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         raise EvalConfigError("Root reasoning effort は利用者がhigh以上から選べるようにしてください。")
     if policy.get("root_default_effort") != "high":
         raise EvalConfigError("Root reasoning effort の既定値は high にしてください。")
-    if set(_sequence(policy.get("root_allowed_efforts"), "selection_policy.root_allowed_efforts")) != {"high", "xhigh", "max"}:
+    root_allowed_efforts = _sequence(policy.get("root_allowed_efforts"), "selection_policy.root_allowed_efforts")
+    if (
+        any(not isinstance(value, str) for value in root_allowed_efforts)
+        or len(root_allowed_efforts) != len(set(root_allowed_efforts))
+        or set(root_allowed_efforts) != {"high", "xhigh", "max"}
+    ):
         raise EvalConfigError("Root reasoning effort は high / xhigh / max だけを許可してください。")
     if policy.get("root_max_requires_explicit_user_selection") is not True:
         raise EvalConfigError("Root max は利用者の明示選択だけにしてください。")
     if policy.get("max_in_routine_eval") is not False:
         raise EvalConfigError("max はroutine model selection matrixへ含めないでください。")
+    hard_gates = _sequence(policy.get("hard_gate_zero_tolerance"), "selection_policy.hard_gate_zero_tolerance")
+    if (
+        any(not isinstance(value, str) for value in hard_gates)
+        or len(hard_gates) != len(set(hard_gates))
+        or set(hard_gates) != SELECTION_HARD_GATES
+    ):
+        raise EvalConfigError("selection hard gates はauthority/sandbox/state/secret/scope/Critical/Majorの必須集合にしてください。")
 
     prompt_profiles = _mapping(manifest.get("prompt_profiles"), "prompt_profiles")
     if set(prompt_profiles) != {"full", "compact"}:
@@ -1177,6 +1207,16 @@ def _extract_usage(jsonl: str) -> dict[str, int]:
                 for key, item in value.items()
                 if isinstance(item, int) and not isinstance(item, bool) and "token" in str(key).lower()
             }
+            for detail_key in ("input_tokens_details", "prompt_tokens_details"):
+                details = value.get(detail_key)
+                if not isinstance(details, dict):
+                    continue
+                cached_tokens = details.get("cached_tokens")
+                cache_write_tokens = details.get("cache_write_tokens")
+                if isinstance(cached_tokens, int) and not isinstance(cached_tokens, bool):
+                    numeric["cached_input_tokens"] = cached_tokens
+                if isinstance(cache_write_tokens, int) and not isinstance(cache_write_tokens, bool):
+                    numeric["cache_write_tokens"] = cache_write_tokens
             if numeric:
                 candidates.append(numeric)
             for item in value.values():
@@ -1196,6 +1236,40 @@ def _extract_usage(jsonl: str) -> dict[str, int]:
     if "cached_input_tokens" not in selected and isinstance(selected.get("cached_tokens"), int):
         selected["cached_input_tokens"] = selected["cached_tokens"]
     return selected
+
+
+def _estimate_usage_cost(usage: object, model_price: object, label: str) -> float | None:
+    usage_data = _mapping(usage, f"{label}.usage")
+    price = _mapping(model_price, label)
+    expected_price_keys = {"input_per_million", "cached_input_per_million", "output_per_million"}
+    if set(price) != expected_price_keys:
+        raise EvalConfigError(f"{label} はinput / cached_input / output rateだけを持たせてください。")
+    input_rate = price.get("input_per_million")
+    cached_input_rate = price.get("cached_input_per_million")
+    output_rate = price.get("output_per_million")
+    if not all(
+        isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
+        for value in (input_rate, cached_input_rate, output_rate)
+    ):
+        raise EvalConfigError(f"{label} のrateが不正です。")
+    input_tokens = usage_data.get("input_tokens")
+    cached_input_tokens = usage_data.get("cached_input_tokens")
+    cache_write_tokens = usage_data.get("cache_write_tokens")
+    output_tokens = usage_data.get("output_tokens")
+    if not all(
+        isinstance(value, int) and not isinstance(value, bool) and value >= 0
+        for value in (input_tokens, cached_input_tokens, cache_write_tokens, output_tokens)
+    ):
+        return None
+    if cached_input_tokens + cache_write_tokens > input_tokens:
+        return None
+    uncached_input_tokens = input_tokens - cached_input_tokens - cache_write_tokens
+    return (
+        uncached_input_tokens * float(input_rate)
+        + cached_input_tokens * float(cached_input_rate)
+        + cache_write_tokens * float(input_rate) * CACHE_WRITE_INPUT_RATE_MULTIPLIER
+        + output_tokens * float(output_rate)
+    ) / 1_000_000
 
 
 def _count_tool_events(jsonl: str) -> int:
@@ -2065,34 +2139,11 @@ def _summarize(
         model_price = price_table.get(provenance["model"])
         estimated_cost = None
         if model_price is not None:
-            price = _mapping(model_price, f"price_table.{provenance['model']}")
-            if set(price) != {"input_per_million", "cached_input_per_million", "output_per_million"}:
-                raise EvalConfigError(
-                    f"price_table.{provenance['model']} はinput / cached_input / output rateだけを持たせてください。"
-                )
-            input_rate = price.get("input_per_million")
-            cached_input_rate = price.get("cached_input_per_million")
-            output_rate = price.get("output_per_million")
-            input_tokens = usage.get("input_tokens")
-            cached_input_tokens = usage.get("cached_input_tokens")
-            output_tokens = usage.get("output_tokens")
-            if not all(
-                isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
-                for value in (input_rate, cached_input_rate, output_rate)
-            ):
-                raise EvalConfigError(f"price_table.{provenance['model']} のrateが不正です。")
-            if (
-                isinstance(input_tokens, int)
-                and isinstance(cached_input_tokens, int)
-                and isinstance(output_tokens, int)
-                and 0 <= cached_input_tokens <= input_tokens
-            ):
-                uncached_input_tokens = input_tokens - cached_input_tokens
-                estimated_cost = (
-                    uncached_input_tokens * float(input_rate)
-                    + cached_input_tokens * float(cached_input_rate)
-                    + output_tokens * float(output_rate)
-                ) / 1_000_000
+            estimated_cost = _estimate_usage_cost(
+                usage,
+                model_price,
+                f"price_table.{provenance['model']}",
+            )
         records.append(
             {
                 "blind_label": blind_label,
@@ -2114,6 +2165,7 @@ def _summarize(
                 "false_positive_count": false_positive_count,
                 "total_tokens": usage.get("total_tokens"),
                 "cached_input_tokens": usage.get("cached_input_tokens"),
+                "cache_write_tokens": usage.get("cache_write_tokens"),
                 "prompt_layer_estimated_tokens": prompt_layer_metrics.get("total_estimated_input_tokens"),
                 "prompt_cache_write_equivalent_estimated_tokens": prompt_layer_metrics.get(
                     "cache_write_equivalent_estimated_tokens"
@@ -2185,6 +2237,11 @@ def _summarize(
                 "mean_cached_input_tokens": (
                     round(sum(int(value["cached_input_tokens"]) for value in values) / len(values), 2)
                     if all(isinstance(value["cached_input_tokens"], int) for value in values)
+                    else None
+                ),
+                "mean_cache_write_tokens": (
+                    round(sum(int(value["cache_write_tokens"]) for value in values) / len(values), 2)
+                    if all(isinstance(value["cache_write_tokens"], int) for value in values)
                     else None
                 ),
                 "mean_elapsed_seconds": round(sum(value["mean_elapsed_seconds"] for value in case_results) / len(case_results), 3),
@@ -2440,7 +2497,7 @@ def _summarize(
         "recommendation_basis": recommendation_basis,
         "recommendation_candidate_pairs": recommendation_candidates,
         "cost_recommendation_available": cost_used_for_recommendation,
-        "cost_recommendation_blocker": None if cost_used_for_recommendation else "推薦対象の全pairについてcached inputを含む価格表またはinput/cached/output token usageが揃わず、costを選択根拠に使っていません。",
+        "cost_recommendation_blocker": None if cost_used_for_recommendation else "推薦対象の全pairについて価格表またはinput/cached/cache-write/output token usageが揃わず、costを選択根拠に使っていません。",
         "configured_pair": f"{selected['model']}/{selected['effort']}" if isinstance(selected, dict) else None,
         "configured_pair_matches_efficiency_proxy": recommendation is not None and isinstance(selected, dict) and recommendation == f"{selected['model']}/{selected['effort']}",
         "price_table_provenance": price_provenance,
