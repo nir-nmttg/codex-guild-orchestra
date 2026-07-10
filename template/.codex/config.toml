@@ -7,7 +7,7 @@ web_search = "cached"
 allow_login_shell = false
 
 [sandbox_workspace_write]
-network_access = false
+network_access = true
 
 [shell_environment_policy]
 inherit = "core"
