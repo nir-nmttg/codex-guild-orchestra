@@ -4,7 +4,7 @@ Codexはギルド規約rootで起動し、作業repoを `<guild_root>/repositori
 
 ## Configuration
 
-Rootは次の固定値です。
+RootはSol/highを既定値にします。
 
 ```toml
 model = "gpt-5.6-sol"
@@ -20,15 +20,17 @@ max_threads = 6
 max_depth = 1
 ```
 
+通常の再installでは、利用者が設定したRootの`high`、`xhigh`、`max`を保持します。許可外または未指定のeffortは既定`high`へ戻します。`max`は利用者が例外的に明示選択する場合だけ使い、installerやorchestrationは自動選択しません。clean installは既定`high`へ戻します。
+
 `workspace-write` agentの外部通信は有効です。外部通信を伴うコマンドも`approval_policy = "on-request"`と実行環境の承認境界に従います。
 
 全custom agentは`features.multi_agent=false`のterminal workerです。公式default相当のdepth/threadを使い、write-heavyな再帰委譲を防ぎます。
 
-## Fixed role pairs
+## Deployment role pairs
 
 | agent | model | sandbox | reasoning | responsibility |
 | --- | --- | --- | --- | --- |
-| Root | `gpt-5.6-sol` | `read-only` | `high` | intake、境界、直接assignment、最終統合 |
+| Root | `gpt-5.6-sol` | `read-only` | 既定`high`、許可`high/xhigh/max` | intake、境界、直接assignment、最終統合 |
 | `adventurer` | `gpt-5.6-sol` | `workspace-write` | `high` | 一つのbounded scopeの実装と検証 |
 | `artificer` | `gpt-5.6-sol` | `workspace-write` | `high` | 共有契約、cross-scope glue、統合検証 |
 | `sage` | `gpt-5.6-sol` | `read-only` | `high` | 具体的な独立focusの助言 |
@@ -40,9 +42,9 @@ max_depth = 1
 | `captain` | `gpt-5.6-sol` | `read-only` | `high` | scope、順序、integration、Trial設計 |
 | `warden` | `gpt-5.6-sol` | `read-only` | `high` | 例外的な制御診断 |
 
-5.6 roleは成果最大化を優先してSolへ統一します。Terra/Lunaはread-heavy、bounded、単一focus roleの比較候補として残しますが、role別live非劣性を確認するまでdeployment既定にはしません。Courierは5.3-Spark/xhighを維持します。
+現在の5.6 subagent deploymentは、live非劣性確認までSolを維持します。phase oneでは`adventurer`、`cartographer`、`examiner`、`warden`のTerra/highと、`sage`のLuna/highおよびTerra/highを同じhighで比較します。`artificer`と`captain`は今回の低コスト化対象外です。Courierは5.3-Spark/xhighを維持します。
 
-reasoning effortはroleごとに固定します。`guildmaster`のxhighを含め、隣接effort/modelは評価候補として比較しますが、実行中に動的変更しません。
+subagentのreasoning effortはroleごとに固定し、実行中に動的変更しません。`guildmaster`は現行xhighとhigh、`inquisitor`は現行highとxhighをblind比較してから固定値を判断します。maxはroutine evalと全subagentから除外します。Rootだけは利用者がhigh以上から選択できます。
 
 ## Guild role naming
 
@@ -134,7 +136,8 @@ python3 scripts/model_selection_eval.py plan
 
 validatorは次を確認します。
 
-- Root Sol/highと各roleの固定pair
+- Root Sol/high既定、high/xhigh/max override、maxの明示利用限定
+- GuildmasterとInquisitorのSol high/xhigh比較、およびsubagent max禁止
 - Courier Spark/xhighの維持
 - 全custom agentのterminal設定
 - `max_threads=6`、`max_depth=1`

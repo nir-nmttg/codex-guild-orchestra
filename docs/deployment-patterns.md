@@ -73,6 +73,8 @@ default `workspace-write` でも `.git/`、`.agents/`、`.codex/` は protected 
 `sync.sh` は Docker 内で `install.py --backup` を実行する薄い wrapper です。
 既存導入を残しながら更新したい時の補助です。通常はクリーンインストールを基準に考え、差分同期が必要な運用だけで使います。
 
+通常の差分同期では、導入先`.codex/config.toml`のRootが`gpt-5.6-sol`で、`model_reasoning_effort`が`high`、`xhigh`、`max`のいずれかなら、その利用者選択を保持します。許可外または未指定のeffortはテンプレート既定`high`へ戻します。`--clean-install`では既存overrideを保持せずhighへ戻します。
+
 既定以外の source template を直接指定する場合は、信頼済み検証用途に限り `--allow-non-default-source` を併用します。
 source tree に symlink、秘密情報らしい path、MCP などの外部 tool 連携 path が含まれる場合、installer は拒否します。
 

@@ -42,10 +42,16 @@ def validate_model_selection_eval() -> None:
 
     text = read("scripts/model_selection_eval.yaml")
     for token in (
-        "fixed_pair_per_role: true",
+        "fixed_pair_per_subagent: true",
         "dynamic_effort_allowed: false",
-        "one_level_lower_comparison_required: true",
-        "xhigh_requires_max_comparison: true",
+        "root_user_configurable_effort: true",
+        "root_allowed_efforts: [high, xhigh, max]",
+        "root_max_requires_explicit_user_selection: true",
+        "max_in_routine_eval: false",
+        "phase_one_reasoning_floor: high",
+        "model_tier_comparison_roles:",
+        "reasoning_comparison_roles:",
+        "fixed_pair_roles:",
         "migration_same_effort_comparison_required: true",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
@@ -53,8 +59,10 @@ def validate_model_selection_eval() -> None:
         "examiner",
         "gpt-5.3-codex-spark",
         "official_guidance",
+        "prompt_caching:",
         "contract_fixtures",
         "estimated_cost",
+        "cache_write_tokens",
         "external_data_ack_required: true",
         "approved_isolation_wrapper_sha256: []",
         "approved_isolation_profile_sha256: []",
@@ -66,6 +74,7 @@ def validate_model_selection_eval() -> None:
         "required_validation_missing",
         "snapshot_mismatch",
         "scope_or_authority_violation",
+        "major_finding_miss",
         "confirmatory_policy:",
     ):
         require(token in text, f"model selection eval manifest に `{token}` が必要です。")
@@ -93,6 +102,49 @@ def validate_model_selection_eval() -> None:
         require(token in runner, f"model selection runner に `{token}` が必要です。")
     build_prompt = runner[runner.index("def _build_prompt"):runner.index("def _redact")]
     require("required_evidence" not in build_prompt, "candidate prompt に grader required_evidence を渡さないでください。")
+
+    extracted_usage = module._extract_usage(
+        json.dumps(
+            {
+                "usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 10,
+                    "total_tokens": 110,
+                    "input_tokens_details": {
+                        "cached_tokens": 20,
+                        "cache_write_tokens": 40,
+                    },
+                }
+            }
+        )
+    )
+    require(
+        extracted_usage.get("cached_input_tokens") == 20
+        and extracted_usage.get("cache_write_tokens") == 40,
+        "nested usage detailからcache read/write tokensを取得してください。",
+    )
+    price = {
+        "input_per_million": 2.0,
+        "cached_input_per_million": 0.2,
+        "output_per_million": 10.0,
+    }
+    estimated_cost = module._estimate_usage_cost(extracted_usage, price, "validator.price")
+    require(
+        estimated_cost is not None and abs(estimated_cost - 0.000284) < 1e-12,
+        "GPT-5.6 cache writeをuncached input rateの1.25倍でcostへ反映してください。",
+    )
+    missing_cache_write_usage = dict(extracted_usage)
+    missing_cache_write_usage.pop("cache_write_tokens")
+    require(
+        module._estimate_usage_cost(missing_cache_write_usage, price, "validator.price") is None,
+        "cache write usageが欠ける場合はcost推薦をfail closedにしてください。",
+    )
+    invalid_cache_partition_usage = dict(extracted_usage)
+    invalid_cache_partition_usage["cache_write_tokens"] = 90
+    require(
+        module._estimate_usage_cost(invalid_cache_partition_usage, price, "validator.price") is None,
+        "cache read/writeがinput tokensを超えるusageをcost計算に使わないでください。",
+    )
 
     with tempfile.TemporaryDirectory() as tmp:
         session_dir = Path(tmp)
@@ -404,6 +456,89 @@ def validate_model_selection_eval() -> None:
             pass
         else:
             require(False, "PII-like fixture path/contentをmanifest validationで拒否してください。")
+
+        missing_major_gate_manifest = json.loads(json.dumps(manifest))
+        missing_major_gate_manifest["selection_policy"]["hard_gate_zero_tolerance"].remove("major_finding_miss")
+        try:
+            module.validate_manifest(missing_major_gate_manifest)
+        except module.EvalConfigError:
+            pass
+        else:
+            require(False, "major finding missを欠くselection hard gate集合を拒否してください。")
+
+        duplicate_hard_gate_manifest = json.loads(json.dumps(manifest))
+        duplicate_hard_gate_manifest["selection_policy"]["hard_gate_zero_tolerance"].append("major_finding_miss")
+        try:
+            module.validate_manifest(duplicate_hard_gate_manifest)
+        except module.EvalConfigError:
+            pass
+        else:
+            require(False, "重複したselection hard gate集合を拒否してください。")
+
+        invalid_hard_gate_type_manifest = json.loads(json.dumps(manifest))
+        invalid_hard_gate_type_manifest["selection_policy"]["hard_gate_zero_tolerance"].append({"invalid": True})
+        try:
+            module.validate_manifest(invalid_hard_gate_type_manifest)
+        except module.EvalConfigError:
+            pass
+        else:
+            require(False, "文字列以外を含むselection hard gate集合をEvalConfigErrorで拒否してください。")
+
+        duplicate_root_effort_manifest = json.loads(json.dumps(manifest))
+        duplicate_root_effort_manifest["selection_policy"]["root_allowed_efforts"].append("max")
+        try:
+            module.validate_manifest(duplicate_root_effort_manifest)
+        except module.EvalConfigError:
+            pass
+        else:
+            require(False, "重複したRoot allowed effort集合を拒否してください。")
+
+        invalid_root_effort_type_manifest = json.loads(json.dumps(manifest))
+        invalid_root_effort_type_manifest["selection_policy"]["root_allowed_efforts"].append({"invalid": True})
+        try:
+            module.validate_manifest(invalid_root_effort_type_manifest)
+        except module.EvalConfigError:
+            pass
+        else:
+            require(False, "文字列以外を含むRoot allowed effort集合をEvalConfigErrorで拒否してください。")
+
+        root_max_routine_manifest = json.loads(json.dumps(manifest))
+        root_max_routine_manifest["roles"]["root"]["candidates"].append(
+            {"model": "gpt-5.6-sol", "effort": "max"}
+        )
+        try:
+            module.validate_manifest(root_max_routine_manifest)
+        except module.EvalConfigError:
+            pass
+        else:
+            require(False, "Root maxをroutine eval matrixへ含めないでください。")
+
+        sage_medium_manifest = json.loads(json.dumps(manifest))
+        sage_medium_manifest["roles"]["sage"]["candidates"][0]["effort"] = "medium"
+        try:
+            module.validate_manifest(sage_medium_manifest)
+        except module.EvalConfigError:
+            pass
+        else:
+            require(False, "Sageのphase one候補をhigh未満へ下げないでください。")
+
+        premature_guildmaster_high_manifest = json.loads(json.dumps(manifest))
+        premature_guildmaster_high_manifest["roles"]["guildmaster"]["selected_pair"]["effort"] = "high"
+        try:
+            module.validate_manifest(premature_guildmaster_high_manifest)
+        except module.EvalConfigError:
+            pass
+        else:
+            require(False, "測定前にGuildmasterをhighへ固定しないでください。")
+
+        premature_inquisitor_xhigh_manifest = json.loads(json.dumps(manifest))
+        premature_inquisitor_xhigh_manifest["roles"]["inquisitor"]["selected_pair"]["effort"] = "xhigh"
+        try:
+            module.validate_manifest(premature_inquisitor_xhigh_manifest)
+        except module.EvalConfigError:
+            pass
+        else:
+            require(False, "測定前にInquisitorをxhighへ固定しないでください。")
 
         prepared_root = test_root / "prepared"
         guild_root, _ = module._prepare_guild(manifest["cases"]["bounded_focus_regression"], prepared_root)

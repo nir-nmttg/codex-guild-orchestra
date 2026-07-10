@@ -167,6 +167,7 @@ EXPECTED_AGENT_MODEL_CONFIGS = {
     'warden': ('gpt-5.6-sol', 'high'),
     'captain': ('gpt-5.6-sol', 'high'),
 }
+ROOT_ALLOWED_REASONING_EFFORTS = {'high', 'xhigh', 'max'}
 EXPECTED_ORCHESTRA_SKILL_DIRS = {
     'branch-implementation-final-review',
     'browser-research-readonly',
@@ -784,7 +785,43 @@ def iter_template_files(source_root: Path) -> Iterable[Path]:
             yield path
 
 
-def copy_template_files(source_root: Path, target_root: Path, reset_runtime: bool, dry_run: bool) -> None:
+def existing_root_reasoning_effort(target_root: Path) -> str | None:
+    config_path = target_root / '.codex' / 'config.toml'
+    validate_target_managed_path(config_path, target_root)
+    if not config_path.exists() or not config_path.is_file():
+        return None
+    try:
+        config = read_toml_document(config_path)
+    except SystemExit:
+        return None
+    effort = config.get('model_reasoning_effort')
+    if config.get('model') != 'gpt-5.6-sol' or effort not in ROOT_ALLOWED_REASONING_EFFORTS:
+        return None
+    return str(effort)
+
+
+def root_config_with_preserved_effort(source_config: Path, effort: str) -> str:
+    text = source_config.read_text(encoding='utf-8')
+    updated, replacements = re.subn(
+        r'(?m)^model_reasoning_effort\s*=\s*"[^"]+"\s*$',
+        f'model_reasoning_effort = "{effort}"',
+        text,
+        count=1,
+    )
+    if replacements != 1:
+        raise SystemExit('template/.codex/config.toml の model_reasoning_effort を更新できません。')
+    return updated
+
+
+def copy_template_files(
+    source_root: Path,
+    target_root: Path,
+    reset_runtime: bool,
+    dry_run: bool,
+    *,
+    preserve_root_reasoning_effort: bool,
+) -> None:
+    root_effort = existing_root_reasoning_effort(target_root) if preserve_root_reasoning_effort else None
     for src in iter_template_files(source_root):
         rel = src.relative_to(source_root)
         if rel.as_posix() == 'AGENTS.md':
@@ -793,6 +830,10 @@ def copy_template_files(source_root: Path, target_root: Path, reset_runtime: boo
         validate_target_write_path(dst, target_root)
         if dst.exists() and is_runtime_state_file(rel) and not reset_runtime:
             log(f'既存状態を保持 {dst}')
+            continue
+        if rel.as_posix() == '.codex/config.toml' and root_effort is not None:
+            log(f'既存Root reasoning effortを保持: {root_effort}')
+            write_text(dst, root_config_with_preserved_effort(src, root_effort), target_root, dry_run)
             continue
         copy_file(src, dst, target_root, dry_run)
 
@@ -1045,7 +1086,7 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
     }
     for key, expected in required_config_values.items():
         if config.get(key) != expected:
-            raise SystemExit(f'template/.codex/config.toml の {key} は {expected} にしてください。')
+            raise SystemExit(f'template/.codex/config.toml の既定 {key} は {expected} にしてください。')
     if 'model_context_window' in config:
         raise SystemExit('model_context_window は model catalog に追随させ、Root config で固定しないでください。')
     sandbox_workspace_write = config.get('sandbox_workspace_write')
@@ -1284,7 +1325,13 @@ def main() -> int:
         reset_runtime_state(target_root, args.dry_run)
 
     reset_runtime_state_requested = args.reset_runtime or args.clean_install
-    copy_template_files(source_root, target_root, reset_runtime_state_requested, args.dry_run)
+    copy_template_files(
+        source_root,
+        target_root,
+        reset_runtime_state_requested,
+        args.dry_run,
+        preserve_root_reasoning_effort=not args.clean_install,
+    )
     prune_removed_template_files(source_root, target_root, args.dry_run)
     update_agents_md(target_root, source_root, args.dry_run)
     initialize_sqlite_runtime(source_root, target_root, reset_runtime_state_requested, args.dry_run)
