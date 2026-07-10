@@ -25,13 +25,15 @@
 
 ## Delegation topology
 
-Rootがすべてのcustom agentを直接起動し、custom agentはterminalです。`max_depth=1`、`max_threads=6`を使います。
+Rootだけがtop-level custom agentを起動します。唯一のnested edgeとして、depth 1の`inquisitor`がrisk-triggeredな単一focusをdepth 2の`examiner`へ委譲できます。`max_depth=2`、`max_threads=12`を使い、その他のcustom agentと`examiner`はterminalです。
 
 - read-onlyの小さな確認はRootが続けます。小さなmutationは追加planning/reviewなしで、Rootが一つのbounded assignmentとして`adventurer`へ直接渡します。
 - read-heavyな独立調査、重ならないowned scope、独立した高リスクreviewを委譲します。
 - bounded実装は`adventurer`、cross-scope glueと共有契約は`artificer`が担当します。
 - `sage`は具体的な独立focusがある時だけ使い、未使用理由を要求しません。
 - `warden`は矛盾、反復失敗、scope drift、長時間停滞の例外時だけ使います。
+- nested assignmentのscopeとauthorityは親より狭められますが、helper-issued subject snapshotは親Trialと完全一致させます。`inquisitor`は`examiner`の完了を待ち、lineageとevidenceを検証して最終判断へ統合します。depth 2を超えるfan-outとwrite roleからのchild起動は禁止し、approvalはauthorityを付与しません。
+- 許可辺はpolicy-onlyです。queueはTrial/Quest/workflow/snapshot lineageを機械検証しますが、actual spawn caller identityは証明しません。examinerは任意で、1 Trialあたりpolicy capは3です。`max_threads`/`max_parallel`は総spawn、token、costのhard capではありません。
 
 ## Snapshot / handoff
 

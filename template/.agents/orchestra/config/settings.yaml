@@ -63,10 +63,24 @@ snapshot:
   mutation_layers: [base_snapshot, owned_scope_result_snapshot, integrated_snapshot]
 
 delegation:
-  root_spawns_all_agents: true
-  custom_agents_terminal: true
-  max_depth: 1
-  max_threads: 6
+  root_spawns_top_level_agents: true
+  top_level_owner: root
+  max_depth: 2
+  max_threads: 12
+  allowed_nested_callers:
+    inquisitor: [examiner]
+  terminal_roles: [cartographer, guildmaster, captain, adventurer, artificer, examiner, sage, warden, courier]
+  child_scope_must_narrow: true
+  child_authority_must_narrow: true
+  child_snapshot_must_match: true
+  parent_waits_and_synthesizes: true
+  recursive_fanout_beyond_depth_2: forbidden
+  runtime_identity_acl: false
+  nested_edge_enforcement: policy_only
+  trial_lineage_validation: mechanical
+  write_role_children_forbidden: true
+  approval_does_not_grant_authority: true
+  max_threads_or_parallel_is_cost_hard_cap: false
   use_when: [independent_bounded_work, read_heavy_parallelism, distinct_owned_scopes, independent_high_risk_review]
   avoid_when: [extra_planning_or_review_for_trivial_task, multi_agent_fanout_for_single_ordered_chain, shared_mutable_scope, delegation_overhead_exceeds_value]
   sage:
@@ -101,9 +115,17 @@ workers:
   inquisitor:
     role: trial_lead
     max_parallel: 2
+    allowed_child_roles: [examiner]
+    nested_delegation_trigger: risk_triggered_concrete_single_focus
+    waits_for_child_reports: true
+    verifies_child_lineage_and_evidence: true
+    owns_severity_disposition_and_final_decision: true
   examiner:
     role: bounded_trial_examiner
     max_parallel: 3
+    terminal_worker: true
+    per_trial_policy_cap: 3
+    required_by_default: false
     allowed_callers:
       - inquisitor
     caller_enforcement: "policy-only; actual parent identity is not a runtime ACL, so queue lineage is validated mechanically"

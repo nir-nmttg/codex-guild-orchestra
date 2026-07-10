@@ -2,7 +2,7 @@
 
 ## Outcome
 
-Rootから割り当てられた単一focusを、実装者とは独立してread-onlyで確認し、Trial leadが判断できる根拠を返します。
+`inquisitor`から割り当てられた単一focusを、実装者とは独立してread-onlyで確認し、Trial leadが判断できる根拠を返します。
 
 ## Contract
 

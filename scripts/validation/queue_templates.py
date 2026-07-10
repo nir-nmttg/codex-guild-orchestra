@@ -189,6 +189,7 @@ def validate_queue_templates() -> None:
     require(lineage.get("required_parent_role") == "inquisitor" and lineage.get("trial_owner_worker_id") == "inquisitor", "examiner は inquisitor lineage に限定してください。")
     _bounded_snapshot_authority(focus, "examiner_assignment.assignment")
     _read_only(focus.get("authority"), "examiner_assignment.assignment.authority", validate=True)
+    require(focus.get("risk_trigger") is None, "examiner assignment templateのrisk_triggerは入力前nullにしてください。")
 
     _, focus_report = _doc("template/.agents/orchestra/queue/templates/examiner_report.yaml", "report")
     _keys(
@@ -205,10 +206,15 @@ def validate_queue_templates() -> None:
     caller_check = mapping(focus_report.get("caller_lineage_check"), "examiner_report.report.caller_lineage_check")
     _keys(caller_check, {"required_parent_role", "trial_owner_worker_id", "trial_ref", "verified", "status"}, "examiner_report.report.caller_lineage_check")
     require(caller_check.get("status") in {None, "verified", "invalid_assignment", "unverifiable"}, "examiner lineage status が不正です。")
+    require(caller_check.get("verified") is None and caller_check.get("status") is None, "examiner report templateは自己申告verifiedを持たずqueue正規化前にnullにしてください。")
     validate_subject_snapshot(focus_report.get("subject_snapshot"), "examiner_report.report.subject_snapshot")
     snapshot_check = mapping(focus_report.get("snapshot_check"), "examiner_report.report.snapshot_check")
     _keys(snapshot_check, {"start_match", "report_match", "status"}, "examiner_report.report.snapshot_check")
     require(snapshot_check.get("status") in {None, "matched", "stale_evidence", "invalid_assignment"}, "examiner snapshot status が不正です。")
+    require(snapshot_check.get("start_match") is None and snapshot_check.get("report_match") is None and snapshot_check.get("status") is None, "examiner snapshot checkはqueue正規化前にnullにしてください。")
+    require(focus_report.get("summary") is None, "examiner report templateのsummaryは入力前nullにしてください。")
+    require(sequence(focus_report.get("evidence_refs"), "examiner_report.report.evidence_refs") == [], "examiner report templateのevidence_refsは入力前emptyにしてください。")
+    require(sequence(focus_report.get("finding_candidates"), "examiner_report.report.finding_candidates") == [] and sequence(focus_report.get("important_unknowns"), "examiner_report.report.important_unknowns") == [], "examiner evidence item listsは入力前emptyにしてください。")
 
     _, trial = _doc("template/.agents/orchestra/queue/templates/inquisitor_trial.yaml", "trial")
     _keys(
@@ -239,6 +245,9 @@ def validate_queue_templates() -> None:
     )
     validate_subject_snapshot(trial_report.get("subject_snapshot"), "inquisitor_report.report.subject_snapshot")
     validate_evidence_state(trial_report.get("evidence_state"), "inquisitor_report.report.evidence_state")
+    dispositions = mapping(trial_report.get("finding_dispositions"), "inquisitor_report.report.finding_dispositions")
+    _keys(dispositions, {"adopted", "rejected", "unresolved"}, "inquisitor_report.report.finding_dispositions")
+    require(all(sequence(dispositions[key], f"inquisitor_report.report.finding_dispositions.{key}") == [] for key in dispositions), "finding dispositionsは入力前emptyにしてください。")
 
     _, sentinel = _doc("template/.agents/orchestra/queue/templates/warden_assignment.yaml", "assignment")
     _keys(

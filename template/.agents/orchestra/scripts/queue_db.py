@@ -713,6 +713,45 @@ def require_nonempty_string_list(value: Any, label: str) -> list[str]:
     return value
 
 
+def require_evidence_items(value: Any, label: str) -> set[str]:
+    if not isinstance(value, list):
+        raise SystemExit(f"{label} はevidence item listにしてください。")
+    item_ids: set[str] = set()
+    for index, item in enumerate(value):
+        item_label = f"{label}[{index}]"
+        if not isinstance(item, dict) or set(item) != {"id", "summary"}:
+            raise SystemExit(f"{item_label} はid/summaryだけを持つobjectにしてください。")
+        item_id = require_string(item.get("id"), f"{item_label}.id")
+        require_string(item.get("summary"), f"{item_label}.summary")
+        if item_id in item_ids:
+            raise SystemExit(f"{label} のidは重複させないでください: {item_id}")
+        item_ids.add(item_id)
+    return item_ids
+
+
+def require_finding_dispositions(value: Any, expected_ids: set[str], label: str, decision: str) -> None:
+    dispositions = require_mapping(value, label)
+    if set(dispositions) != {"adopted", "rejected", "unresolved"}:
+        raise SystemExit(f"{label} はadopted/rejected/unresolvedのcanonical fieldsにしてください。")
+    seen: set[str] = set()
+    for key in ("adopted", "rejected", "unresolved"):
+        refs = dispositions.get(key)
+        if not isinstance(refs, list) or not all(isinstance(item, str) and item for item in refs):
+            raise SystemExit(f"{label}.{key} はevidence item ID listにしてください。")
+        if len(refs) != len(set(refs)):
+            raise SystemExit(f"{label}.{key} のIDは重複させないでください。")
+        overlap = seen.intersection(refs)
+        if overlap:
+            raise SystemExit(f"{label} のIDはexactly once処置してください: {sorted(overlap)[0]}")
+        seen.update(refs)
+    if seen != expected_ids:
+        missing = sorted(expected_ids - seen)
+        unknown = sorted(seen - expected_ids)
+        raise SystemExit(f"{label} は全candidate/unknown IDをexactly once処置してください: missing={missing}, unknown={unknown}")
+    if decision in {"accept", "accept_with_risks"} and dispositions["unresolved"]:
+        raise SystemExit(f"decision={decision} ではunresolved finding dispositionを残せません。")
+
+
 def require_relative_path_list(value: Any, label: str, *, nonempty: bool = False) -> list[str]:
     if not isinstance(value, list) or (nonempty and not value):
         qualifier = "non-empty " if nonempty else ""
@@ -865,6 +904,139 @@ def validate_inquisitor_report_contract(connection: sqlite3.Connection, payload:
         raise SystemExit("inquisitor report.decisionが不正です。")
     if payload.get("status") in {"recorded", "accepted"} and decision not in TRIAL_DECISIONS:
         raise SystemExit("完了inquisitor reportにはdecisionが必要です。")
+    if payload.get("status") in {"recorded", "accepted"}:
+        require_string(payload.get("summary"), "inquisitor report.summary")
+        require_nonempty_string_list(payload.get("evidence_refs"), "inquisitor report.evidence_refs")
+        assignment_rows = connection.execute(
+            "SELECT assignment_id, status, payload_json FROM assignments WHERE worker_id = 'examiner' AND workflow_id = ?",
+            (workflow_id,),
+        ).fetchall()
+        examiner_assignments: dict[str, dict[str, Any]] = {}
+        for row in assignment_rows:
+            assignment_payload = json.loads(row["payload_json"])
+            if assignment_payload.get("trial_id") == trial_id:
+                if row["status"] != "done":
+                    raise SystemExit(f"inquisitor final reportには完了examiner assignmentが必要です: {row['assignment_id']}")
+                examiner_assignments[row["assignment_id"]] = assignment_payload
+
+        completed_report_ids: set[str] = set()
+        evidence_item_ids: set[str] = set()
+        for assignment_id, assignment_payload in examiner_assignments.items():
+            report_rows = connection.execute(
+                "SELECT report_id, status, payload_json FROM reports WHERE worker_id = 'examiner' AND workflow_id = ?",
+                (workflow_id,),
+            ).fetchall()
+            matching_reports: list[str] = []
+            for report_row in report_rows:
+                report_payload = json.loads(report_row["payload_json"])
+                if report_payload.get("assignment_id") != assignment_id or report_row["status"] not in {"recorded", "accepted"}:
+                    continue
+                caller_check = report_payload.get("caller_lineage_check")
+                if (
+                    report_payload.get("trial_id") != trial_id
+                    or report_payload.get("quest_id") != payload.get("quest_id")
+                    or report_payload.get("subject_snapshot") != trial_payload.get("subject_snapshot")
+                    or caller_check != {
+                        "required_parent_role": "inquisitor",
+                        "trial_owner_worker_id": "inquisitor",
+                        "trial_ref": trial_id,
+                        "verified": True,
+                        "status": "verified",
+                    }
+                ):
+                    raise SystemExit(f"examiner reportのTrial lineage/snapshotが不正です: {report_row['report_id']}")
+                report_item_ids = require_evidence_items(
+                    report_payload.get("finding_candidates"),
+                    f"examiner report[{report_row['report_id']}].finding_candidates",
+                )
+                unknown_ids = require_evidence_items(
+                    report_payload.get("important_unknowns"),
+                    f"examiner report[{report_row['report_id']}].important_unknowns",
+                )
+                if report_item_ids.intersection(unknown_ids):
+                    raise SystemExit(f"examiner report内のevidence item IDは重複させないでください: {report_row['report_id']}")
+                report_item_ids.update(unknown_ids)
+                duplicate_ids = evidence_item_ids.intersection(report_item_ids)
+                if duplicate_ids:
+                    raise SystemExit(f"Trial内のexaminer evidence item IDは重複させないでください: {sorted(duplicate_ids)[0]}")
+                evidence_item_ids.update(report_item_ids)
+                matching_reports.append(report_row["report_id"])
+            if not matching_reports:
+                raise SystemExit(f"inquisitor final reportに対応する完了examiner reportがありません: {assignment_id}")
+            completed_report_ids.update(matching_reports)
+
+        examiner_report_refs = payload.get("examiner_reports")
+        if not isinstance(examiner_report_refs, list) or not all(isinstance(item, str) and item for item in examiner_report_refs):
+            raise SystemExit("inquisitor report.examiner_reportsはreport ID listにしてください。")
+        if len(examiner_report_refs) != len(set(examiner_report_refs)) or set(examiner_report_refs) != completed_report_ids:
+            raise SystemExit("inquisitor report.examiner_reportsは完了examiner reportの完全集合にしてください。")
+        require_finding_dispositions(
+            payload.get("finding_dispositions"),
+            evidence_item_ids,
+            "inquisitor report.finding_dispositions",
+            decision,
+        )
+    validate_helper_snapshot(payload.get("subject_snapshot"), "report.subject_snapshot", trial_payload)
+
+
+def validate_examiner_report_contract(connection: sqlite3.Connection, payload: dict[str, Any], event: dict[str, Any]) -> None:
+    if payload.get("worker_id") != "examiner":
+        return
+    assignment_id = require_string(payload.get("assignment_id"), "examiner report.assignment_id")
+    trial_id = require_string(payload.get("trial_id"), "examiner report.trial_id")
+    assignment = connection.execute(
+        "SELECT workflow_id, status, payload_json FROM assignments WHERE assignment_id = ? AND worker_id = 'examiner'",
+        (assignment_id,),
+    ).fetchone()
+    if assignment is None:
+        raise SystemExit(f"examiner reportが参照するassignmentがLedgerにありません: {assignment_id}")
+    assignment_payload = json.loads(assignment["payload_json"])
+    workflow_id = payload.get("workflow_id") or event.get("workflow_id")
+    lineage = assignment_payload.get("caller_lineage")
+    if (
+        assignment["workflow_id"] != workflow_id
+        or assignment["status"] != "done"
+        or assignment_payload.get("trial_id") != trial_id
+        or assignment_payload.get("quest_id") != payload.get("quest_id")
+        or assignment_payload.get("owner_worker_id") != "inquisitor"
+        or not isinstance(lineage, dict)
+        or lineage.get("verification") != "verified"
+    ):
+        raise SystemExit("examiner reportのassignment lineage/statusが不正です。")
+    trial = connection.execute(
+        "SELECT quest_id, workflow_id, payload_json FROM trials WHERE trial_id = ?",
+        (trial_id,),
+    ).fetchone()
+    if trial is None:
+        raise SystemExit(f"examiner reportが参照するTrialがLedgerにありません: {trial_id}")
+    trial_payload = json.loads(trial["payload_json"])
+    if (
+        trial["quest_id"] != payload.get("quest_id")
+        or trial["workflow_id"] != workflow_id
+        or trial_payload.get("worker_id") != "inquisitor"
+        or assignment_payload.get("subject_snapshot") != trial_payload.get("subject_snapshot")
+        or payload.get("subject_snapshot") != trial_payload.get("subject_snapshot")
+        or payload.get("focus") != assignment_payload.get("focus")
+        or payload.get("risk_trigger") != assignment_payload.get("risk_trigger")
+    ):
+        raise SystemExit("examiner reportのquest/workflow/Trial/snapshot/focus lineageが不正です。")
+    if payload.get("terminal_worker") is not True or payload.get("decision_authority") is not False or payload.get("severity_authority") is not False:
+        raise SystemExit("examiner reportはterminalかつnon-decision/non-severityにしてください。")
+    require_string(payload.get("summary"), "examiner report.summary")
+    require_nonempty_string_list(payload.get("evidence_refs"), "examiner report.evidence_refs")
+    candidate_ids = require_evidence_items(payload.get("finding_candidates"), "examiner report.finding_candidates")
+    unknown_ids = require_evidence_items(payload.get("important_unknowns"), "examiner report.important_unknowns")
+    if candidate_ids.intersection(unknown_ids):
+        raise SystemExit("examiner reportのfinding candidate/important unknown IDは重複させないでください。")
+    payload["owner_worker_id"] = "inquisitor"
+    payload["caller_lineage_check"] = {
+        "required_parent_role": "inquisitor",
+        "trial_owner_worker_id": "inquisitor",
+        "trial_ref": trial_id,
+        "verified": True,
+        "status": "verified",
+    }
+    payload["snapshot_check"] = {"start_match": True, "report_match": True, "status": "matched"}
     validate_helper_snapshot(payload.get("subject_snapshot"), "report.subject_snapshot", trial_payload)
 
 
@@ -960,6 +1132,8 @@ def validate_assignment_machine_contract(payload: dict[str, Any]) -> None:
     if worker_id in {"sage", "examiner"}:
         require_string(payload.get("focus"), "assignment.focus")
         require_nonempty_string_list(payload.get("evidence_required"), "assignment.evidence_required")
+        if worker_id == "examiner":
+            require_string(payload.get("risk_trigger"), "assignment.risk_trigger")
     elif worker_id in {"cartographer", "warden"}:
         require_nonempty_string_list(payload.get("evidence_required"), "assignment.evidence_required")
 
@@ -1026,6 +1200,20 @@ def validate_assignment_relations(connection: sqlite3.Connection, payload: dict[
             raise SystemExit("examinerが参照するTrialにはsubject_assignment_idsが必要です。")
         if trial_payload.get("subject_snapshot") != payload.get("subject_snapshot"):
             raise SystemExit("examiner assignmentと参照Trialのsubject_snapshotを一致させてください。")
+        trial_boundaries = require_mapping(trial_payload.get("boundaries"), "trial.boundaries")
+        child_boundaries = require_mapping(payload.get("boundaries"), "examiner assignment.boundaries")
+        if child_boundaries.get("target_repo_root") != trial_boundaries.get("target_repo_root"):
+            raise SystemExit("examiner assignmentのtarget_repo_rootは参照Trialと一致させてください。")
+        for key in ("read_deny", "edit_deny", "safety_items"):
+            parent_items = trial_boundaries.get(key)
+            child_items = child_boundaries.get(key)
+            if not isinstance(parent_items, list) or not isinstance(child_items, list):
+                raise SystemExit(f"Trial/examiner boundaries.{key}はlistにしてください。")
+            missing_items = [item for item in parent_items if item not in child_items]
+            if missing_items:
+                raise SystemExit(f"examiner assignmentは親Trialのboundaries.{key}を削除できません。")
+        if payload.get("authority") != trial_payload.get("authority"):
+            raise SystemExit("examiner assignmentのauthorityは親Trialのread-only authorityと一致させてください。")
         for subject_assignment_id in subject_assignment_ids:
             subject = connection.execute(
                 "SELECT workflow_id, payload_json FROM assignments WHERE assignment_id = ?",
@@ -1259,6 +1447,7 @@ def upsert_report(connection: sqlite3.Connection, event: dict[str, Any]) -> None
     workflow_id = payload.get("workflow_id") or event.get("workflow_id")
     payload["status"] = status
     payload["workflow_id"] = workflow_id
+    validate_examiner_report_contract(connection, payload, event)
     validate_inquisitor_report_contract(connection, payload, event)
     connection.execute(
         """

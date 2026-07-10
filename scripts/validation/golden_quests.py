@@ -115,6 +115,23 @@ def validate_golden_quests() -> None:
     # Independent review is risk-triggered, bounded, read-only and non-decision.
     risk_trial = _expected("focused_trial_risk_triggered_review.yaml")
     require(risk_trial.get("trial_depth") == "focused_trial" and risk_trial.get("worker_id") == "inquisitor", "risk-triggered Trial identity が不正です。")
+    topology = mapping(risk_trial.get("nested_topology"), "risk_trial.nested_topology")
+    require(
+        topology == {
+            "root_depth": 0,
+            "parent_role": "inquisitor",
+            "parent_depth": 1,
+            "child_role": "examiner",
+            "child_depth": 2,
+            "max_depth": 2,
+            "parent_waits_and_synthesizes": True,
+            "child_terminal": True,
+            "child_snapshot_same_helper_object": True,
+            "child_target_same_as_parent": True,
+            "child_preserves_parent_deny_and_safety": True,
+        },
+        "nested Trial topologyはRoot(depth0)→Inquisitor(depth1)→Examiner(depth2)に限定してください。",
+    )
     examiner_assignment = mapping(risk_trial.get("examiner_assignment"), "risk_trial.examiner_assignment")
     require(examiner_assignment == {"worker_id": "examiner", "risk_trigger": "security", "focus": "authorization_boundary", "read_only": True, "terminal_worker": True}, "reviewer assignment は concrete risk focus に限定してください。")
     require(set(sequence(risk_trial.get("handoff_core"), "risk_trial.handoff_core")) == {"objective", "success_criteria", "scope", "authority", "evidence_state", "snapshot", "risks"}, "Trial handoff core が不正です。")
@@ -127,7 +144,26 @@ def validate_golden_quests() -> None:
     require(reviewer.get("risk_trigger_required") is True and reviewer_input.get("risk_trigger") and reviewer.get("concrete_focus_required") is True and reviewer_input.get("focus"), "examiner は risk trigger と concrete focus が必要です。")
     for key in ("read_only_required", "owner_synthesis_required", "finding_disposition_required", "recursive_multi_agent_disabled"):
         require(reviewer.get(key) is True, f"reviewer.{key} は true にしてください。")
-    require(reviewer.get("caller_enforcement") == "queue_lineage", "examiner caller は queue lineage で検証してください。")
+    require(reviewer.get("caller_enforcement") == "policy_only", "examiner caller edgeはpolicy-onlyにしてください。")
+    require(reviewer.get("trial_lineage_validation") == "mechanical", "examiner Trial lineageは機械検証してください。")
+    require(reviewer.get("runtime_identity_acl") is False and reviewer.get("event_actor_is_identity_backed_caller") is False, "queue lineageやevent.actorをidentity-backed runtime ACLと表現しないでください。")
+    require(reviewer.get("child_snapshot_must_equal_parent_trial") is True, "examiner child snapshotは親Trialと完全一致させてください。")
+    for key in (
+        "child_target_must_equal_parent_trial",
+        "child_deny_and_safety_must_preserve_parent",
+        "child_authority_must_equal_parent_trial",
+        "examiner_summary_required",
+        "examiner_evidence_refs_required",
+        "evidence_item_id_unique_within_trial",
+        "final_summary_required",
+        "final_evidence_refs_required",
+        "final_disposition_exactly_once",
+        "accepted_decision_forbids_unresolved",
+    ):
+        require(reviewer.get(key) is True, f"reviewer.{key} は true にしてください。")
+    require(set(sequence(reviewer.get("evidence_item_schema"), "reviewer.evidence_item_schema")) == {"id", "summary"}, "examiner evidence item schemaはstable id/summaryにしてください。")
+    require(set(sequence(reviewer.get("report_binding_required"), "reviewer.report_binding_required")) == {"examiner_assignment", "inquisitor_trial", "quest", "workflow", "subject_snapshot"}, "examiner report bindingが不足しています。")
+    require(reviewer.get("caller_lineage_check_normalized_by_queue") is True and reviewer.get("final_report_requires_all_examiner_reports") is True, "examiner reportの機械lineage正規化とfinal completeness gateが必要です。")
     assignment_snapshot = mapping(reviewer_input.get("assignment_snapshot"), "reviewer.assignment_snapshot")
     require(assignment_snapshot == mapping(reviewer_input.get("matching_report_snapshot"), "reviewer.matching_snapshot"), "matching reviewer snapshot が不正です。")
     require(assignment_snapshot != mapping(reviewer_input.get("mismatched_report_snapshot"), "reviewer.mismatched_snapshot"), "mismatched reviewer snapshot を区別してください。")

@@ -1,14 +1,13 @@
 # Agent deployment
 
-Codexはギルド規約rootで起動し、作業repoを `<guild_root>/repositories/<repo>` に置きます。Rootは`target_repo_root`を固定し、custom agentを直接起動します。
+Codexはギルド規約rootで起動し、作業repoを `<guild_root>/repositories/<repo>` に置きます。Rootは`target_repo_root`を固定し、top-level custom agentを直接起動します。
 
 ## Configuration
 
-RootはSol/highを既定値にします。
+Root modelはSolに固定しますが、project-local reasoning effortは指定しません。起動時/UI/global configなどの利用者選択をそのまま使います。
 
 ```toml
 model = "gpt-5.6-sol"
-model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 approval_policy = "on-request"
 
@@ -16,21 +15,22 @@ approval_policy = "on-request"
 network_access = true
 
 [agents]
-max_threads = 6
-max_depth = 1
+max_threads = 12
+max_depth = 2
+job_max_runtime_seconds = 1800
 ```
 
-通常の再installでは、利用者が設定したRootの`high`、`xhigh`、`max`を保持します。許可外または未指定のeffortは既定`high`へ戻します。`max`は利用者が例外的に明示選択する場合だけ使い、installerやorchestrationは自動選択しません。clean installは既定`high`へ戻します。
+clean installと通常の再installはいずれもproject-local `model_reasoning_effort`を出力しません。導入先に旧指定があれば再install時に除去し、reasoning effortの選択はsession/global/user設定へ委ねます。installerやorchestrationはeffortを自動選択しません。
 
 `workspace-write` agentの外部通信は有効です。外部通信を伴うコマンドも`approval_policy = "on-request"`と実行環境の承認境界に従います。
 
-全custom agentは`features.multi_agent=false`のterminal workerです。公式default相当のdepth/threadを使い、write-heavyな再帰委譲を防ぎます。
+`inquisitor`だけが`features.multi_agent=true`で、risk-triggeredな単一focusを`examiner`へ委譲できます。その他のcustom agentは`features.multi_agent=false`のterminal workerです。`max_depth=2`と`max_threads=12`を設定し、policy上はRoot(depth 0)→Inquisitor(depth 1)→Examiner(depth 2)だけを許可します。これらやrole別`max_parallel`は同時実行の設定であり、総spawn数、token、costのhard capとは扱いません。
 
 ## Deployment role pairs
 
 | agent | model | sandbox | reasoning | responsibility |
 | --- | --- | --- | --- | --- |
-| Root | `gpt-5.6-sol` | `read-only` | 既定`high`、許可`high/xhigh/max` | intake、境界、直接assignment、最終統合 |
+| Root | `gpt-5.6-sol` | `read-only` | project-local未指定 | intake、境界、直接assignment、最終統合 |
 | `adventurer` | `gpt-5.6-sol` | `workspace-write` | `high` | 一つのbounded scopeの実装と検証 |
 | `artificer` | `gpt-5.6-sol` | `workspace-write` | `high` | 共有契約、cross-scope glue、統合検証 |
 | `sage` | `gpt-5.6-sol` | `read-only` | `high` | 具体的な独立focusの助言 |
@@ -44,7 +44,7 @@ max_depth = 1
 
 現在の5.6 subagent deploymentは、live非劣性確認までSolを維持します。phase oneでは`adventurer`、`cartographer`、`examiner`、`warden`のTerra/highと、`sage`のLuna/highおよびTerra/highを同じhighで比較します。`artificer`と`captain`は今回の低コスト化対象外です。Courierは5.3-Spark/xhighを維持します。
 
-subagentのreasoning effortはroleごとに固定し、実行中に動的変更しません。`guildmaster`は現行xhighとhigh、`inquisitor`は現行highとxhighをblind比較してから固定値を判断します。maxはroutine evalと全subagentから除外します。Rootだけは利用者がhigh以上から選択できます。
+subagentのreasoning effortはroleごとに固定し、実行中に動的変更しません。`guildmaster`は現行xhighとhigh、`inquisitor`は現行highとxhighをblind比較してから固定値を判断します。maxはroutine evalと全subagentから除外します。Rootの評価baselineはhighですが、runtime templateへはpinしません。
 
 ## Guild role naming
 
@@ -69,7 +69,8 @@ flowchart TB
   worker["adventurer\nbounded implementation"]
   integrate["artificer\nshared contract / glue / integration validation"]
   trial["inquisitor\nrisk-triggered Trial"]
-  focus["examiner / sage\nindependent read-only focus"]
+  examiner["examiner\nterminal read-only focus"]
+  sage["sage\nindependent read-only advice"]
   courier["courier\nLedger / explicit local Git"]
 
   root --> plan
@@ -79,13 +80,15 @@ flowchart TB
   root --> integrate
   integrate --> root
   root --> trial
-  trial -.-> focus
-  focus --> trial
+  trial --> examiner
+  examiner --> trial
+  root --> sage
+  sage --> root
   trial --> root
   root -.-> courier
 ```
 
-`captain`や`inquisitor`はagentを直接起動せず、必要なassignment案をRootへ返します。これにより`max_depth=1`を維持しつつauthorityとownershipを一か所で検証できます。
+Rootだけがtop-level agentを起動し、`captain`などはterminalです。唯一の例外として`inquisitor`が`examiner`を直接起動し、完了を待ってevidenceを検証・統合します。nested assignmentのscopeとauthorityは親より狭められますが、helper-issued subject snapshotは親Trialと完全一致させます。depth 2を超える再帰fan-outは禁止します。
 
 ## Integration
 
@@ -104,7 +107,7 @@ flowchart TB
 
 `sage`は具体的な独立focusがある時だけ使い、ownerがevidenceを確認します。`warden`は矛盾、反復失敗、scope drift、長時間停滞の例外時だけ使います。
 
-`examiner.allowed_callers=[inquisitor]`はpolicy-onlyでありruntime ACLではありません。terminal設定とqueue lineage validatorを併用し、確認不能ならfail closedにします。複数reviewerを使う時だけfocus分割を記録し、最終decisionは`inquisitor`が行います。
+`examiner.allowed_callers=[inquisitor]`はpolicy-onlyでありruntime ACLではありません。`event.actor`もidentity-backed caller証明ではありません。queueは実在TrialとのQuest/workflow/snapshot lineageを機械検証するだけで、actual spawn caller identityを証明しません。examinerはread-only terminal、inquisitorもread-onlyに固定し、write roleのchild起動は禁止します。approvalはassignment authorityを付与・拡張しません。examinerは必須ではなく、使う場合の1 Trialあたりpolicy capは3です。複数reviewerを使う時だけfocus分割を記録し、最終decisionは`inquisitor`が行います。
 
 ## Install
 
@@ -136,11 +139,11 @@ python3 scripts/model_selection_eval.py plan
 
 validatorは次を確認します。
 
-- Root Sol/high既定、high/xhigh/max override、maxの明示利用限定
+- Root modelはSol、reasoning effortはproject-local未指定（評価baselineのhighとは分離）
 - GuildmasterとInquisitorのSol high/xhigh比較、およびsubagent max禁止
 - Courier Spark/xhighの維持
-- 全custom agentのterminal設定
-- `max_threads=6`、`max_depth=1`
+- inquisitorだけのnested capabilityと、その他custom agentのterminal設定
+- `max_threads=12`、`max_depth=2`
 - compact promptの行数と旧制約の不在
 - target/secret/state-change/snapshot/lineageのfail-closed
 - prompt profile、role topology、model/effortを分離した評価契約

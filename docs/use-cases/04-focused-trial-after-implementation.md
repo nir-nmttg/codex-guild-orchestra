@@ -53,7 +53,7 @@ focus:
 3. `inquisitor` が固定済みの差分、関連コード、owner report、テスト観点を確認します。
 4. `intent_coverage` として推定意図、本質的な成果、non-goals、過剰実装回避を確認します。
 5. `evidence_state`と`validation_evidence`がownerからTrialへ足りるか確認します。
-6. 必要に応じて`inquisitor`が単一focusをRootへ提案し、Rootが`examiner`を直接起動します。`inquisitor`はreportsを根拠確認して統合し、使わない場合の定型説明は不要です。
+6. 必要に応じて`inquisitor`がscopeとauthorityを狭め、helper-issued snapshotを親Trialと完全一致させた単一focusでterminal `examiner`を起動し、完了を待ちます。`inquisitor`はlineageとreportsを根拠確認して統合し、使わない場合の定型説明は不要です。
 7. findings を Critical / Major / Minor などの重要度で整理します。
 8. 追加 Quest が必要か、完了扱いでよいかを判断します。Trial 中に source state が変わった場合は判断を破棄し、新しい snapshot で Trial をやり直します。
 

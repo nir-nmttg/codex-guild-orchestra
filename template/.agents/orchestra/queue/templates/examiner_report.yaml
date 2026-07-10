@@ -16,6 +16,7 @@ report:
   decision_authority: false
   severity_authority: false
   caller_lineage_check:
+    # 入力値は信用せず、queueが実在assignment/Trialとの照合後にverifiedへ正規化する。
     required_parent_role: inquisitor
     trial_owner_worker_id: inquisitor
     trial_ref: null
@@ -35,12 +36,16 @@ report:
     diff_hash: null
     dirty_state: null
   snapshot_check:
+    # assignmentと親Trialのhelper-issued snapshot完全一致をqueueが照合して上書きする。
     start_match: null
     report_match: null
     status: null # matched / stale_evidence / invalid_assignment
+  # no-findingsでもsummaryと1件以上のevidence_refsが必須。
   summary: null
+  # 各itemは {id: <Trial内で一意>, summary: <根拠付き要約>}。
   finding_candidates: []
   evidence_refs: []
+  # finding_candidatesと同じstable-ID schema。final Inquisitorが全IDを処置する。
   important_unknowns: []
   residual_risks: []
   status: draft

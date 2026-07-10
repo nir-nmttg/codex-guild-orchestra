@@ -91,8 +91,19 @@ def validate_settings() -> None:
     require(snapshot.get("explicit_untracked_only") is True and snapshot.get("stage_state_excluded_from_digest") is True, "snapshot safety contractが不足しています。")
 
     delegation = mapping(settings["delegation"], "settings.delegation")
-    require(delegation.get("root_spawns_all_agents") is True and delegation.get("custom_agents_terminal") is True, "Root直下のterminal delegationにしてください。")
-    require(delegation.get("max_depth") == 1 and delegation.get("max_threads") == 6, "公式default相当のmax_depth=1/max_threads=6にしてください。")
+    require(delegation.get("root_spawns_top_level_agents") is True and delegation.get("top_level_owner") == "root", "top-level agentの起動ownerをRootに限定してください。")
+    require(delegation.get("max_depth") == 2 and delegation.get("max_threads") == 12, "delegationはmax_depth=2/max_threads=12にしてください。")
+    nested = mapping(delegation.get("allowed_nested_callers"), "settings.delegation.allowed_nested_callers")
+    require(set(nested) == {"inquisitor"} and set(sequence(nested.get("inquisitor"), "settings.delegation.allowed_nested_callers.inquisitor")) == {"examiner"}, "nested delegationはinquisitor→examinerだけにしてください。")
+    terminal_roles = set(sequence(delegation.get("terminal_roles"), "settings.delegation.terminal_roles"))
+    require(terminal_roles == {"cartographer", "guildmaster", "captain", "adventurer", "artificer", "examiner", "sage", "warden", "courier"}, "inquisitor以外のcustom agentをterminalにしてください。")
+    for key in ("child_scope_must_narrow", "child_authority_must_narrow", "child_snapshot_must_match", "parent_waits_and_synthesizes"):
+        require(delegation.get(key) is True, f"delegation.{key} はtrueにしてください。")
+    require(delegation.get("recursive_fanout_beyond_depth_2") == "forbidden", "depth 2を超えるrecursive fan-outを禁止してください。")
+    require(delegation.get("runtime_identity_acl") is False, "queue lineageをidentity-backed runtime ACLと表現しないでください。")
+    require(delegation.get("nested_edge_enforcement") == "policy_only" and delegation.get("trial_lineage_validation") == "mechanical", "nested edge policyとTrial lineage機械検証を区別してください。")
+    require(delegation.get("write_role_children_forbidden") is True and delegation.get("approval_does_not_grant_authority") is True, "write role child禁止とapproval/authority分離が必要です。")
+    require(delegation.get("max_threads_or_parallel_is_cost_hard_cap") is False, "max_threads/max_parallelをcost hard capと表現しないでください。")
     avoid = set(sequence(delegation.get("avoid_when"), "settings.delegation.avoid_when"))
     require({"extra_planning_or_review_for_trivial_task", "multi_agent_fanout_for_single_ordered_chain", "shared_mutable_scope"} <= avoid, "過剰なplanning/review/fanoutの抑止条件が不足しています。")
     sage = mapping(delegation.get("sage"), "settings.delegation.sage")
@@ -108,8 +119,15 @@ def validate_settings() -> None:
         require(isinstance(max_parallel, int) and not isinstance(max_parallel, bool) and max_parallel >= 1, f"workers.{role}.max_parallel は1以上にしてください。")
     focus = mapping(workers["examiner"], "settings.workers.examiner")
     require(set(sequence(focus.get("allowed_callers"), "settings.workers.examiner.allowed_callers")) == {"inquisitor"}, "examiner callerをinquisitorに限定してください。")
+    require(focus.get("terminal_worker") is True, "examinerをterminal leafにしてください。")
+    require(focus.get("per_trial_policy_cap") == 3 and focus.get("required_by_default") is False, "examinerは任意かつ1 Trialあたりpolicy cap 3にしてください。")
     for key in ("implementation_authority", "decision_authority", "severity_authority", "synthesis_authority", "ledger_authority", "git_authority", "external_action_authority"):
         require(focus.get(key) is False, f"examiner.{key} はfalseにしてください。")
+    inquisitor = mapping(workers["inquisitor"], "settings.workers.inquisitor")
+    require(set(sequence(inquisitor.get("allowed_child_roles"), "settings.workers.inquisitor.allowed_child_roles")) == {"examiner"}, "inquisitor childをexaminerに限定してください。")
+    require(inquisitor.get("nested_delegation_trigger") == "risk_triggered_concrete_single_focus", "inquisitor nested delegation triggerが不正です。")
+    for key in ("waits_for_child_reports", "verifies_child_lineage_and_evidence", "owns_severity_disposition_and_final_decision"):
+        require(inquisitor.get(key) is True, f"inquisitor.{key} はtrueにしてください。")
 
     execution = mapping(settings["execution"], "settings.execution")
     require(execution.get("bounded_worker") == "adventurer" and execution.get("cross_scope_integration_worker") == "artificer", "bounded実装とcross-scope統合を分離してください。")

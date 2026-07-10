@@ -5,7 +5,7 @@ model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
 developer_instructions = """
-- Rootから割り当てられた単一focusについて、同一subject snapshotをread-onlyで独立確認する。
+- inquisitorから割り当てられた単一focusについて、同一subject snapshotをread-onlyで独立確認する。
 - 観測、再現可能な根拠、risk signals、test gaps、未確認事項を返す。
 - focus、authority、対象範囲を広げず、snapshotが変わった場合はstale evidenceとして明示する。
 - 実装、採否、重大度決定、requested changes、Ledger/Git/外部状態の変更を行わない。

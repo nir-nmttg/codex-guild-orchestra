@@ -12,12 +12,12 @@
   - `gpt-5.6-terra`: balanced everyday agentic coding model
   - `gpt-5.6-luna`: fast and affordable agentic coding model
   - `gpt-5.3-codex-spark`: ultra-fast coding model
-- 5.6 系は `low / medium / high / xhigh / max` を利用できます。このruntimeでは`max`をRootのまれな明示overrideだけに限定し、routine evalとsubagentでは使いません。
+- 5.6 系は `low / medium / high / xhigh / max` を利用できます。この評価ではRootのhighをbaselineとし、`max`はroutine evalとsubagentでは使いません。runtime templateはRoot effortをproject-localにpinしません。
 - `ultra` は自動委譲が明示 assignment と terminal worker 契約に干渉し得るため候補から除外しました。
 - `courier` はユーザー指定により `gpt-5.3-codex-spark / xhigh` を維持し、model 選定の対象外としました。
 
 公式の [GPT-5.6 model guidance](https://developers.openai.com/api/docs/guides/latest-model) と [Codex Subagents guidance](https://developers.openai.com/codex/subagents/) に従い、曖昧で多段の planning、tool use、validation、最終 decision を伴う role は高能力側、read-heavy で bounded な supporting work は Terra、高頻度で owner が再検証する狭い work は Luna を候補にしました。
-subagentはtask難度に応じてeffortを動的変更せず、認知負荷とdecision authorityが異なる場合はrole contractを分離して固定pairを与えます。RootはSol/highを既定とし、利用者だけがhigh/xhigh/maxから選択できます。
+subagentはtask難度に応じてeffortを動的変更せず、認知負荷とdecision authorityが異なる場合はrole contractを分離して固定pairを与えます。Rootの評価baselineはSol/highですが、runtime templateではmodelだけをSolに固定し、effortはsession/global/user choiceへ委ねます。
 価格や平均scoreだけで品質低下を相殺しないよう、選定対象の全roleでcaseごとの探索的t下限を非劣性判定に使います。5.5 regression controlは比較専用で、5.6 deployment推薦集合には含めません。
 
 ## 評価方法
@@ -28,7 +28,7 @@ subagentはtask難度に応じてeffortを動的変更せず、認知負荷とde
 2. `scripts/model_selection_eval.yaml` で role ごとの legacy regression control、5.6 same-effort、通常 / edge / safety fixture、required evidence、品質 / 効率指標を固定する。phase oneのmodel tier比較はhighへ固定し、Root、guildmaster、inquisitorのreasoning比較はSol high/xhighだけに限定する。各 case は deterministic golden fixture に対応付ける。promptは現AGENTSへcommon/role補助資料を重ねる`full` expanded controlと、実deploymentと同じAGENTS + agent developerだけを読む`compact`を独立したprofileとして固定する。role Markdownは補助資料でありcompact profileへ常時重ねない。
 3. `scripts/model_selection_eval.py` で各case / model / effort / repetitionを同じ`pairing_id`のまま`full` / `compact`の両方で反復比較する。candidateには grader labelやprofile名を見せず、grading artifactとmodel / profile provenanceを別directoryに分ける。runnerのseedはjob順序の再現用であり、model sampling seedとは主張しない。
 
-live runner は model / effort 差を分離するため `multi_agent=false` にし、単一 role component の出力とtool挙動を測ります。model / effort比較の正本はmanifestの`compact` profile内だけで行い、`full`は現行compact契約へ補助layerを重ねたsupplemental-layer ablationにだけ使います。削除前prompt stackのfrozen fixtureではないため、旧ルール削除の非劣化を証明するcontrolとは扱いません。prompt profile比較は同じmodel / effortのpaired recordだけで行います。実際のsubagent fan-out、caller chain、handoff、integrationはlive runnerが再現したと主張せず、queue schema、golden fixtures、installer mutation smokeで決定論的に検証します。end-to-end workflow evalもcomponent scoreと混ぜず別suiteにします。
+live runner は model / effort 差を分離するため `multi_agent=false` にし、単一 role component の出力とtool挙動を測ります。model / effort比較の正本はmanifestの`compact` profile内だけで行い、`full`は現行compact契約へ補助layerを重ねたsupplemental-layer ablationにだけ使います。削除前prompt stackのfrozen fixtureではないため、旧ルール削除の非劣化を証明するcontrolとは扱いません。prompt profile比較は同じmodel / effortのpaired recordだけで行います。実際のsubagent fan-out、caller identity、handoff、integrationはlive runnerが再現したと主張しません。queueはTrial lineageだけを機械検証し、許可辺とdepthはgolden fixtures、installer mutation smokeでpolicy検証します。end-to-end workflow evalもcomponent scoreと混ぜず別suiteにします。
 
 通常の `make validate` は外部 model を呼ばず、golden Quest と eval manifest の整合だけを検証します。
 live eval は明示実行に分け、出力、usage、elapsed time、worktree / staged / commit diff、commit log、grader worksheet を既定で `/tmp/codex-guild-model-eval` に保存します。
@@ -89,7 +89,7 @@ runnerはworkspace全体をcopyせず、対象roleの `AGENTS.md`、settings、c
 
 graderはexport済みpackageだけを見て、各 `grader.json` の `grader_id`、timezone付き `graded_at`、`blindness_attestation=true`、全rubricを埋めます。run単位ではCritical/Major finding missをzero toleranceにし、最終taskの成果を直接守る`required_artifact_missing`、`required_validation_missing`、`snapshot_mismatch`、`scope_or_authority_violation`、`critical_finding_miss`も全て判定します。summaryは同一`pairing_id`のprofile runsを一つの`final_task_outcomes`へ集約し、profile欠損またはいずれかのzero-tolerance違反があればfail closedにします。export manifestと各grader attestationはgrader入力bundleの同じSHA-256を持ち、summary時の入力bundleと一致しなければ集計を拒否します。summaryは入力と採点後artifactの両bundle SHA-256を記録します。session隣接の `provenance/` をgraderへ公開した場合、blindness attestationをtrueにしてはいけません。
 
-phase oneはmodelとeffortを同時に変更せず、bounded roleのSol/Terra/Lunaをすべてhighで比較します。公式の一般的なmigration指針は現行effortと一段下の比較ですが、今回はhigh未満で考慮漏れが増えるという利用者観測を品質制約として優先し、model tier比較をhighへ固定します。Rootはhigh/xhigh、`guildmaster`は現行xhighとhigh、`inquisitor`は現行highとxhighを比較します。maxはroutine matrixへ含めず、Rootが明示選択した場合の例外設定としてだけ扱います。Rootでmaxを継続採用する判断が必要になった場合は、その代表的な難問だけをxhighと別途比較します。旧Rootの5.5 effortは継承値だったため、比較controlをhighへ正規化した仮定をmanifestに記録します。
+phase oneはmodelとeffortを同時に変更せず、bounded roleのSol/Terra/Lunaをすべてhighで比較します。公式の一般的なmigration指針は現行effortと一段下の比較ですが、今回はhigh未満で考慮漏れが増えるという利用者観測を品質制約として優先し、model tier比較をhighへ固定します。Rootは評価上のhigh/xhigh、`guildmaster`は現行xhighとhigh、`inquisitor`は現行highとxhighを比較します。maxはroutine matrixへ含めません。旧Rootの5.5 effortは継承値だったため、比較controlをhighへ正規化した仮定をmanifestに記録します。これらはevaluation baseline/recommendationであり、runtimeのproject-local既定値ではありません。
 通常caseは3回、安全caseは5回を既定にし、一つの失敗で後続候補を打ち切りません。hard gate違反とCritical/Major見逃しは0件を要求します。pilotの探索的非劣性は全case平均で相殺せず、caseごとに判定します。全選定roleのnormal/safety caseで少数標本用t値によるlower boundを要求し、価格や別caseの平均で品質低下を相殺しません。prompt profile比較も同一taskのpaired quality差に対して全caseでlower boundを要求し、hard gateを維持して非劣性を満たした場合だけtoken近似の小さいprofileを推薦します。全caseを通った5.6 candidateだけtokens、elapsed time、計算可能ならcostを比較します。ただし少数標本、同じdataからのbest選択、多重比較を補正したconfirmatory designではないため、このlower boundをformalな95%保証とは呼びません。
 
 cross-model costはtoken数だけから推定しません。price tableの各modelは `input_per_million`、`cached_input_per_million`、`output_per_million` を持たせ、usage側にも `input_tokens`、`cached_input_tokens`、`cache_write_tokens`、`output_tokens` が揃った場合だけcost推薦を有効にします。GPT-5.6のcache writeは公式仕様どおりuncached input rateの1.25倍で計算し、`cached_input_tokens + cache_write_tokens <= input_tokens`を満たさないusageはcost計算に使いません。summaryの `recommendation_basis` は実際のnoninferior候補集合でcostを使ったかを記録し、cache read/write内訳がない集計はtokens / elapsedのefficiency proxyとして扱います。
@@ -106,7 +106,7 @@ prompt stackの削減量はlayerごとのSHA-256、UTF-8 bytes、文字数、比
 
 | role | 比較 | 観測結果 | 選定への反映 |
 | --- | --- | --- | --- |
-| Root | Sol `high` / `xhigh` | どちらも未確定 repository と deployment approval を停止できた。`high` は target を推測せず assignment も作らず、`xhigh` は両 repository の調査 assignment を追加した | 既定はSol/high。利用者がhigh/xhigh/maxから選ぶが、maxは例外利用だけ |
+| Root | Sol `high` / `xhigh` | どちらも未確定 repository と deployment approval を停止できた。`high` は target を推測せず assignment も作らず、`xhigh` は両 repository の調査 assignment を追加した | 評価baselineはSol/high。runtimeはSolのみ固定し、effortはproject-local未指定 |
 | cartographer | Terra `high` / Sol `high` | legacy例では必要な危険地帯を整理できたが、現runnerのlive非劣性は未確認 | 設計段階の omission が下流全体へ波及するため Sol / `high` |
 | captain | Terra `high` / Sol `high` | Terra は migration file の owner を落とした。Sol は全 file を2担当へ非重複で割り当て、sequencing と security / rollback Trial を維持した | assignment の波及を重視して Sol / `high` |
 | adventurer | Terra `high` / Sol `high` | synthetic例では両者が必要要素を提示したが、実運用のpaired non-inferiority evidenceはまだない | 成果物を直接変更する主要実装者なので、live非劣性確認までは Sol / `high` |
@@ -126,7 +126,7 @@ prompt stackの削減量はlayerごとのSHA-256、UTF-8 bytes、文字数、比
 最終 decision の責務と bounded evidence 収集の責務が異なるため、次の固定 role に分離します。
 
 - `inquisitor`: Sol / `high`。Trial 設計、reviewer count、report 根拠確認、重大度、finding disposition、requested changes、最終 decision を所有する。
-- `examiner`: 現行Sol/high。`inquisitor`が必要とした単一focusをRootから直接受け、read-only evidenceだけを返し、採否、重大度、synthesis、追加subagentを持たない。phase oneではTerra/highと比較する。
+- `examiner`: 現行Sol/high。`inquisitor`がrisk-triggeredに必要とした単一focusをdepth 2で受け、read-only evidenceだけを返し、採否、重大度、synthesis、追加subagentを持たない。phase oneではTerra/highと比較する。
 
 この分離の目的はmodelを下げることではなく、focus expansionとdecision authorityの混同を防ぐことです。live非劣性が確認できるまではreviewerもSolを維持します。
 
@@ -134,7 +134,7 @@ prompt stackの削減量はlayerごとのSHA-256、UTF-8 bytes、文字数、比
 
 | role | model | reasoning effort |
 | --- | --- | --- |
-| Root | `gpt-5.6-sol` | 既定`high`、利用者override`high/xhigh/max` |
+| Root | `gpt-5.6-sol` | 評価baseline `high`（runtimeはproject-local未指定） |
 | `adventurer` | `gpt-5.6-sol` | `high` |
 | `sage` | `gpt-5.6-sol` | `high` |
 | `cartographer` | `gpt-5.6-sol` | `high` |
@@ -160,5 +160,5 @@ Phase oneの比較候補は次に限定します。
 | `sage` | Sol `high` / Terra `high` / Luna `high` |
 | `artificer` / `captain` / `courier` | 今回の選定対象外。現行fixed pairだけを維持 |
 
-subagentはこのdeployment値を固定し、Quest難度による動的なreasoning effort切り替えを行いません。Rootのmaxはinstallerやorchestrationが自動選択せず、利用者の明示overrideだけを許可します。通常の再installは既存のhigh/xhigh/maxを保持し、clean installはhighへ戻します。
+subagentはこのdeployment値を固定し、Quest難度による動的なreasoning effort切り替えを行いません。Rootのhighは評価baselineとして維持しますが、installerやorchestrationはproject-local effortを出力しません。通常の再installとclean installはいずれもRoot effortを未指定にし、session/global/user choiceへ委ねます。
 model catalog、role contract、authority、並列数、ユースケース、または eval の失敗傾向が変わった場合は、golden Quest、candidate manifest、この固定マトリクスを同時に再評価します。
