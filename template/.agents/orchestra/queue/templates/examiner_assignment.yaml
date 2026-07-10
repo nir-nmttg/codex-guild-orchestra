@@ -16,7 +16,7 @@ assignment:
   decision_authority: false
   severity_authority: false
   objective: null
-  # queueはLedger上のTrialを検証した後、verificationを上書きする。
+  # queueはTrial/Quest/workflow/snapshot lineageを検証してverificationを上書きする。actual spawn caller identityのACLではない。
   caller_lineage:
     required_parent_role: inquisitor
     trial_owner_worker_id: inquisitor

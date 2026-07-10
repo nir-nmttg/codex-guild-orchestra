@@ -205,10 +205,12 @@ def validate_queue_templates() -> None:
     caller_check = mapping(focus_report.get("caller_lineage_check"), "examiner_report.report.caller_lineage_check")
     _keys(caller_check, {"required_parent_role", "trial_owner_worker_id", "trial_ref", "verified", "status"}, "examiner_report.report.caller_lineage_check")
     require(caller_check.get("status") in {None, "verified", "invalid_assignment", "unverifiable"}, "examiner lineage status が不正です。")
+    require(caller_check.get("verified") is None and caller_check.get("status") is None, "examiner report templateは自己申告verifiedを持たずqueue正規化前にnullにしてください。")
     validate_subject_snapshot(focus_report.get("subject_snapshot"), "examiner_report.report.subject_snapshot")
     snapshot_check = mapping(focus_report.get("snapshot_check"), "examiner_report.report.snapshot_check")
     _keys(snapshot_check, {"start_match", "report_match", "status"}, "examiner_report.report.snapshot_check")
     require(snapshot_check.get("status") in {None, "matched", "stale_evidence", "invalid_assignment"}, "examiner snapshot status が不正です。")
+    require(snapshot_check.get("start_match") is None and snapshot_check.get("report_match") is None and snapshot_check.get("status") is None, "examiner snapshot checkはqueue正規化前にnullにしてください。")
 
     _, trial = _doc("template/.agents/orchestra/queue/templates/inquisitor_trial.yaml", "trial")
     _keys(

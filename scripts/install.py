@@ -167,7 +167,6 @@ EXPECTED_AGENT_MODEL_CONFIGS = {
     'warden': ('gpt-5.6-sol', 'high'),
     'captain': ('gpt-5.6-sol', 'high'),
 }
-ROOT_ALLOWED_REASONING_EFFORTS = {'high', 'xhigh', 'max'}
 EXPECTED_ORCHESTRA_SKILL_DIRS = {
     'branch-implementation-final-review',
     'browser-research-readonly',
@@ -785,43 +784,12 @@ def iter_template_files(source_root: Path) -> Iterable[Path]:
             yield path
 
 
-def existing_root_reasoning_effort(target_root: Path) -> str | None:
-    config_path = target_root / '.codex' / 'config.toml'
-    validate_target_managed_path(config_path, target_root)
-    if not config_path.exists() or not config_path.is_file():
-        return None
-    try:
-        config = read_toml_document(config_path)
-    except SystemExit:
-        return None
-    effort = config.get('model_reasoning_effort')
-    if config.get('model') != 'gpt-5.6-sol' or effort not in ROOT_ALLOWED_REASONING_EFFORTS:
-        return None
-    return str(effort)
-
-
-def root_config_with_preserved_effort(source_config: Path, effort: str) -> str:
-    text = source_config.read_text(encoding='utf-8')
-    updated, replacements = re.subn(
-        r'(?m)^model_reasoning_effort\s*=\s*"[^"]+"\s*$',
-        f'model_reasoning_effort = "{effort}"',
-        text,
-        count=1,
-    )
-    if replacements != 1:
-        raise SystemExit('template/.codex/config.toml の model_reasoning_effort を更新できません。')
-    return updated
-
-
 def copy_template_files(
     source_root: Path,
     target_root: Path,
     reset_runtime: bool,
     dry_run: bool,
-    *,
-    preserve_root_reasoning_effort: bool,
 ) -> None:
-    root_effort = existing_root_reasoning_effort(target_root) if preserve_root_reasoning_effort else None
     for src in iter_template_files(source_root):
         rel = src.relative_to(source_root)
         if rel.as_posix() == 'AGENTS.md':
@@ -830,10 +798,6 @@ def copy_template_files(
         validate_target_write_path(dst, target_root)
         if dst.exists() and is_runtime_state_file(rel) and not reset_runtime:
             log(f'既存状態を保持 {dst}')
-            continue
-        if rel.as_posix() == '.codex/config.toml' and root_effort is not None:
-            log(f'既存Root reasoning effortを保持: {root_effort}')
-            write_text(dst, root_config_with_preserved_effort(src, root_effort), target_root, dry_run)
             continue
         copy_file(src, dst, target_root, dry_run)
 
@@ -1062,11 +1026,31 @@ def validate_examiner_worker_contract(source_root: Path) -> None:
             allowed_callers.add(block[index][2:].strip())
             index += 1
     caller_enforcement_valid = any(line.startswith('caller_enforcement:') and 'policy-only' in line and 'runtime ACL' in line for line in block)
-    global_terminal = any(line.strip() == 'custom_agents_terminal: true' for line in lines)
-    if missing or forbidden_true or allowed_callers != {'inquisitor'} or not caller_enforcement_valid or not global_terminal:
+    required_delegation_lines = {
+        'root_spawns_top_level_agents: true',
+        'top_level_owner: root',
+        'max_depth: 2',
+        'terminal_roles: [cartographer, guildmaster, captain, adventurer, artificer, examiner, sage, warden, courier]',
+        'child_scope_must_narrow: true',
+        'child_authority_must_narrow: true',
+        'child_snapshot_must_match: true',
+        'parent_waits_and_synthesizes: true',
+        'recursive_fanout_beyond_depth_2: forbidden',
+        'runtime_identity_acl: false',
+        'nested_edge_enforcement: policy_only',
+        'trial_lineage_validation: mechanical',
+        'write_role_children_forbidden: true',
+        'approval_does_not_grant_authority: true',
+        'max_threads_or_parallel_is_cost_hard_cap: false',
+        'inquisitor: [examiner]',
+        'per_trial_policy_cap: 3',
+        'required_by_default: false',
+    }
+    delegation_missing = sorted(required_delegation_lines - {line.strip() for line in lines})
+    if missing or forbidden_true or allowed_callers != {'inquisitor'} or not caller_enforcement_valid or delegation_missing:
         raise SystemExit(
-            'settings.yaml の global terminal / examiner caller / authority contract が不正です: '
-            + ', '.join(missing + forbidden_true or [f'global_terminal={global_terminal}, allowed_callers={sorted(allowed_callers)}, caller_enforcement={caller_enforcement_valid}'])
+            'settings.yaml の nested delegation / examiner caller / authority contract が不正です: '
+            + ', '.join(missing + forbidden_true + delegation_missing or [f'allowed_callers={sorted(allowed_callers)}, caller_enforcement={caller_enforcement_valid}'])
         )
 
 
@@ -1077,7 +1061,6 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
     config = read_toml_document(config_path)
     required_config_values = {
         'model': 'gpt-5.6-sol',
-        'model_reasoning_effort': 'high',
         'sandbox_mode': 'read-only',
         'approval_policy': 'on-request',
         'approvals_reviewer': 'auto_review',
@@ -1087,6 +1070,8 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
     for key, expected in required_config_values.items():
         if config.get(key) != expected:
             raise SystemExit(f'template/.codex/config.toml の既定 {key} は {expected} にしてください。')
+    if 'model_reasoning_effort' in config:
+        raise SystemExit('template/.codex/config.toml でRoot reasoning effortを固定しないでください。')
     if 'model_context_window' in config:
         raise SystemExit('model_context_window は model catalog に追随させ、Root config で固定しないでください。')
     sandbox_workspace_write = config.get('sandbox_workspace_write')
@@ -1100,8 +1085,10 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
     agents_config = config.get('agents')
     if not isinstance(agents_config, dict):
         raise SystemExit('template/.codex/config.toml の [agents] が必要です。')
-    if agents_config.get('max_depth') != 1 or agents_config.get('max_threads') != 12:
-        raise SystemExit('template/.codex/config.toml の agents は max_depth=1 / max_threads=12 にしてください。')
+    if agents_config.get('max_depth') != 2 or agents_config.get('max_threads') != 12:
+        raise SystemExit('template/.codex/config.toml の agents は max_depth=2 / max_threads=12 にしてください。')
+    if agents_config.get('job_max_runtime_seconds') != 1800:
+        raise SystemExit('template/.codex/config.toml の agents.job_max_runtime_seconds は 1800 にしてください。')
 
     agents_dir = source_root / '.codex' / 'agents'
     expected_agent_files = {f'{role}.toml' for role in EXPECTED_AGENT_SANDBOX_MODES}
@@ -1128,8 +1115,12 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
         if agent.get('model_reasoning_effort') != expected_effort:
             raise SystemExit(f'template/.codex/agents/{role}.toml の model_reasoning_effort は {expected_effort} にしてください。')
         features = agent.get('features')
-        if not isinstance(features, dict) or features.get('multi_agent') is not False:
-            raise SystemExit(f'template/.codex/agents/{role}.toml の features.multi_agent は false にしてください。')
+        expected_multi_agent = role == 'inquisitor'
+        if not isinstance(features, dict) or features.get('multi_agent') is not expected_multi_agent:
+            raise SystemExit(
+                f'template/.codex/agents/{role}.toml の features.multi_agent は '
+                f'{str(expected_multi_agent).lower()} にしてください。'
+            )
 
     sage_path = source_root / '.codex' / 'agents' / 'sage.toml'
     sage = read_toml_document(sage_path)
@@ -1169,6 +1160,22 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
         raise SystemExit(
             'template/.codex/agents/examiner.toml の developer_instructions に bounded reviewer 契約が不足しています: '
             + ', '.join(examiner_missing)
+        )
+
+    inquisitor_path = source_root / '.codex' / 'agents' / 'inquisitor.toml'
+    inquisitor = read_toml_document(inquisitor_path)
+    inquisitor_features = inquisitor.get('features')
+    if not isinstance(inquisitor_features, dict) or inquisitor_features.get('multi_agent') is not True:
+        raise SystemExit('template/.codex/agents/inquisitor.toml の features.multi_agent は true にしてください。')
+    inquisitor_instructions = inquisitor.get('developer_instructions')
+    if not isinstance(inquisitor_instructions, str):
+        raise SystemExit('template/.codex/agents/inquisitor.toml の developer_instructions が必要です。')
+    inquisitor_tokens = ('risk-triggered', '単一focus', 'examiner', '完全一致', '最大3', '完了を待ち', 'lineage', '重大度', '再帰fan-out', 'depth 2', 'runtime identity ACL')
+    inquisitor_missing = [token for token in inquisitor_tokens if token not in inquisitor_instructions]
+    if inquisitor_missing:
+        raise SystemExit(
+            'template/.codex/agents/inquisitor.toml の developer_instructions に nested review 契約が不足しています: '
+            + ', '.join(inquisitor_missing)
         )
 
     warden_path = source_root / '.codex' / 'agents' / 'warden.toml'
@@ -1330,7 +1337,6 @@ def main() -> int:
         target_root,
         reset_runtime_state_requested,
         args.dry_run,
-        preserve_root_reasoning_effort=not args.clean_install,
     )
     prune_removed_template_files(source_root, target_root, args.dry_run)
     update_agents_md(target_root, source_root, args.dry_run)

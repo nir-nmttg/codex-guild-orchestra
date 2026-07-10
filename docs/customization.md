@@ -7,7 +7,7 @@
 - fast pathとmaterial taskの分類
 - rankの説明
 - subagent roleごとのmodelと固定reasoning effort
-- Rootのreasoning effort（`high`、`xhigh`、`max`。既定は`high`、`max`は明示利用だけ）
+- Rootのreasoning effortは起動時/UI/global configなどで選択（runtime templateではproject-localに固定しない）
 - change-type別Trial check
 - evidence/outputの表現
 - worker並列数
@@ -31,10 +31,10 @@
 
 ## Role topology
 
-Rootだけがagentを起動し、custom agentはterminalです。bounded実装とcross-scope integrationを別roleにし、read-heavy作業の並列化を優先します。
+Rootだけがtop-level agentを起動します。nested delegationは`inquisitor`→terminal `examiner`の単一辺だけで、子のscopeとauthorityは親より狭くでき、helper-issued snapshotは親Trialと完全一致させます。親が完了を待って根拠を統合します。bounded実装とcross-scope integrationを別roleにし、read-heavy作業の並列化を優先します。
 
 role追加は、既存roleでは相反するauthority/model要件があり、代表taskの評価で品質改善が確認できる場合だけ行います。
 
 ## Validation
 
-`scripts/validate.py`はprompt行数、禁止された旧制約、role/model固定値、terminal設定、安全契約、queue/snapshot、final outcome hard gateを検証します。
+`scripts/validate.py`はprompt行数、禁止された旧制約、role/model固定値、nested capabilityとterminal leaf、安全契約、queue/snapshot、final outcome hard gateを検証します。

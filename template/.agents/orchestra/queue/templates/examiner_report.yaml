@@ -16,6 +16,7 @@ report:
   decision_authority: false
   severity_authority: false
   caller_lineage_check:
+    # 入力値は信用せず、queueが実在assignment/Trialとの照合後にverifiedへ正規化する。
     required_parent_role: inquisitor
     trial_owner_worker_id: inquisitor
     trial_ref: null
@@ -35,6 +36,7 @@ report:
     diff_hash: null
     dirty_state: null
   snapshot_check:
+    # assignmentと親Trialのhelper-issued snapshot完全一致をqueueが照合して上書きする。
     start_match: null
     report_match: null
     status: null # matched / stale_evidence / invalid_assignment

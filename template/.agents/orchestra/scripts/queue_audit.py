@@ -1004,6 +1004,60 @@ def audit_trial_contracts(connection: sqlite3.Connection, errors: list[str]) -> 
                 errors.append(f"{label}: subject report lineage/statusが不正です: {report_id}")
 
 
+def audit_examiner_reports(connection: sqlite3.Connection, errors: list[str]) -> None:
+    rows = connection.execute("SELECT report_id, workflow_id, status, payload_json FROM reports WHERE worker_id = 'examiner'").fetchall()
+    for row in rows:
+        label = f"reports[{row['report_id']}]"
+        payload = parse_json(row["payload_json"], f"{label}.payload_json", errors)
+        if not isinstance(payload, dict):
+            continue
+        assignment_id = payload.get("assignment_id")
+        trial_id = payload.get("trial_id")
+        assignment = connection.execute(
+            "SELECT workflow_id, status, payload_json FROM assignments WHERE assignment_id = ? AND worker_id = 'examiner'",
+            (assignment_id,),
+        ).fetchone()
+        if assignment is None:
+            errors.append(f"{label}: 参照examiner assignmentがありません: {assignment_id}")
+            continue
+        assignment_payload = parse_json(assignment["payload_json"], f"assignments[{assignment_id}].payload_json", errors)
+        trial = connection.execute("SELECT quest_id, workflow_id, payload_json FROM trials WHERE trial_id = ?", (trial_id,)).fetchone()
+        trial_payload = parse_json(trial["payload_json"], f"trials[{trial_id}].payload_json", errors) if trial else None
+        lineage = assignment_payload.get("caller_lineage") if isinstance(assignment_payload, dict) else None
+        expected_caller_check = {
+            "required_parent_role": "inquisitor",
+            "trial_owner_worker_id": "inquisitor",
+            "trial_ref": trial_id,
+            "verified": True,
+            "status": "verified",
+        }
+        if (
+            trial is None
+            or not isinstance(assignment_payload, dict)
+            or not isinstance(trial_payload, dict)
+            or assignment["workflow_id"] != row["workflow_id"]
+            or assignment["status"] != "done"
+            or assignment_payload.get("trial_id") != trial_id
+            or assignment_payload.get("quest_id") != payload.get("quest_id")
+            or assignment_payload.get("owner_worker_id") != "inquisitor"
+            or not isinstance(lineage, dict)
+            or lineage.get("verification") != "verified"
+            or trial["quest_id"] != payload.get("quest_id")
+            or trial["workflow_id"] != row["workflow_id"]
+            or trial_payload.get("worker_id") != "inquisitor"
+            or assignment_payload.get("subject_snapshot") != trial_payload.get("subject_snapshot")
+            or payload.get("subject_snapshot") != trial_payload.get("subject_snapshot")
+            or payload.get("focus") != assignment_payload.get("focus")
+            or payload.get("risk_trigger") != assignment_payload.get("risk_trigger")
+            or payload.get("caller_lineage_check") != expected_caller_check
+            or payload.get("snapshot_check") != {"start_match": True, "report_match": True, "status": "matched"}
+        ):
+            errors.append(f"{label}: assignment/Trial/quest/workflow/snapshot/verified lineageが不正です。")
+        if payload.get("terminal_worker") is not True or payload.get("decision_authority") is not False or payload.get("severity_authority") is not False:
+            errors.append(f"{label}: terminal/non-decision/non-severity contractが不正です。")
+        audit_helper_snapshot(payload.get("subject_snapshot"), f"{label}.subject_snapshot", errors)
+
+
 def audit_inquisitor_reports(connection: sqlite3.Connection, errors: list[str]) -> None:
     rows = connection.execute("SELECT report_id, workflow_id, status, payload_json FROM reports WHERE worker_id = 'inquisitor'").fetchall()
     for row in rows:
@@ -1032,6 +1086,49 @@ def audit_inquisitor_reports(connection: sqlite3.Connection, errors: list[str]) 
             errors.append(f"{label}.decision: 不正です。")
         if row["status"] in {"recorded", "accepted"} and decision not in TRIAL_DECISIONS:
             errors.append(f"{label}.decision: 完了reportにはdecisionが必要です。")
+        if row["status"] in {"recorded", "accepted"}:
+            assignment_rows = connection.execute(
+                "SELECT assignment_id, status, payload_json FROM assignments WHERE worker_id = 'examiner' AND workflow_id = ?",
+                (row["workflow_id"],),
+            ).fetchall()
+            expected_report_ids: set[str] = set()
+            for assignment_row in assignment_rows:
+                assignment_payload = parse_json(assignment_row["payload_json"], f"assignments[{assignment_row['assignment_id']}].payload_json", errors)
+                if not isinstance(assignment_payload, dict) or assignment_payload.get("trial_id") != trial_id:
+                    continue
+                if assignment_row["status"] != "done":
+                    errors.append(f"{label}: examiner assignmentが未完了です: {assignment_row['assignment_id']}")
+                examiner_rows = connection.execute(
+                    "SELECT report_id, status, payload_json FROM reports WHERE worker_id = 'examiner' AND workflow_id = ?",
+                    (row["workflow_id"],),
+                ).fetchall()
+                matching_ids: list[str] = []
+                for examiner_row in examiner_rows:
+                    examiner_payload = parse_json(examiner_row["payload_json"], f"reports[{examiner_row['report_id']}].payload_json", errors)
+                    if not isinstance(examiner_payload, dict) or examiner_payload.get("assignment_id") != assignment_row["assignment_id"] or examiner_row["status"] not in {"recorded", "accepted"}:
+                        continue
+                    caller_check = examiner_payload.get("caller_lineage_check")
+                    if (
+                        examiner_payload.get("trial_id") != trial_id
+                        or examiner_payload.get("quest_id") != payload.get("quest_id")
+                        or not isinstance(trial_payload, dict)
+                        or examiner_payload.get("subject_snapshot") != trial_payload.get("subject_snapshot")
+                        or caller_check != {
+                            "required_parent_role": "inquisitor",
+                            "trial_owner_worker_id": "inquisitor",
+                            "trial_ref": trial_id,
+                            "verified": True,
+                            "status": "verified",
+                        }
+                    ):
+                        errors.append(f"{label}: examiner report lineage/snapshotが不正です: {examiner_row['report_id']}")
+                    matching_ids.append(examiner_row["report_id"])
+                if not matching_ids:
+                    errors.append(f"{label}: 完了examiner reportがありません: {assignment_row['assignment_id']}")
+                expected_report_ids.update(matching_ids)
+            examiner_refs = payload.get("examiner_reports")
+            if not isinstance(examiner_refs, list) or not all(isinstance(item, str) and item for item in examiner_refs) or len(examiner_refs) != len(set(examiner_refs)) or set(examiner_refs) != expected_report_ids:
+                errors.append(f"{label}.examiner_reports: 完了examiner reportの完全集合ではありません。")
         audit_helper_snapshot(payload.get("subject_snapshot"), f"{label}.subject_snapshot", errors)
 
 
@@ -1265,6 +1362,7 @@ def main() -> int:
             audit_status_values(connection, errors)
             audit_materialized_columns(connection, errors)
             audit_trial_contracts(connection, errors)
+            audit_examiner_reports(connection, errors)
             audit_inquisitor_reports(connection, errors)
             audit_retired_agent_columns(connection, errors)
             audit_assignment_parent_contract(connection, errors)

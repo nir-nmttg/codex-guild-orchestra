@@ -865,6 +865,109 @@ def validate_inquisitor_report_contract(connection: sqlite3.Connection, payload:
         raise SystemExit("inquisitor report.decisionが不正です。")
     if payload.get("status") in {"recorded", "accepted"} and decision not in TRIAL_DECISIONS:
         raise SystemExit("完了inquisitor reportにはdecisionが必要です。")
+    if payload.get("status") in {"recorded", "accepted"}:
+        assignment_rows = connection.execute(
+            "SELECT assignment_id, status, payload_json FROM assignments WHERE worker_id = 'examiner' AND workflow_id = ?",
+            (workflow_id,),
+        ).fetchall()
+        examiner_assignments: dict[str, dict[str, Any]] = {}
+        for row in assignment_rows:
+            assignment_payload = json.loads(row["payload_json"])
+            if assignment_payload.get("trial_id") == trial_id:
+                if row["status"] != "done":
+                    raise SystemExit(f"inquisitor final reportには完了examiner assignmentが必要です: {row['assignment_id']}")
+                examiner_assignments[row["assignment_id"]] = assignment_payload
+
+        completed_report_ids: set[str] = set()
+        for assignment_id, assignment_payload in examiner_assignments.items():
+            report_rows = connection.execute(
+                "SELECT report_id, status, payload_json FROM reports WHERE worker_id = 'examiner' AND workflow_id = ?",
+                (workflow_id,),
+            ).fetchall()
+            matching_reports: list[str] = []
+            for report_row in report_rows:
+                report_payload = json.loads(report_row["payload_json"])
+                if report_payload.get("assignment_id") != assignment_id or report_row["status"] not in {"recorded", "accepted"}:
+                    continue
+                caller_check = report_payload.get("caller_lineage_check")
+                if (
+                    report_payload.get("trial_id") != trial_id
+                    or report_payload.get("quest_id") != payload.get("quest_id")
+                    or report_payload.get("subject_snapshot") != trial_payload.get("subject_snapshot")
+                    or caller_check != {
+                        "required_parent_role": "inquisitor",
+                        "trial_owner_worker_id": "inquisitor",
+                        "trial_ref": trial_id,
+                        "verified": True,
+                        "status": "verified",
+                    }
+                ):
+                    raise SystemExit(f"examiner reportのTrial lineage/snapshotが不正です: {report_row['report_id']}")
+                matching_reports.append(report_row["report_id"])
+            if not matching_reports:
+                raise SystemExit(f"inquisitor final reportに対応する完了examiner reportがありません: {assignment_id}")
+            completed_report_ids.update(matching_reports)
+
+        examiner_report_refs = payload.get("examiner_reports")
+        if not isinstance(examiner_report_refs, list) or not all(isinstance(item, str) and item for item in examiner_report_refs):
+            raise SystemExit("inquisitor report.examiner_reportsはreport ID listにしてください。")
+        if len(examiner_report_refs) != len(set(examiner_report_refs)) or set(examiner_report_refs) != completed_report_ids:
+            raise SystemExit("inquisitor report.examiner_reportsは完了examiner reportの完全集合にしてください。")
+    validate_helper_snapshot(payload.get("subject_snapshot"), "report.subject_snapshot", trial_payload)
+
+
+def validate_examiner_report_contract(connection: sqlite3.Connection, payload: dict[str, Any], event: dict[str, Any]) -> None:
+    if payload.get("worker_id") != "examiner":
+        return
+    assignment_id = require_string(payload.get("assignment_id"), "examiner report.assignment_id")
+    trial_id = require_string(payload.get("trial_id"), "examiner report.trial_id")
+    assignment = connection.execute(
+        "SELECT workflow_id, status, payload_json FROM assignments WHERE assignment_id = ? AND worker_id = 'examiner'",
+        (assignment_id,),
+    ).fetchone()
+    if assignment is None:
+        raise SystemExit(f"examiner reportが参照するassignmentがLedgerにありません: {assignment_id}")
+    assignment_payload = json.loads(assignment["payload_json"])
+    workflow_id = payload.get("workflow_id") or event.get("workflow_id")
+    lineage = assignment_payload.get("caller_lineage")
+    if (
+        assignment["workflow_id"] != workflow_id
+        or assignment["status"] != "done"
+        or assignment_payload.get("trial_id") != trial_id
+        or assignment_payload.get("quest_id") != payload.get("quest_id")
+        or assignment_payload.get("owner_worker_id") != "inquisitor"
+        or not isinstance(lineage, dict)
+        or lineage.get("verification") != "verified"
+    ):
+        raise SystemExit("examiner reportのassignment lineage/statusが不正です。")
+    trial = connection.execute(
+        "SELECT quest_id, workflow_id, payload_json FROM trials WHERE trial_id = ?",
+        (trial_id,),
+    ).fetchone()
+    if trial is None:
+        raise SystemExit(f"examiner reportが参照するTrialがLedgerにありません: {trial_id}")
+    trial_payload = json.loads(trial["payload_json"])
+    if (
+        trial["quest_id"] != payload.get("quest_id")
+        or trial["workflow_id"] != workflow_id
+        or trial_payload.get("worker_id") != "inquisitor"
+        or assignment_payload.get("subject_snapshot") != trial_payload.get("subject_snapshot")
+        or payload.get("subject_snapshot") != trial_payload.get("subject_snapshot")
+        or payload.get("focus") != assignment_payload.get("focus")
+        or payload.get("risk_trigger") != assignment_payload.get("risk_trigger")
+    ):
+        raise SystemExit("examiner reportのquest/workflow/Trial/snapshot/focus lineageが不正です。")
+    if payload.get("terminal_worker") is not True or payload.get("decision_authority") is not False or payload.get("severity_authority") is not False:
+        raise SystemExit("examiner reportはterminalかつnon-decision/non-severityにしてください。")
+    payload["owner_worker_id"] = "inquisitor"
+    payload["caller_lineage_check"] = {
+        "required_parent_role": "inquisitor",
+        "trial_owner_worker_id": "inquisitor",
+        "trial_ref": trial_id,
+        "verified": True,
+        "status": "verified",
+    }
+    payload["snapshot_check"] = {"start_match": True, "report_match": True, "status": "matched"}
     validate_helper_snapshot(payload.get("subject_snapshot"), "report.subject_snapshot", trial_payload)
 
 
@@ -1259,6 +1362,7 @@ def upsert_report(connection: sqlite3.Connection, event: dict[str, Any]) -> None
     workflow_id = payload.get("workflow_id") or event.get("workflow_id")
     payload["status"] = status
     payload["workflow_id"] = workflow_id
+    validate_examiner_report_contract(connection, payload, event)
     validate_inquisitor_report_contract(connection, payload, event)
     connection.execute(
         """

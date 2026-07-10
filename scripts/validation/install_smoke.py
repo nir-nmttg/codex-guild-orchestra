@@ -105,6 +105,9 @@ def _installed_text_paths(target: Path) -> list[Path]:
 def _assert_installed_surface(target: Path) -> None:
     require((target / "AGENTS.md").exists(), "install.py は AGENTS.md を生成してください。")
     require((target / ".codex/config.toml").exists(), "install.py は .codex/config.toml を導入してください。")
+    root_config = INSTALLER.read_toml_document(target / ".codex/config.toml")
+    require(root_config.get("model") == "gpt-5.6-sol", "install.py はRoot modelをSolにしてください。")
+    require("model_reasoning_effort" not in root_config, "install.py はRoot reasoning effortをproject-localに出力しないでください。")
     agent_dir = target / ".codex/agents"
     actual_agents = {path.name for path in agent_dir.glob("*.toml")}
     require(actual_agents == EXPECTED_AGENT_FILES, ".codex/agents の導入 file set が期待値と一致しません: " + ", ".join(sorted(actual_agents)))
@@ -372,39 +375,18 @@ def validate_install_upgrade_smoke() -> None:
         _assert_git_exclude_block_idempotent(target)
 
         root_config_path = target / ".codex/config.toml"
-        root_config = root_config_path.read_text(encoding="utf-8")
-        root_config_path.write_text(
-            root_config.replace('model_reasoning_effort = "high"', 'model_reasoning_effort = "max"', 1),
-            encoding="utf-8",
-        )
-        reinstalled = _run_install("--target", target, "--mode", "copy")
-        require(reinstalled.returncode == 0, "install.py の再 install smoke が失敗しました: " + reinstalled.stderr)
-        require(
-            'model_reasoning_effort = "max"' in root_config_path.read_text(encoding="utf-8"),
-            "install.py の通常再installは利用者が選んだRoot high/xhigh/maxを保持してください。",
-        )
-
-        xhigh_root_config = root_config_path.read_text(encoding="utf-8").replace(
-            'model_reasoning_effort = "max"', 'model_reasoning_effort = "xhigh"', 1
-        )
-        root_config_path.write_text(xhigh_root_config, encoding="utf-8")
-        xhigh_reinstalled = _run_install("--target", target, "--mode", "copy")
-        require(xhigh_reinstalled.returncode == 0, "install.py のRoot xhigh再install smokeが失敗しました: " + xhigh_reinstalled.stderr)
-        require(
-            'model_reasoning_effort = "xhigh"' in root_config_path.read_text(encoding="utf-8"),
-            "install.py の通常再installは利用者が選んだRoot xhighを保持してください。",
-        )
-
-        invalid_root_config = root_config_path.read_text(encoding="utf-8").replace(
-            'model_reasoning_effort = "xhigh"', 'model_reasoning_effort = "medium"', 1
-        )
-        root_config_path.write_text(invalid_root_config, encoding="utf-8")
-        normalized = _run_install("--target", target, "--mode", "copy")
-        require(normalized.returncode == 0, "install.py のRoot effort正規化smokeが失敗しました: " + normalized.stderr)
-        require(
-            'model_reasoning_effort = "high"' in root_config_path.read_text(encoding="utf-8"),
-            "install.py は許可外のRoot effortを既定highへ戻してください。",
-        )
+        for effort in ("high", "xhigh", "max", "medium"):
+            root_config = root_config_path.read_text(encoding="utf-8")
+            root_config_path.write_text(
+                root_config.replace('model = "gpt-5.6-sol"', f'model = "gpt-5.6-sol"\nmodel_reasoning_effort = "{effort}"', 1),
+                encoding="utf-8",
+            )
+            reinstalled = _run_install("--target", target, "--mode", "copy")
+            require(reinstalled.returncode == 0, f"install.py のRoot {effort}再install smokeが失敗しました: " + reinstalled.stderr)
+            require(
+                "model_reasoning_effort" not in INSTALLER.read_toml_document(root_config_path),
+                f"install.py の通常再installは既存Root {effort} effortをproject-local configから除去してください。",
+            )
         _assert_installed_surface(target)
         _assert_agents_block_idempotent(target)
         _assert_git_exclude_block_idempotent(target)
@@ -727,12 +709,51 @@ def validate_install_upgrade_smoke() -> None:
     missing_examiner = run_with_mutated_source("missing examiner.toml", lambda source: (source / ".codex/agents/examiner.toml").unlink())
     require("examiner.toml" in (missing_examiner.stdout + missing_examiner.stderr), "install.py の examiner 不足拒否 message は examiner.toml を示してください。")
 
+    def pin_root_reasoning_effort(source: Path) -> None:
+        path = source / ".codex/config.toml"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace('model = "gpt-5.6-sol"', 'model = "gpt-5.6-sol"\nmodel_reasoning_effort = "high"', 1),
+            encoding="utf-8",
+        )
+
+    pinned_root_effort = run_with_mutated_source("Root reasoning effort pinned", pin_root_reasoning_effort)
+    require("reasoning effort" in (pinned_root_effort.stdout + pinned_root_effort.stderr), "install.py preflightはRootのproject-local effort指定を拒否してください。")
+
     def enable_focus_recursive_agents(source: Path) -> None:
         path = source / ".codex/agents/examiner.toml"
         path.write_text(path.read_text(encoding="utf-8").replace("multi_agent = false", "multi_agent = true"), encoding="utf-8")
 
     recursive_focus = run_with_mutated_source("examiner multi-agent enabled", enable_focus_recursive_agents)
     require("multi_agent" in (recursive_focus.stdout + recursive_focus.stderr), "install.py は examiner の recursive multi-agent capability を拒否してください。")
+
+    def disable_inquisitor_nested_agents(source: Path) -> None:
+        path = source / ".codex/agents/inquisitor.toml"
+        path.write_text(path.read_text(encoding="utf-8").replace("multi_agent = true", "multi_agent = false"), encoding="utf-8")
+
+    missing_nested_capability = run_with_mutated_source("inquisitor multi-agent disabled", disable_inquisitor_nested_agents)
+    require("inquisitor" in (missing_nested_capability.stdout + missing_nested_capability.stderr) and "multi_agent" in (missing_nested_capability.stdout + missing_nested_capability.stderr), "install.py は inquisitor の nested capability 不足を拒否してください。")
+
+    def enable_unauthorized_nested_agents(source: Path) -> None:
+        path = source / ".codex/agents/adventurer.toml"
+        path.write_text(path.read_text(encoding="utf-8").replace("multi_agent = false", "multi_agent = true"), encoding="utf-8")
+
+    unauthorized_nested_capability = run_with_mutated_source("adventurer multi-agent enabled", enable_unauthorized_nested_agents)
+    require("adventurer" in (unauthorized_nested_capability.stdout + unauthorized_nested_capability.stderr) and "multi_agent" in (unauthorized_nested_capability.stdout + unauthorized_nested_capability.stderr), "install.py はinquisitor以外のnested capabilityを拒否してください。")
+
+    def set_max_depth(source: Path, depth: int) -> None:
+        path = source / ".codex/config.toml"
+        path.write_text(path.read_text(encoding="utf-8").replace("max_depth = 2", f"max_depth = {depth}"), encoding="utf-8")
+
+    for invalid_depth in (1, 3):
+        invalid_max_depth = run_with_mutated_source(f"max_depth {invalid_depth}", lambda source, depth=invalid_depth: set_max_depth(source, depth))
+        require("max_depth=2" in (invalid_max_depth.stdout + invalid_max_depth.stderr), f"install.py は max_depth={invalid_depth} を拒否してください。")
+
+    def shorten_job_runtime(source: Path) -> None:
+        path = source / ".codex/config.toml"
+        path.write_text(path.read_text(encoding="utf-8").replace("job_max_runtime_seconds = 1800", "job_max_runtime_seconds = 1200"), encoding="utf-8")
+
+    invalid_job_runtime = run_with_mutated_source("job runtime 1200", shorten_job_runtime)
+    require("job_max_runtime_seconds" in (invalid_job_runtime.stdout + invalid_job_runtime.stderr) and "1800" in (invalid_job_runtime.stdout + invalid_job_runtime.stderr), "install.py は1800秒以外のjob runtimeを拒否してください。")
 
     def enable_focus_decision_authority(source: Path) -> None:
         path = source / ".agents/orchestra/config/settings.yaml"

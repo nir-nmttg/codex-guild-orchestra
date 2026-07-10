@@ -43,6 +43,7 @@ report:
     manual_checks: []
     not_run: []
   sage_reports: []
+  # 完了時は、このTrialに属する全examiner assignmentの完了report ID完全集合。
   examiner_reports: []
   finding_dispositions:
     adopted: []

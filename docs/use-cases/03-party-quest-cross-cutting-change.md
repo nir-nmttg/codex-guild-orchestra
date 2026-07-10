@@ -54,7 +54,7 @@ snapshot:
 6. Root と `captain` が handoff を確認した後、並列編集を停止し、`artificer` だけが cross-scope glue、共有契約、統合検証を担当します。新しい実装が不要なら、その理由を残します。
 7. artificer の report 後に全 owned scope と glue を含む `working_tree_content` の integrated snapshot を固定し、以後 Trial 完了まで実装担当は編集しません。変更が生じた場合は barrier を開き直し、新しい integrated snapshot を作ります。
 8. `inquisitor` が stable snapshot に対して risk-based に `focused_trial` または `multi_focus_trial` を行います。
-9. `inquisitor`がrisk-triggeredに独立focusを選び、必要な場合だけRootへ`examiner` assignmentを提案します。Rootが直接起動し、複数reviewer時だけfocus分割を記録します。
+9. `inquisitor`がrisk-triggeredに独立focusを選び、必要な場合だけscopeとauthorityを狭め、helper-issued snapshotを親Trialと完全一致させたassignmentでterminal `examiner`を起動します。完了を待ってlineageとevidenceを検証し、複数reviewer時だけfocus分割を記録します。
 10. Findings は重大度と disposition を付けて統合され、accept 後に `courier` が snapshot、検証、残リスクを Ledger に記録します。
 
 ## 完了条件

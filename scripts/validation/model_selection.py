@@ -30,7 +30,8 @@ def validate_model_selection_eval() -> None:
     roles = mapping(manifest.get("roles"), "model_selection.roles")
     root_pair = mapping(mapping(roles.get("root"), "model_selection.roles.root").get("selected_pair"), "model_selection.roles.root.selected_pair")
     root_config = tomllib.loads(read("template/.codex/config.toml"))
-    require(root_pair == {"model": root_config.get("model"), "effort": root_config.get("model_reasoning_effort")}, "manifest Root selected_pair を actual config と一致させてください。")
+    require(root_pair.get("model") == root_config.get("model") and root_pair.get("effort") == "high", "manifest Root selected_pair はruntime pinではなくSol/high評価baselineにしてください。")
+    require("model_reasoning_effort" not in root_config, "Root runtime configでreasoning effortを固定しないでください。")
     for role, value in roles.items():
         role_data = mapping(value, f"model_selection.roles.{role}")
         if role == "root":

@@ -1,6 +1,4 @@
 model = "gpt-5.6-sol"
-# Rootの既定値。通常再installでは利用者が選んだhigh/xhigh/maxを保持し、maxは明示利用だけにする。
-model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 approval_policy = "on-request"
 approvals_reviewer = "auto_review"
@@ -23,9 +21,9 @@ exclude = [
 
 [agents]
 max_threads = 12
-# custom agentはterminalとし、Rootが委譲と結果統合を担当する。
-max_depth = 1
-job_max_runtime_seconds = 1200
+# Root(depth 0)→Inquisitor(depth 1)→Examiner(depth 2)だけを許可する。
+max_depth = 2
+job_max_runtime_seconds = 1800
 
 [features]
 codex_hooks = true

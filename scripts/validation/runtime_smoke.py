@@ -403,12 +403,28 @@ def validate_queue_db_smoke() -> None:
                 "authority": {"read": True, "edit": False, "validate": True, "local_git": False, "external_actions": False},
                 "boundaries": {"target_repo_root": str(target_repo), "read_deny": [], "edit_deny": [], "safety_items": []},
                 "subject_snapshot": revision_snapshot,
-                "status": "idle",
+                "status": "done",
             }},
             "event_safety": {"safety_items": [], "human_confirmation_required": []},
         }
         focus_assignment = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(focus_assignment_event))
         require(focus_assignment.returncode == 0, "queue_db.py は実在Trialと一致するfocus assignmentを受け付けてください: " + focus_assignment.stderr)
+
+        wrong_caller_event = json.loads(json.dumps(focus_assignment_event))
+        wrong_caller_event["event_id"] = "evt_assignment_focus_wrong_caller"
+        wrong_caller_event["entity"]["id"] = "assignment_focus_wrong_caller"
+        wrong_caller_event["payload"]["assignment"]["id"] = "assignment_focus_wrong_caller"
+        wrong_caller_event["payload"]["assignment"]["caller_lineage"]["required_parent_role"] = "root"
+        wrong_caller = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(wrong_caller_event))
+        require(wrong_caller.returncode != 0 and "caller_lineage" in wrong_caller.stderr, "queue_db.py はinquisitor以外のexaminer caller lineageを拒否してください。")
+
+        wrong_owner_event = json.loads(json.dumps(focus_assignment_event))
+        wrong_owner_event["event_id"] = "evt_assignment_focus_wrong_owner"
+        wrong_owner_event["entity"]["id"] = "assignment_focus_wrong_owner"
+        wrong_owner_event["payload"]["assignment"]["id"] = "assignment_focus_wrong_owner"
+        wrong_owner_event["payload"]["assignment"]["owner_worker_id"] = "root"
+        wrong_owner = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(wrong_owner_event))
+        require(wrong_owner.returncode != 0 and "owner_worker_id" in wrong_owner.stderr, "queue_db.py はinquisitor以外のexaminer ownerを拒否してください。")
 
         invalid_focus_event = json.loads(json.dumps(focus_assignment_event))
         invalid_focus_event["event_id"] = "evt_assignment_focus_fake_trial"
@@ -438,9 +454,77 @@ def validate_queue_db_smoke() -> None:
                 "decision": "accept",
                 "trial_depth": "focused_trial",
                 "subject_snapshot": revision_snapshot,
+                "examiner_reports": [],
             }},
             "event_safety": {"safety_items": [], "human_confirmation_required": []},
         }
+        incomplete_inquisitor_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(inquisitor_report_event))
+        require(incomplete_inquisitor_report.returncode != 0 and "完了examiner report" in incomplete_inquisitor_report.stderr, "queue_db.py はexaminer report欠落中のinquisitor finalを拒否してください。")
+
+        second_trial_event = json.loads(json.dumps(trial_event))
+        second_trial_event["event_id"] = "evt_trial_focus_second_smoke"
+        second_trial_event["entity"]["id"] = "trial_focus_second_smoke"
+        second_trial_event["payload"]["trial"]["id"] = "trial_focus_second_smoke"
+        second_trial_result = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(second_trial_event))
+        require(second_trial_result.returncode == 0, "queue_db.py second Trial fixtureの記録に失敗しました: " + second_trial_result.stderr)
+
+        examiner_report_event = {
+            "event_id": "evt_report_examiner_smoke",
+            "timestamp": "2026-01-02T03:04:04+00:00",
+            "actor": "validator",
+            "event_type": "report_recorded",
+            "entity": {"type": "report", "id": "report_examiner_smoke"},
+            "operation": "append",
+            "workflow_id": "workflow_smoke",
+            "structured_data_usage": {"structured_inputs": ["report", "assignment", "trial"], "decision_rationale": "examiner report lineage smoke", "evidence_refs": ["trial_focus_smoke"]},
+            "payload": {"report": {
+                "id": "report_examiner_smoke",
+                "quest_id": "quest_smoke",
+                "trial_id": "trial_focus_smoke",
+                "assignment_id": "assignment_focus_smoke",
+                "worker_id": "examiner",
+                "owner_worker_id": "inquisitor",
+                "terminal_worker": True,
+                "decision_authority": False,
+                "severity_authority": False,
+                "risk_trigger": None,
+                "focus": "authorization before write",
+                "subject_snapshot": revision_snapshot,
+                "caller_lineage_check": {"required_parent_role": "root", "trial_owner_worker_id": "root", "trial_ref": "self_claim", "verified": False, "status": "unverifiable"},
+                "snapshot_check": {"start_match": False, "report_match": False, "status": "stale_evidence"},
+                "status": "recorded",
+            }},
+            "event_safety": {"safety_items": [], "human_confirmation_required": []},
+        }
+
+        wrong_assignment_report_event = json.loads(json.dumps(examiner_report_event))
+        wrong_assignment_report_event["event_id"] = "evt_report_examiner_wrong_assignment"
+        wrong_assignment_report_event["entity"]["id"] = "report_examiner_wrong_assignment"
+        wrong_assignment_report_event["payload"]["report"]["id"] = "report_examiner_wrong_assignment"
+        wrong_assignment_report_event["payload"]["report"]["assignment_id"] = "assignment_missing"
+        wrong_assignment_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(wrong_assignment_report_event))
+        require(wrong_assignment_report.returncode != 0 and "assignment" in wrong_assignment_report.stderr, "queue_db.py はwrong examiner assignment reportを拒否してください。")
+
+        wrong_trial_report_event = json.loads(json.dumps(examiner_report_event))
+        wrong_trial_report_event["event_id"] = "evt_report_examiner_wrong_trial"
+        wrong_trial_report_event["entity"]["id"] = "report_examiner_wrong_trial"
+        wrong_trial_report_event["payload"]["report"]["id"] = "report_examiner_wrong_trial"
+        wrong_trial_report_event["payload"]["report"]["trial_id"] = "trial_focus_second_smoke"
+        wrong_trial_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(wrong_trial_report_event))
+        require(wrong_trial_report.returncode != 0 and "assignment lineage" in wrong_trial_report.stderr, "queue_db.py は別Trialのexaminer reportを拒否してください。")
+
+        stale_examiner_report_event = json.loads(json.dumps(examiner_report_event))
+        stale_examiner_report_event["event_id"] = "evt_report_examiner_stale_snapshot"
+        stale_examiner_report_event["entity"]["id"] = "report_examiner_stale_snapshot"
+        stale_examiner_report_event["payload"]["report"]["id"] = "report_examiner_stale_snapshot"
+        stale_examiner_report_event["payload"]["report"]["subject_snapshot"] = other_result_snapshot
+        stale_examiner_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(stale_examiner_report_event))
+        require(stale_examiner_report.returncode != 0 and "snapshot" in stale_examiner_report.stderr, "queue_db.py はstale examiner report snapshotを拒否してください。")
+
+        examiner_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(examiner_report_event))
+        require(examiner_report.returncode == 0, "queue_db.py はassignment/Trialへbindしたexaminer reportを受け付けてください: " + examiner_report.stderr)
+
+        inquisitor_report_event["payload"]["report"]["examiner_reports"] = ["report_examiner_smoke"]
         inquisitor_report = _run_python(script, "--runtime-root", runtime_root, "record-event", json.dumps(inquisitor_report_event))
         require(inquisitor_report.returncode == 0, "queue_db.py はTrialにbindしたinquisitor reportを受け付けてください: " + inquisitor_report.stderr)
 

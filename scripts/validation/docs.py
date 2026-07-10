@@ -123,7 +123,8 @@ def validate_agents() -> None:
         require(data["sandbox_mode"] == EXPECTED_AGENT_SANDBOX_MODES[role], f"{rel} のsandbox_modeが不正です。")
         require((data["model"], data["model_reasoning_effort"]) == EXPECTED_AGENT_MODEL_CONFIGS[role], f"{rel} のmodel/effortが不正です。")
         features = mapping(data.get("features"), f"{rel}.features")
-        require(features.get("multi_agent") is False, f"{rel} はterminal agentとしてmulti_agent=falseにしてください。")
+        expected_multi_agent = role == "inquisitor"
+        require(features.get("multi_agent") is expected_multi_agent, f"{rel} のmulti_agentはinquisitorだけtrueにしてください。")
         developer = str(data["developer_instructions"])
         require(len(developer.splitlines()) <= 18, f"{rel} のdeveloper_instructionsをrole固有の18行以内にしてください。")
         require("instructions/common.md" not in developer and "config/settings.yaml" not in developer, f"{rel} はcommon/settingsを常時再読込しないでください。")
@@ -131,16 +132,15 @@ def validate_agents() -> None:
             require(token not in developer, f"{rel} に旧制約 `{token}` が残っています。")
 
     config = tomllib.loads(read("template/.codex/config.toml"))
-    require(
-        config.get("model") == "gpt-5.6-sol" and config.get("model_reasoning_effort") == "high",
-        "Root templateの既定値はSol/highにしてください。利用者overrideはhigh/xhigh/maxだけを許可します。",
-    )
+    require(config.get("model") == "gpt-5.6-sol", "Root templateのmodelはSolにしてください。")
+    require("model_reasoning_effort" not in config, "Root templateでreasoning effortを固定しないでください。")
     require(config.get("sandbox_mode") == "read-only", "Root sandboxはread-onlyにしてください。")
     require(config.get("approval_policy") == "on-request" and config.get("approvals_reviewer") == "auto_review", "Root approval contractが不正です。")
     require(config.get("web_search") == "cached" and config.get("allow_login_shell") is False, "Root web/shell contractが不正です。")
     require(mapping(config.get("sandbox_workspace_write"), "config.sandbox_workspace_write").get("network_access") is True, "workspace-write networkは有効にしてください。")
     agents = mapping(config.get("agents"), "config.agents")
-    require(agents.get("max_threads") == 12 and agents.get("max_depth") == 1, "agent concurrencyはmax_threads=12/max_depth=1にしてください。")
+    require(agents.get("max_threads") == 12 and agents.get("max_depth") == 2, "agent concurrencyはmax_threads=12/max_depth=2にしてください。")
+    require(agents.get("job_max_runtime_seconds") == 1800, "agent job runtimeは1800秒にしてください。")
 
 
 def validate_docs_and_instructions() -> None:

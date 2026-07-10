@@ -31,13 +31,20 @@ expected:
   assignment_identity_required:
     worker_id: examiner
     owner_worker_id: inquisitor
-  caller_enforcement: queue_lineage
+  caller_enforcement: policy_only
+  trial_lineage_validation: mechanical
+  runtime_identity_acl: false
+  event_actor_is_identity_backed_caller: false
   queue_lineage_required:
     trial_ref: true
     trial_owner_worker_id: inquisitor
     unverifiable_status: invalid_assignment
   matching_snapshot_status: matched
   mismatched_snapshot_status: stale_evidence
+  child_snapshot_must_equal_parent_trial: true
+  report_binding_required: [examiner_assignment, inquisitor_trial, quest, workflow, subject_snapshot]
+  caller_lineage_check_normalized_by_queue: true
+  final_report_requires_all_examiner_reports: true
   recursive_multi_agent_disabled: true
   forbidden:
     missing_risk_trigger: true
@@ -48,3 +55,7 @@ expected:
     unverified_caller_lineage: true
     stale_evidence_reuse: true
     recursive_subagent: true
+    over_depth_assignment: true
+    wrong_assignment_report: true
+    wrong_trial_report: true
+    missing_completed_report: true

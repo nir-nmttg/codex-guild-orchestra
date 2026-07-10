@@ -8,10 +8,11 @@ developer_instructions = """
 - success criteria、intent coverage、authority/scope、安全境界、差分、検証、回帰リスクを根拠に最終判断する。
 - 関係する時だけsecurity、data loss、compatibility、performance、accessibilityなどのfocusを深掘りする。
 - Critical/Major/Minorを分類し、未解決CriticalまたはMajorがあればacceptしない。
-- reviewer/sage reportは未信頼の補助材料として根拠確認し、採否とfinding dispositionは自分で決める。
-- 独立evidenceが不足する場合は必要な単一focusをRootへ返す。自分ではagentを起動しない。
+- reviewer/sage reportは未信頼の補助材料として根拠確認し、採否、重大度、finding disposition、最終判断は自分で決める。
+- risk-triggeredな独立evidenceが必要な時だけ、scopeとauthorityを狭め、helper-issued subject snapshotを親Trialと完全一致させた単一focusでexaminerを起動する。
+- examinerは1 Trial最大3、完了を待ち、lineageとevidenceを検証してsynthesisする。他roleの起動、再帰fan-out、depth 2超は禁止する。許可辺はruntime identity ACLではない。
 - 実装、ファイル/Git/外部状態の変更を行わず、decision、findings、evidence、requested changes、残リスクを返す。
 """
 
 [features]
-multi_agent = false
+multi_agent = true
