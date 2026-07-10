@@ -370,8 +370,30 @@ def validate_install_upgrade_smoke() -> None:
         _assert_installed_surface(target)
         _assert_agents_block_idempotent(target)
         _assert_git_exclude_block_idempotent(target)
+
+        root_config_path = target / ".codex/config.toml"
+        root_config = root_config_path.read_text(encoding="utf-8")
+        root_config_path.write_text(
+            root_config.replace('model_reasoning_effort = "high"', 'model_reasoning_effort = "max"', 1),
+            encoding="utf-8",
+        )
         reinstalled = _run_install("--target", target, "--mode", "copy")
         require(reinstalled.returncode == 0, "install.py の再 install smoke が失敗しました: " + reinstalled.stderr)
+        require(
+            'model_reasoning_effort = "max"' in root_config_path.read_text(encoding="utf-8"),
+            "install.py の通常再installは利用者が選んだRoot high/xhigh/maxを保持してください。",
+        )
+
+        invalid_root_config = root_config_path.read_text(encoding="utf-8").replace(
+            'model_reasoning_effort = "max"', 'model_reasoning_effort = "medium"', 1
+        )
+        root_config_path.write_text(invalid_root_config, encoding="utf-8")
+        normalized = _run_install("--target", target, "--mode", "copy")
+        require(normalized.returncode == 0, "install.py のRoot effort正規化smokeが失敗しました: " + normalized.stderr)
+        require(
+            'model_reasoning_effort = "high"' in root_config_path.read_text(encoding="utf-8"),
+            "install.py は許可外のRoot effortを既定highへ戻してください。",
+        )
         _assert_installed_surface(target)
         _assert_agents_block_idempotent(target)
         _assert_git_exclude_block_idempotent(target)

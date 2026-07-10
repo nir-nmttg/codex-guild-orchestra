@@ -42,10 +42,16 @@ def validate_model_selection_eval() -> None:
 
     text = read("scripts/model_selection_eval.yaml")
     for token in (
-        "fixed_pair_per_role: true",
+        "fixed_pair_per_subagent: true",
         "dynamic_effort_allowed: false",
-        "one_level_lower_comparison_required: true",
-        "xhigh_requires_max_comparison: true",
+        "root_user_configurable_effort: true",
+        "root_allowed_efforts: [high, xhigh, max]",
+        "root_max_requires_explicit_user_selection: true",
+        "max_in_routine_eval: false",
+        "phase_one_reasoning_floor: high",
+        "model_tier_comparison_roles:",
+        "reasoning_comparison_roles:",
+        "fixed_pair_roles:",
         "migration_same_effort_comparison_required: true",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
@@ -66,6 +72,7 @@ def validate_model_selection_eval() -> None:
         "required_validation_missing",
         "snapshot_mismatch",
         "scope_or_authority_violation",
+        "major_finding_miss",
         "confirmatory_policy:",
     ):
         require(token in text, f"model selection eval manifest に `{token}` が必要です。")

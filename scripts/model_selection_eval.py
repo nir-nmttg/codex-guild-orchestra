@@ -55,7 +55,6 @@ SECRET_PATTERNS = (
     re.compile(r"(?<!\d)0\d{1,4}-\d{1,4}-\d{4}(?!\d)"),
     re.compile(r"(?<!\d)(?:\d[ -]?){15}\d(?!\d)"),
 )
-EFFORT_ORDER = ["none", "low", "medium", "high", "xhigh", "max"]
 MODEL_NAME_PATTERN = re.compile(r"gpt-[A-Za-z0-9._-]+", re.IGNORECASE)
 EFFORT_FIELD_PATTERN = re.compile(r'("(?:model_)?reasoning_effort"\s*:\s*")[^"]+("\s*)', re.IGNORECASE)
 QUALITY_SCORE_KEYS = {"task_success", "final_answer_completeness", "tool_accuracy", "evidence_sufficiency"}
@@ -189,14 +188,22 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
     }:
         raise EvalConfigError("data_policy はreview済みsynthetic fixtureだけを許可してください。")
     policy = _mapping(manifest.get("selection_policy"), "selection_policy")
-    if policy.get("fixed_pair_per_role") is not True or policy.get("dynamic_effort_allowed") is not False:
-        raise EvalConfigError("selection_policy は role ごとの固定 pair と dynamic effort 禁止を要求してください。")
-    if policy.get("one_level_lower_comparison_required") is not True:
-        raise EvalConfigError("one-level-lower comparison を必須にしてください。")
+    if policy.get("fixed_pair_per_subagent") is not True or policy.get("dynamic_effort_allowed") is not False:
+        raise EvalConfigError("selection_policy は subagent ごとの固定 pair と dynamic effort 禁止を要求してください。")
     if policy.get("migration_same_effort_comparison_required") is not True:
         raise EvalConfigError("migration same-effort comparison を必須にしてください。")
-    if policy.get("xhigh_requires_max_comparison") is not True:
-        raise EvalConfigError("xhigh role は max comparison を必須にしてください。")
+    if policy.get("phase_one_reasoning_floor") != "high":
+        raise EvalConfigError("phase one は high 未満のreasoning effortを候補にしないでください。")
+    if policy.get("root_user_configurable_effort") is not True:
+        raise EvalConfigError("Root reasoning effort は利用者がhigh以上から選べるようにしてください。")
+    if policy.get("root_default_effort") != "high":
+        raise EvalConfigError("Root reasoning effort の既定値は high にしてください。")
+    if set(_sequence(policy.get("root_allowed_efforts"), "selection_policy.root_allowed_efforts")) != {"high", "xhigh", "max"}:
+        raise EvalConfigError("Root reasoning effort は high / xhigh / max だけを許可してください。")
+    if policy.get("root_max_requires_explicit_user_selection") is not True:
+        raise EvalConfigError("Root max は利用者の明示選択だけにしてください。")
+    if policy.get("max_in_routine_eval") is not False:
+        raise EvalConfigError("max はroutine model selection matrixへ含めないでください。")
 
     prompt_profiles = _mapping(manifest.get("prompt_profiles"), "prompt_profiles")
     if set(prompt_profiles) != {"full", "compact"}:
@@ -307,11 +314,25 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
     if set(roles) != required_roles:
         raise EvalConfigError("roles が固定 pair の全 role と一致しません。")
 
+    model_tier_roles = set(_sequence(policy.get("model_tier_comparison_roles"), "selection_policy.model_tier_comparison_roles"))
+    reasoning_roles = set(_sequence(policy.get("reasoning_comparison_roles"), "selection_policy.reasoning_comparison_roles"))
+    fixed_pair_roles = set(_sequence(policy.get("fixed_pair_roles"), "selection_policy.fixed_pair_roles"))
+    if model_tier_roles != {"adventurer", "sage", "cartographer", "examiner", "warden"}:
+        raise EvalConfigError("model tier comparison roles が合意済みのbounded role集合と一致しません。")
+    if reasoning_roles != {"root", "guildmaster", "inquisitor"}:
+        raise EvalConfigError("reasoning comparison roles は Root / guildmaster / inquisitor に限定してください。")
+    if fixed_pair_roles != {"artificer", "captain", "courier"}:
+        raise EvalConfigError("fixed pair roles は artificer / captain / courier にしてください。")
+    if model_tier_roles | reasoning_roles | fixed_pair_roles != required_roles:
+        raise EvalConfigError("selection policy のrole groupsは全roleを重複なく覆ってください。")
+    if (model_tier_roles & reasoning_roles) or (model_tier_roles & fixed_pair_roles) or (reasoning_roles & fixed_pair_roles):
+        raise EvalConfigError("selection policy のrole groupsを重複させないでください。")
+
     for role, raw_role in roles.items():
         role_data = _mapping(raw_role, f"roles.{role}")
         allowed_role_keys = {"sandbox", "cases", "selected_pair", "candidates", "regression_control", "regression_control_basis"}
         if role_data.get("selection_excluded") is True:
-            allowed_role_keys = {"sandbox", "cases", "selection_excluded", "fixed_pair"}
+            allowed_role_keys = {"sandbox", "cases", "selection_excluded", "fixed_pair", "exclusion_reason"}
         unknown_role_keys = set(role_data) - allowed_role_keys
         if unknown_role_keys:
             raise EvalConfigError(f"roles.{role} に未知fieldがあります: {sorted(unknown_role_keys)}")
@@ -328,9 +349,21 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
                 raise EvalConfigError(f"cases.{case_id}.role は {role} にしてください。")
         if role_data.get("selection_excluded") is True:
             fixed = _validate_pair(role_data.get("fixed_pair"), f"roles.{role}.fixed_pair")
-            if role != "courier" or fixed != {"model": "gpt-5.3-codex-spark", "effort": "xhigh"}:
-                raise EvalConfigError("selection excluded は courier の Spark/xhigh 固定だけにしてください。")
+            if role not in fixed_pair_roles:
+                raise EvalConfigError(f"roles.{role} はfixed_pair_rolesに含まれていません。")
+            exclusion_reason = role_data.get("exclusion_reason")
+            if not isinstance(exclusion_reason, str) or not exclusion_reason.strip():
+                raise EvalConfigError(f"roles.{role}.exclusion_reason が必要です。")
+            expected_fixed = {
+                "artificer": {"model": "gpt-5.6-sol", "effort": "high"},
+                "captain": {"model": "gpt-5.6-sol", "effort": "high"},
+                "courier": {"model": "gpt-5.3-codex-spark", "effort": "xhigh"},
+            }
+            if fixed != expected_fixed[role]:
+                raise EvalConfigError(f"roles.{role}.fixed_pair が合意済み設定と一致しません。")
             continue
+        if role in fixed_pair_roles:
+            raise EvalConfigError(f"roles.{role} はselection_excluded fixed pairにしてください。")
         selected = _validate_pair(role_data.get("selected_pair"), f"roles.{role}.selected_pair")
         candidates = _sequence(role_data.get("candidates"), f"roles.{role}.candidates")
         if len(candidates) < 2:
@@ -341,14 +374,30 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         ]
         if any(not pair["model"].startswith("gpt-5.6-") for pair in normalized_candidates):
             raise EvalConfigError(f"roles.{role}.candidates は5.6 seriesだけにしてください。")
+        if any(pair["effort"] == "max" for pair in normalized_candidates):
+            raise EvalConfigError(f"roles.{role}.candidates にroutine eval対象外のmaxを含めないでください。")
         if selected not in normalized_candidates:
             raise EvalConfigError(f"roles.{role}.selected_pair は candidates に含めてください。")
-        selected_index = EFFORT_ORDER.index(selected["effort"])
-        if selected_index == 0:
-            raise EvalConfigError(f"roles.{role}.selected_pair は one-level-lower comparison を作れません。")
-        lower_effort = EFFORT_ORDER[selected_index - 1]
-        if not any(pair["model"] == selected["model"] and pair["effort"] == lower_effort for pair in normalized_candidates):
-            raise EvalConfigError(f"roles.{role} は selected pair と同じ model の一段下 {lower_effort} を含めてください。")
+        if role in model_tier_roles:
+            if selected != {"model": "gpt-5.6-sol", "effort": "high"}:
+                raise EvalConfigError(f"roles.{role}.selected_pair はlive非劣性確認まで Sol/high にしてください。")
+            if any(pair["effort"] != "high" for pair in normalized_candidates):
+                raise EvalConfigError(f"roles.{role} のphase oneはmodel差だけを比較するためeffortをhighに固定してください。")
+            expected_models = {"gpt-5.6-sol", "gpt-5.6-terra"}
+            if role == "sage":
+                expected_models.add("gpt-5.6-luna")
+            if {pair["model"] for pair in normalized_candidates} != expected_models:
+                raise EvalConfigError(f"roles.{role}.candidates のmodel tier集合が不正です。")
+        elif role in reasoning_roles:
+            if any(pair["model"] != "gpt-5.6-sol" for pair in normalized_candidates):
+                raise EvalConfigError(f"roles.{role} はSolのreasoning差だけを比較してください。")
+            if {pair["effort"] for pair in normalized_candidates} != {"high", "xhigh"}:
+                raise EvalConfigError(f"roles.{role} はhigh / xhighだけを比較してください。")
+            expected_selected_effort = "xhigh" if role == "guildmaster" else "high"
+            if selected != {"model": "gpt-5.6-sol", "effort": expected_selected_effort}:
+                raise EvalConfigError(f"roles.{role}.selected_pair は現行deployment値を維持してください。")
+        else:
+            raise EvalConfigError(f"roles.{role} がselection policyの比較roleに含まれていません。")
         regression = role_data.get("regression_control")
         if regression is not None:
             regression_pair = _validate_pair(regression, f"roles.{role}.regression_control")
@@ -359,8 +408,6 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
                 for pair in normalized_candidates
             ):
                 raise EvalConfigError(f"roles.{role} は selected modelでregression controlと同じeffortの候補を含めてください。")
-        if selected["effort"] == "xhigh" and not any(pair["model"] == selected["model"] and pair["effort"] == "max" for pair in normalized_candidates):
-            raise EvalConfigError(f"roles.{role} の xhigh selected pair には max comparison が必要です。")
         if len(role_cases) < 2:
             raise EvalConfigError(f"roles.{role}.cases は typical / edge の2件以上にしてください。")
 

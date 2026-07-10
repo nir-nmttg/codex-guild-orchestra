@@ -131,7 +131,10 @@ def validate_agents() -> None:
             require(token not in developer, f"{rel} に旧制約 `{token}` が残っています。")
 
     config = tomllib.loads(read("template/.codex/config.toml"))
-    require(config.get("model") == "gpt-5.6-sol" and config.get("model_reasoning_effort") == "high", "RootはSol/highに固定してください。")
+    require(
+        config.get("model") == "gpt-5.6-sol" and config.get("model_reasoning_effort") == "high",
+        "Root templateの既定値はSol/highにしてください。利用者overrideはhigh/xhigh/maxだけを許可します。",
+    )
     require(config.get("sandbox_mode") == "read-only", "Root sandboxはread-onlyにしてください。")
     require(config.get("approval_policy") == "on-request" and config.get("approvals_reviewer") == "auto_review", "Root approval contractが不正です。")
     require(config.get("web_search") == "cached" and config.get("allow_login_shell") is False, "Root web/shell contractが不正です。")

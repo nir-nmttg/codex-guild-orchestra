@@ -6,7 +6,8 @@
 
 - fast pathとmaterial taskの分類
 - rankの説明
-- roleごとのmodelと固定reasoning effort
+- subagent roleごとのmodelと固定reasoning effort
+- Rootのreasoning effort（`high`、`xhigh`、`max`。既定は`high`、`max`は明示利用だけ）
 - change-type別Trial check
 - evidence/outputの表現
 - worker並列数
