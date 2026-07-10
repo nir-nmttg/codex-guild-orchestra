@@ -25,7 +25,7 @@
 
 ## Delegation topology
 
-Rootがすべてのcustom agentを直接起動し、custom agentはterminalです。`max_depth=1`、`max_threads=6`を使います。
+Rootがすべてのcustom agentを直接起動し、custom agentはterminalです。`max_depth=1`、`max_threads=12`を使います。
 
 - read-onlyの小さな確認はRootが続けます。小さなmutationは追加planning/reviewなしで、Rootが一つのbounded assignmentとして`adventurer`へ直接渡します。
 - read-heavyな独立調査、重ならないowned scope、独立した高リスクreviewを委譲します。

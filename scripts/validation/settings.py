@@ -92,7 +92,7 @@ def validate_settings() -> None:
 
     delegation = mapping(settings["delegation"], "settings.delegation")
     require(delegation.get("root_spawns_all_agents") is True and delegation.get("custom_agents_terminal") is True, "Root直下のterminal delegationにしてください。")
-    require(delegation.get("max_depth") == 1 and delegation.get("max_threads") == 6, "公式default相当のmax_depth=1/max_threads=6にしてください。")
+    require(delegation.get("max_depth") == 1 and delegation.get("max_threads") == 12, "delegationはmax_depth=1/max_threads=12にしてください。")
     avoid = set(sequence(delegation.get("avoid_when"), "settings.delegation.avoid_when"))
     require({"extra_planning_or_review_for_trivial_task", "multi_agent_fanout_for_single_ordered_chain", "shared_mutable_scope"} <= avoid, "過剰なplanning/review/fanoutの抑止条件が不足しています。")
     sage = mapping(delegation.get("sage"), "settings.delegation.sage")

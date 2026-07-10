@@ -16,7 +16,7 @@ approval_policy = "on-request"
 network_access = true
 
 [agents]
-max_threads = 6
+max_threads = 12
 max_depth = 1
 ```
 
@@ -24,7 +24,7 @@ max_depth = 1
 
 `workspace-write` agentの外部通信は有効です。外部通信を伴うコマンドも`approval_policy = "on-request"`と実行環境の承認境界に従います。
 
-全custom agentは`features.multi_agent=false`のterminal workerです。公式default相当のdepth/threadを使い、write-heavyな再帰委譲を防ぎます。
+全custom agentは`features.multi_agent=false`のterminal workerです。`max_depth=1`を維持しつつ、総thread上限を12に広げ、write-heavyな再帰委譲を防ぎます。
 
 ## Deployment role pairs
 
@@ -140,7 +140,7 @@ validatorは次を確認します。
 - GuildmasterとInquisitorのSol high/xhigh比較、およびsubagent max禁止
 - Courier Spark/xhighの維持
 - 全custom agentのterminal設定
-- `max_threads=6`、`max_depth=1`
+- `max_threads=12`、`max_depth=1`
 - compact promptの行数と旧制約の不在
 - target/secret/state-change/snapshot/lineageのfail-closed
 - prompt profile、role topology、model/effortを分離した評価契約

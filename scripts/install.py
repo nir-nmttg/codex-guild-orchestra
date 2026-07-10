@@ -1100,8 +1100,8 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
     agents_config = config.get('agents')
     if not isinstance(agents_config, dict):
         raise SystemExit('template/.codex/config.toml の [agents] が必要です。')
-    if agents_config.get('max_depth') != 1 or agents_config.get('max_threads') != 6:
-        raise SystemExit('template/.codex/config.toml の agents は max_depth=1 / max_threads=6 にしてください。')
+    if agents_config.get('max_depth') != 1 or agents_config.get('max_threads') != 12:
+        raise SystemExit('template/.codex/config.toml の agents は max_depth=1 / max_threads=12 にしてください。')
 
     agents_dir = source_root / '.codex' / 'agents'
     expected_agent_files = {f'{role}.toml' for role in EXPECTED_AGENT_SANDBOX_MODES}
