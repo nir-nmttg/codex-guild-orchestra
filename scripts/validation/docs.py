@@ -135,7 +135,7 @@ def validate_agents() -> None:
     require(config.get("sandbox_mode") == "read-only", "Root sandboxはread-onlyにしてください。")
     require(config.get("approval_policy") == "on-request" and config.get("approvals_reviewer") == "auto_review", "Root approval contractが不正です。")
     require(config.get("web_search") == "cached" and config.get("allow_login_shell") is False, "Root web/shell contractが不正です。")
-    require(mapping(config.get("sandbox_workspace_write"), "config.sandbox_workspace_write").get("network_access") is False, "workspace-write networkは無効にしてください。")
+    require(mapping(config.get("sandbox_workspace_write"), "config.sandbox_workspace_write").get("network_access") is True, "workspace-write networkは有効にしてください。")
     agents = mapping(config.get("agents"), "config.agents")
     require(agents.get("max_threads") == 6 and agents.get("max_depth") == 1, "agent concurrencyはmax_threads=6/max_depth=1にしてください。")
 

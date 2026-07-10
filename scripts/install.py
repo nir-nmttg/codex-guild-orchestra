@@ -1049,8 +1049,8 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
     if 'model_context_window' in config:
         raise SystemExit('model_context_window は model catalog に追随させ、Root config で固定しないでください。')
     sandbox_workspace_write = config.get('sandbox_workspace_write')
-    if not isinstance(sandbox_workspace_write, dict) or sandbox_workspace_write.get('network_access') is not False:
-        raise SystemExit('template/.codex/config.toml の sandbox_workspace_write.network_access は false にしてください。')
+    if not isinstance(sandbox_workspace_write, dict) or sandbox_workspace_write.get('network_access') is not True:
+        raise SystemExit('template/.codex/config.toml の sandbox_workspace_write.network_access は true にしてください。')
     for token in ('"*secret*"', '"*token*"', '"*credential*"', '"*password*"', '"*key*"', '"*auth*"'):
         if token not in config_text:
             raise SystemExit('template/.codex/config.toml の shell_environment_policy.exclude に secret deny glob が不足しています。')

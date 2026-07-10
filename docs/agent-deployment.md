@@ -12,10 +12,15 @@ model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 approval_policy = "on-request"
 
+[sandbox_workspace_write]
+network_access = true
+
 [agents]
 max_threads = 6
 max_depth = 1
 ```
+
+`workspace-write` agentの外部通信は有効です。外部通信を伴うコマンドも`approval_policy = "on-request"`と実行環境の承認境界に従います。
 
 全custom agentは`features.multi_agent=false`のterminal workerです。公式default相当のdepth/threadを使い、write-heavyな再帰委譲を防ぎます。
 

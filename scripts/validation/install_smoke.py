@@ -803,12 +803,12 @@ def validate_install_upgrade_smoke() -> None:
     repositories_path = run_with_mutated_source("unexpected repositories path", add_repositories_path)
     require("repositories" in (repositories_path.stdout + repositories_path.stderr), "install.py は source 内の repositories/ を拒否してください。")
 
-    def enable_source_network(source: Path) -> None:
+    def disable_source_network(source: Path) -> None:
         path = source / ".codex" / "config.toml"
-        path.write_text(path.read_text(encoding="utf-8").replace("network_access = false", "network_access = true"), encoding="utf-8")
+        path.write_text(path.read_text(encoding="utf-8").replace("network_access = true", "network_access = false"), encoding="utf-8")
 
-    source_network = run_with_mutated_source("source network enabled", enable_source_network)
-    require("network_access" in (source_network.stdout + source_network.stderr), "install.py は source config の network_access=true を拒否してください。")
+    source_network = run_with_mutated_source("source network disabled", disable_source_network)
+    require("network_access" in (source_network.stdout + source_network.stderr), "install.py は source config の network_access=false を拒否してください。")
 
     def add_mcp_server_config(source: Path) -> None:
         path = source / ".codex" / "config.toml"
