@@ -25,7 +25,7 @@
 
 ## Delegation topology
 
-Rootだけがtop-level custom agentを起動します。唯一のnested edgeとして、depth 1の`inquisitor`がrisk-triggeredな単一focusをdepth 2の`examiner`へ委譲できます。`max_depth=2`、`max_threads=12`を使い、その他のcustom agentと`examiner`はterminalです。
+Rootだけがtop-level custom agentを起動します。唯一のnested edgeとして、depth 1の`inquisitor`がrisk-triggeredな単一focusをdepth 2の`examiner`へ委譲できます。`max_depth=2`、`max_threads=64`を使い、その他のcustom agentと`examiner`はterminalです。
 
 - read-onlyの小さな確認はRootが続けます。小さなmutationは追加planning/reviewなしで、Rootが一つのbounded assignmentとして`adventurer`へ直接渡します。
 - read-heavyな独立調査、重ならないowned scope、独立した高リスクreviewを委譲します。

@@ -15,7 +15,7 @@ approval_policy = "on-request"
 network_access = true
 
 [agents]
-max_threads = 12
+max_threads = 64
 max_depth = 2
 job_max_runtime_seconds = 1800
 ```
@@ -24,7 +24,7 @@ clean installと通常の再installはいずれもproject-local `model_reasoning
 
 `workspace-write` agentの外部通信は有効です。外部通信を伴うコマンドも`approval_policy = "on-request"`と実行環境の承認境界に従います。
 
-`inquisitor`だけが`features.multi_agent=true`で、risk-triggeredな単一focusを`examiner`へ委譲できます。その他のcustom agentは`features.multi_agent=false`のterminal workerです。`max_depth=2`と`max_threads=12`を設定し、policy上はRoot(depth 0)→Inquisitor(depth 1)→Examiner(depth 2)だけを許可します。これらやrole別`max_parallel`は同時実行の設定であり、総spawn数、token、costのhard capとは扱いません。
+`inquisitor`だけが`features.multi_agent=true`で、risk-triggeredな単一focusを`examiner`へ委譲できます。その他のcustom agentは`features.multi_agent=false`のterminal workerです。`max_depth=2`と`max_threads=64`を設定し、policy上はRoot(depth 0)→Inquisitor(depth 1)→Examiner(depth 2)だけを許可します。これらやrole別`max_parallel`は同時実行の設定であり、総spawn数、token、costのhard capとは扱いません。
 
 ## Deployment role pairs
 
@@ -143,7 +143,7 @@ validatorは次を確認します。
 - GuildmasterとInquisitorのSol high/xhigh比較、およびsubagent max禁止
 - Courier Spark/xhighの維持
 - inquisitorだけのnested capabilityと、その他custom agentのterminal設定
-- `max_threads=12`、`max_depth=2`
+- `max_threads=64`、`max_depth=2`
 - compact promptの行数と旧制約の不在
 - target/secret/state-change/snapshot/lineageのfail-closed
 - prompt profile、role topology、model/effortを分離した評価契約

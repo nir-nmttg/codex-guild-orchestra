@@ -1085,8 +1085,8 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
     agents_config = config.get('agents')
     if not isinstance(agents_config, dict):
         raise SystemExit('template/.codex/config.toml の [agents] が必要です。')
-    if agents_config.get('max_depth') != 2 or agents_config.get('max_threads') != 12:
-        raise SystemExit('template/.codex/config.toml の agents は max_depth=2 / max_threads=12 にしてください。')
+    if agents_config.get('max_depth') != 2 or agents_config.get('max_threads') != 64:
+        raise SystemExit('template/.codex/config.toml の agents は max_depth=2 / max_threads=64 にしてください。')
     if agents_config.get('job_max_runtime_seconds') != 1800:
         raise SystemExit('template/.codex/config.toml の agents.job_max_runtime_seconds は 1800 にしてください。')
 

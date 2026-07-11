@@ -139,7 +139,7 @@ def validate_agents() -> None:
     require(config.get("web_search") == "cached" and config.get("allow_login_shell") is False, "Root web/shell contractが不正です。")
     require(mapping(config.get("sandbox_workspace_write"), "config.sandbox_workspace_write").get("network_access") is True, "workspace-write networkは有効にしてください。")
     agents = mapping(config.get("agents"), "config.agents")
-    require(agents.get("max_threads") == 12 and agents.get("max_depth") == 2, "agent concurrencyはmax_threads=12/max_depth=2にしてください。")
+    require(agents.get("max_threads") == 64 and agents.get("max_depth") == 2, "agent concurrencyはmax_threads=64/max_depth=2にしてください。")
     require(agents.get("job_max_runtime_seconds") == 1800, "agent job runtimeは1800秒にしてください。")
 
 

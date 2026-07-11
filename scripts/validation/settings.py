@@ -92,7 +92,7 @@ def validate_settings() -> None:
 
     delegation = mapping(settings["delegation"], "settings.delegation")
     require(delegation.get("root_spawns_top_level_agents") is True and delegation.get("top_level_owner") == "root", "top-level agentの起動ownerをRootに限定してください。")
-    require(delegation.get("max_depth") == 2 and delegation.get("max_threads") == 12, "delegationはmax_depth=2/max_threads=12にしてください。")
+    require(delegation.get("max_depth") == 2 and delegation.get("max_threads") == 64, "delegationはmax_depth=2/max_threads=64にしてください。")
     nested = mapping(delegation.get("allowed_nested_callers"), "settings.delegation.allowed_nested_callers")
     require(set(nested) == {"inquisitor"} and set(sequence(nested.get("inquisitor"), "settings.delegation.allowed_nested_callers.inquisitor")) == {"examiner"}, "nested delegationはinquisitor→examinerだけにしてください。")
     terminal_roles = set(sequence(delegation.get("terminal_roles"), "settings.delegation.terminal_roles"))

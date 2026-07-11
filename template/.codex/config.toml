@@ -20,7 +20,7 @@ exclude = [
 ]
 
 [agents]
-max_threads = 12
+max_threads = 64
 # Root(depth 0)→Inquisitor(depth 1)→Examiner(depth 2)だけを許可する。
 max_depth = 2
 job_max_runtime_seconds = 1800

@@ -66,7 +66,7 @@ delegation:
   root_spawns_top_level_agents: true
   top_level_owner: root
   max_depth: 2
-  max_threads: 12
+  max_threads: 64
   allowed_nested_callers:
     inquisitor: [examiner]
   terminal_roles: [cartographer, guildmaster, captain, adventurer, artificer, examiner, sage, warden, courier]
