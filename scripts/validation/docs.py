@@ -143,6 +143,32 @@ def validate_agents() -> None:
     require(agents.get("job_max_runtime_seconds") == 1800, "agent job runtimeは1800秒にしてください。")
 
 
+def _validate_parallelism_doc(rel: str, text: str) -> None:
+    allocation_contracts = {
+        "docs/agent-deployment.md": (
+            "非adventurer合計16の計48",
+            "global 64との差16",
+        ),
+        "docs/orchestration-runtime.md": (
+            "role別上限の合計は48",
+            "うち非adventurerは16",
+            "globalとの差16",
+        ),
+    }
+    require(rel in allocation_contracts, f"{rel} のrole配分検証契約が未定義です。")
+    required = (
+        "adventurer.max_parallel=32",
+        "max_threads=64",
+        "未割当headroom",
+        *allocation_contracts[rel],
+    )
+    require(all(token in text for token in required), f"{rel} にtotal 48 / non-adventurer 16 / 未割当headroom 16の契約が必要です。")
+    require(
+        all(old not in text for old in ("adventurer.max_parallel=48", "adventurer.max_parallel=64", "非adventurerの16枠を予約", "追加スロット制限を設けません")),
+        f"{rel} に旧adventurer占有・残余割当契約を残さないでください。",
+    )
+
+
 def validate_docs_and_instructions() -> None:
     require(_line_count("template/AGENTS.md") <= 125, "AGENTS.mdを125行以内のcompact kernelにしてください。")
     require(_line_count("template/.agents/orchestra/instructions/common.md") <= 55, "common.mdを55行以内にしてください。")
@@ -157,6 +183,11 @@ def validate_docs_and_instructions() -> None:
     common = read("template/.agents/orchestra/instructions/common.md")
     require("custom agentの起動時promptへ重ねて読み込みません" in common, "common.mdは常時promptではないことを明記してください。")
     require("数値confidence" in common and "要求しません" in common, "common.mdは数値confidenceを要求しないでください。")
+
+    deployment = read("docs/agent-deployment.md")
+    runtime = read("docs/orchestration-runtime.md")
+    for rel, text in (("docs/agent-deployment.md", deployment), ("docs/orchestration-runtime.md", runtime)):
+        _validate_parallelism_doc(rel, text)
 
     role_paths = sorted((ROOT / "template/.agents/orchestra/instructions").glob("*.md"))
     for path in role_paths:

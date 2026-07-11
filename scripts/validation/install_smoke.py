@@ -755,6 +755,62 @@ def validate_install_upgrade_smoke() -> None:
     invalid_job_runtime = run_with_mutated_source("job runtime 1200", shorten_job_runtime)
     require("job_max_runtime_seconds" in (invalid_job_runtime.stdout + invalid_job_runtime.stderr) and "1800" in (invalid_job_runtime.stdout + invalid_job_runtime.stderr), "install.py は1800秒以外のjob runtimeを拒否してください。")
 
+    def set_adventurer_parallelism(source: Path, value: int) -> None:
+        path = source / ".agents/orchestra/config/settings.yaml"
+        text = path.read_text(encoding="utf-8")
+        marker = "  adventurer:\n"
+        before, adventurer = text.split(marker, 1)
+        adventurer = adventurer.replace("    max_parallel: 32", f"    max_parallel: {value}", 1)
+        path.write_text(before + marker + adventurer, encoding="utf-8")
+
+    for invalid_parallel in (31, 48, 64):
+        invalid_adventurer = run_with_mutated_source(
+            f"adventurer max_parallel {invalid_parallel}",
+            lambda source, value=invalid_parallel: set_adventurer_parallelism(source, value),
+        )
+        require(
+            "adventurer.max_parallel" in (invalid_adventurer.stdout + invalid_adventurer.stderr)
+            and "32" in (invalid_adventurer.stdout + invalid_adventurer.stderr),
+            f"install.py は adventurer.max_parallel={invalid_parallel} を拒否してください。",
+        )
+
+    destroyed_headroom = run_with_mutated_source(
+        "destroy unallocated headroom",
+        lambda source: set_adventurer_parallelism(source, 33),
+    )
+    require(
+        "adventurer.max_parallel" in (destroyed_headroom.stdout + destroyed_headroom.stderr)
+        and "32" in (destroyed_headroom.stdout + destroyed_headroom.stderr),
+        "install.py は adventurer を増やして未割当headroomを破壊する source を拒否してください。",
+    )
+
+    def reallocate_reserved_role(source: Path) -> None:
+        path = source / ".agents/orchestra/config/settings.yaml"
+        text = path.read_text(encoding="utf-8")
+        text = text.replace("  cartographer:\n    role: mapmaking_specialist\n    max_parallel: 2", "  cartographer:\n    role: mapmaking_specialist\n    max_parallel: 3", 1)
+        text = text.replace("  adventurer:\n    role: bounded_implementation_owner\n    max_parallel: 32", "  adventurer:\n    role: bounded_implementation_owner\n    max_parallel: 31", 1)
+        path.write_text(text, encoding="utf-8")
+
+    reallocated_roles = run_with_mutated_source("reallocated role reservations", reallocate_reserved_role)
+    require(
+        "cartographer.max_parallel" in (reallocated_roles.stdout + reallocated_roles.stderr),
+        "install.py は合計48でもrole別配分を変えた source を拒否してください。",
+    )
+
+    def remove_adventurer_parallelism(source: Path) -> None:
+        path = source / ".agents/orchestra/config/settings.yaml"
+        text = path.read_text(encoding="utf-8")
+        marker = "  adventurer:\n"
+        before, adventurer = text.split(marker, 1)
+        adventurer = adventurer.replace("    max_parallel: 32\n", "", 1)
+        path.write_text(before + marker + adventurer, encoding="utf-8")
+
+    missing_adventurer_limit = run_with_mutated_source("missing adventurer max_parallel", remove_adventurer_parallelism)
+    require(
+        "adventurer.max_parallel" in (missing_adventurer_limit.stdout + missing_adventurer_limit.stderr),
+        "install.py は adventurer.max_parallel が明示されていない source を拒否してください。",
+    )
+
     def enable_focus_decision_authority(source: Path) -> None:
         path = source / ".agents/orchestra/config/settings.yaml"
         text = path.read_text(encoding="utf-8")
