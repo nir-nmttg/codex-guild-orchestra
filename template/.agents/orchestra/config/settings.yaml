@@ -108,7 +108,7 @@ workers:
     max_parallel: 2
   adventurer:
     role: bounded_implementation_owner
-    max_parallel: 4
+    max_parallel: 32
   artificer:
     role: cross_scope_artificer
     max_parallel: 1

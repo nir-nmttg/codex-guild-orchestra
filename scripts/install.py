@@ -912,6 +912,7 @@ def parse_limited_settings_scalar(raw_value: str) -> object:
 
 
 def read_settings_install_subset(settings_path: Path) -> dict[str, object]:
+    delegation: dict[str, object] = {}
     workers: dict[str, dict[str, object]] = {}
     section: str | None = None
     worker_key: str | None = None
@@ -924,8 +925,14 @@ def read_settings_install_subset(settings_path: Path) -> dict[str, object]:
 
         if indent == 0:
             key, separator, rest = stripped.partition(':')
-            section = key if separator and not rest.strip() and key == 'workers' else None
+            section = key if separator and not rest.strip() and key in {'delegation', 'workers'} else None
             worker_key = None
+            continue
+
+        if section == 'delegation' and indent == 2:
+            key, separator, rest = stripped.partition(':')
+            if separator:
+                delegation[key] = parse_limited_settings_scalar(rest)
             continue
 
         if section == 'workers':
@@ -942,6 +949,7 @@ def read_settings_install_subset(settings_path: Path) -> dict[str, object]:
             continue
 
     return {
+        'delegation': delegation,
         'workers': workers,
     }
 
@@ -961,28 +969,52 @@ def read_settings(source_root: Path) -> dict[str, object]:
 
 def load_worker_roles(source_root: Path) -> dict[str, dict[str, int]]:
     settings = read_settings(source_root)
+    delegation = settings.get('delegation')
+    if not isinstance(delegation, dict):
+        raise SystemExit('settings.yaml delegation は mapping にしてください。')
+    max_threads = delegation.get('max_threads')
+    if max_threads != 64:
+        raise SystemExit('settings.yaml delegation.max_threads は 64 にしてください。')
     workers = settings.get('workers')
     if not isinstance(workers, dict):
         raise SystemExit('settings.yaml workers は mapping にしてください。')
     expected_roles = {
-        'adventurer': 1,
+        'cartographer': 2,
+        'guildmaster': 1,
+        'captain': 2,
+        'adventurer': 32,
         'artificer': 1,
-        'captain': 1,
-        'inquisitor': 1,
-        'examiner': 1,
-        'sage': 1,
+        'inquisitor': 2,
+        'examiner': 3,
+        'sage': 3,
         'warden': 1,
+        'courier': 1,
     }
+    if set(workers) != set(expected_roles):
+        raise SystemExit('settings.yaml workers は定義済みの 10 role だけを含めてください。')
 
     result: dict[str, dict[str, int]] = {}
-    for role, default_max_parallel in expected_roles.items():
+    for role, expected_max_parallel in expected_roles.items():
         value = workers.get(role)
         if not isinstance(value, dict):
             raise SystemExit(f'settings.yaml workers.{role} は mapping にしてください。')
-        max_parallel = value.get('max_parallel', default_max_parallel)
+        max_parallel = value.get('max_parallel')
         if isinstance(max_parallel, bool) or not isinstance(max_parallel, int) or max_parallel < 1:
             raise SystemExit(f'settings.yaml workers.{role}.max_parallel は 1 以上の整数にしてください。')
+        if max_parallel != expected_max_parallel:
+            raise SystemExit(f'settings.yaml workers.{role}.max_parallel は {expected_max_parallel} にしてください。')
         result[role] = {'max_parallel': max_parallel}
+    role_total = sum(worker['max_parallel'] for worker in result.values())
+    non_adventurer_total = sum(worker['max_parallel'] for role, worker in result.items() if role != 'adventurer')
+    headroom = max_threads - role_total
+    if role_total != 48 or role_total > max_threads:
+        raise SystemExit('settings.yaml workers の max_parallel 合計は 48 かつ delegation.max_threads=64 以下にしてください。')
+    if non_adventurer_total != 16:
+        raise SystemExit('settings.yaml workers の非adventurer max_parallel 合計は 16 にしてください。')
+    if result['adventurer']['max_parallel'] != 32:
+        raise SystemExit('settings.yaml workers.adventurer.max_parallel は 32 にしてください。')
+    if headroom != 16:
+        raise SystemExit('settings.yaml workers は global 64 に対して未割当 headroom 16 を残してください。')
     return result
 
 
@@ -1030,6 +1062,7 @@ def validate_examiner_worker_contract(source_root: Path) -> None:
         'root_spawns_top_level_agents: true',
         'top_level_owner: root',
         'max_depth: 2',
+        'max_threads: 64',
         'terminal_roles: [cartographer, guildmaster, captain, adventurer, artificer, examiner, sage, warden, courier]',
         'child_scope_must_narrow: true',
         'child_authority_must_narrow: true',

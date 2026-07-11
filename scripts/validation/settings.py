@@ -113,10 +113,33 @@ def validate_settings() -> None:
     require(sentinel.get("routine_use") is False and sentinel.get("read_only") is True and sentinel.get("decision_authority") is False, "Wardenは例外的terminal診断に限定してください。")
 
     workers = mapping(settings["workers"], "settings.workers")
-    for role in ("cartographer", "guildmaster", "captain", "adventurer", "artificer", "inquisitor", "examiner", "sage", "warden", "courier"):
+    expected_parallel = {
+        "cartographer": 2,
+        "guildmaster": 1,
+        "captain": 2,
+        "adventurer": 32,
+        "artificer": 1,
+        "inquisitor": 2,
+        "examiner": 3,
+        "sage": 3,
+        "warden": 1,
+        "courier": 1,
+    }
+    require(set(workers) == set(expected_parallel), "workersは定義済みの10 roleだけにしてください。")
+    actual_parallel: dict[str, int] = {}
+    for role, expected in expected_parallel.items():
         worker = mapping(workers.get(role), f"settings.workers.{role}")
         max_parallel = worker.get("max_parallel")
         require(isinstance(max_parallel, int) and not isinstance(max_parallel, bool) and max_parallel >= 1, f"workers.{role}.max_parallel は1以上にしてください。")
+        require(max_parallel == expected, f"workers.{role}.max_parallel は{expected}にしてください。")
+        actual_parallel[role] = max_parallel
+    role_total = sum(actual_parallel.values())
+    non_adventurer_total = sum(value for role, value in actual_parallel.items() if role != "adventurer")
+    max_threads = delegation.get("max_threads")
+    require(role_total == 48 and role_total <= max_threads, "全roleのmax_parallel合計は48かつglobal max_threads=64以下にしてください。")
+    require(non_adventurer_total == 16, "非adventurer roleのmax_parallel合計は16にしてください。")
+    require(actual_parallel["adventurer"] == 32, "workers.adventurer.max_parallel は32にしてください。")
+    require(max_threads - role_total == 16, "global max_threads=64に対して未割当headroom 16を残してください。")
     focus = mapping(workers["examiner"], "settings.workers.examiner")
     require(set(sequence(focus.get("allowed_callers"), "settings.workers.examiner.allowed_callers")) == {"inquisitor"}, "examiner callerをinquisitorに限定してください。")
     require(focus.get("terminal_worker") is True, "examinerをterminal leafにしてください。")
