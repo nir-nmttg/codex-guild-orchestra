@@ -14,10 +14,11 @@ from pathlib import Path
 from .core import ROOT, require
 from .rules import LEDGER_TABLES
 
-AGENTS_START = "<!-- codex-guild-orchestra:start -->"
-AGENTS_END = "<!-- codex-guild-orchestra:end -->"
-EXCLUDE_START = "# codex-guild-orchestra:start"
-EXCLUDE_END = "# codex-guild-orchestra:end"
+AGENTS_START = "<!-- agent-guild-orchestra:start -->"
+AGENTS_END = "<!-- agent-guild-orchestra:end -->"
+EXCLUDE_START = "# agent-guild-orchestra:start"
+EXCLUDE_END = "# agent-guild-orchestra:end"
+BACKUP_DIRECTORY = ".agent-guild-orchestra-backups"
 RUNTIME_SCHEMA_VERSION = "3.0"
 
 READ_ONLY_AGENT_ROLES = (
@@ -72,7 +73,7 @@ INSTALLED_OLD_TERM_TOKENS = (
 
 
 def _load_installer_module() -> object:
-    spec = importlib.util.spec_from_file_location("codex_guild_orchestra_installer", ROOT / "scripts/install.py")
+    spec = importlib.util.spec_from_file_location("agent_guild_orchestra_installer", ROOT / "scripts/install.py")
     require(spec is not None and spec.loader is not None, "install.py helper を読み込めません。")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -114,6 +115,12 @@ def _assert_installed_surface(target: Path) -> None:
     skill_dir = target / ".agents/skills"
     actual_skills = {path.name for path in skill_dir.iterdir() if path.is_dir()}
     require(actual_skills == EXPECTED_SKILL_DIRS, ".agents/skills の導入 directory set が期待値と一致しません: " + ", ".join(sorted(actual_skills)))
+    for skill_name in sorted(EXPECTED_SKILL_DIRS):
+        skill_path = skill_dir / skill_name / "SKILL.md"
+        require(
+            INSTALLER.read_skill_owner(skill_path) == "agent-guild-orchestra",
+            f"{skill_path.relative_to(target)} の owner は agent-guild-orchestra にしてください。",
+        )
     require((skill_dir / "quest-awareness-loop/SKILL.md").exists(), "install.py は quest-awareness-loop skill を導入してください。")
     require((target / ".agents/orchestra/docs/agent-memory.md").exists(), "install.py は agent-memory runtime artifact を導入してください。")
     require((target / ".orchestra/dashboard.md").exists(), "install.py は dashboard runtime artifact を .orchestra/dashboard.md に導入してください。")
@@ -157,6 +164,7 @@ def _assert_agents_block_idempotent(target: Path, expect_update_position: bool =
 def _assert_git_exclude_block_idempotent(target: Path, expect_update_position: bool = True) -> None:
     exclude = (target / ".git/info/exclude").read_text(encoding="utf-8")
     require(exclude.count(EXCLUDE_START) == 1 and exclude.count(EXCLUDE_END) == 1, "install.py は .git/info/exclude 管理 marker を各 1 個だけにしてください。")
+    require(f"{BACKUP_DIRECTORY}/" in exclude, "install.py は現行 backup directory を除外してください。")
     require("existing-before" in exclude, "install.py は .git/info/exclude の管理ブロック前の既存内容を保持してください。")
     require("existing-between" in exclude, "install.py は .git/info/exclude の重複管理ブロック間の既存内容を保持してください。")
     require("existing-after" in exclude, "install.py は .git/info/exclude の管理ブロック後の既存内容を保持してください。")
@@ -510,7 +518,7 @@ def validate_install_upgrade_smoke() -> None:
         require(reset_with_backup.returncode == 0, "install.py --reset-runtime --backup smoke が失敗しました: " + reset_with_backup.stderr)
         _assert_installed_surface(target)
         require(not stale_queue_file.exists(), "install.py --reset-runtime --backup は古い runtime queue 内容を削除してください。")
-        backup_root = target / ".codex-guild-orchestra-backups"
+        backup_root = target / BACKUP_DIRECTORY
         backups = sorted(path for path in backup_root.iterdir() if path.is_dir())
         require(backups and any((backup / ".orchestra/queue/stale.txt").exists() for backup in backups), "install.py --reset-runtime --backup は既存 runtime state を退避してください。")
 
@@ -646,11 +654,11 @@ def validate_install_upgrade_smoke() -> None:
         existing.write_text("existing\n", encoding="utf-8")
         external_backups = root / "external-backups"
         external_backups.mkdir()
-        (target / ".codex-guild-orchestra-backups").symlink_to(external_backups, target_is_directory=True)
+        (target / BACKUP_DIRECTORY).symlink_to(external_backups, target_is_directory=True)
 
         backup_destination_symlink = _run_install("--target", target, "--mode", "copy", "--backup")
         output = backup_destination_symlink.stdout + backup_destination_symlink.stderr
-        require(backup_destination_symlink.returncode != 0 and "symlink" in output and ".codex-guild-orchestra-backups" in output, "install.py --backup は backup destination symlink を拒否してください。")
+        require(backup_destination_symlink.returncode != 0 and "symlink" in output and BACKUP_DIRECTORY in output, "install.py --backup は backup destination symlink を拒否してください。")
         require(not any(external_backups.iterdir()), "install.py --backup は backup destination symlink の外部 dir へ書き込まないでください。")
 
     with tempfile.TemporaryDirectory() as tmp:

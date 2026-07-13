@@ -26,6 +26,12 @@ def validate_model_selection_eval() -> None:
     except module.EvalConfigError as exc:
         require(False, f"model selection eval manifest が不正です: {exc}")
 
+    output_root = str(module.DEFAULT_OUTPUT_ROOT)
+    run_policy = mapping(manifest.get("run_policy"), "model_selection.run_policy")
+    require(output_root == "/tmp/agent-guild-model-eval", "model selection runnerの既定出力先をAgent Guild名にしてください。")
+    require(run_policy.get("raw_output_default") == output_root, "model selection manifestの既定出力先をrunnerと一致させてください。")
+    require(output_root in read("docs/model-selection-evaluation.md"), "model selection docにrunnerと同じ既定出力先が必要です。")
+
     require(tomllib is not None, "model selection 設定同期には tomllib/tomli が必要です。")
     roles = mapping(manifest.get("roles"), "model_selection.roles")
     root_pair = mapping(mapping(roles.get("root"), "model_selection.roles.root").get("selected_pair"), "model_selection.roles.root.selected_pair")

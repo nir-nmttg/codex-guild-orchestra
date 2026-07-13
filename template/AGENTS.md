@@ -1,4 +1,4 @@
-# codex-guild-orchestra
+# agent-guild-orchestra
 
 このリポジトリでは、最終成果の正しさ、検証可能性、安全な権限境界を優先します。手順や書式は、その目的に必要な分だけ使います。
 

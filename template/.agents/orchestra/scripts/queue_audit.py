@@ -231,14 +231,14 @@ LEGACY_COLUMNS = {"assignments": {"task_id"}}
 
 
 def default_static_root() -> Path:
-    env_value = os.environ.get("CODEX_GUILD_ORCHESTRA_ROOT")
+    env_value = os.environ.get("AGENT_GUILD_ORCHESTRA_ROOT")
     if env_value:
         return Path(env_value).expanduser() / ".agents" / "orchestra"
     return Path(__file__).resolve().parent.parent
 
 
 def default_runtime_root() -> Path:
-    env_value = os.environ.get("CODEX_GUILD_ORCHESTRA_RUNTIME_ROOT")
+    env_value = os.environ.get("AGENT_GUILD_ORCHESTRA_RUNTIME_ROOT")
     if env_value:
         return Path(env_value).expanduser()
     static_root = default_static_root()

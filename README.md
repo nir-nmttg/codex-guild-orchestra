@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/assets/codex-guild-orchestra-logo.png" alt="Codex Guild Orchestraのロゴ" width="200">
+  <img src="docs/assets/agent-guild-orchestra-logo.png" alt="Agent Guild Orchestraのロゴ" width="200">
 </p>
 
-# codex-guild-orchestra
+# Agent Guild Orchestra
 
 Codexを、成果品質、安全な権限境界、検証可能性を優先して動かすためのGuild runtimeテンプレートです。実作業のリポジトリとオーケストレーション用の契約・状態を分離し、作業の大きさとリスクに応じた委譲、検証、監査を支援します。
 
@@ -42,8 +42,8 @@ Codexを、成果品質、安全な権限境界、検証可能性を優先して
 ### 1. cloneして配布物を検証する
 
 ```bash
-git clone https://github.com/nir-nmttg/codex-guild-orchestra.git
-cd codex-guild-orchestra
+git clone https://github.com/nir-nmttg/agent-guild-orchestra.git
+cd agent-guild-orchestra
 make validate
 ```
 
@@ -69,7 +69,7 @@ make validate
   --backup
 ```
 
-既存の管理対象がある場合、変更前の状態は`<guild-root>/.codex-guild-orchestra-backups/<timestamp>/`へコピーされます。新規の空ディレクトリへ導入する場合は、バックアップ対象がないためbackupは作成されません。
+既存の管理対象がある場合、変更前の状態は`<guild-root>/.agent-guild-orchestra-backups/<timestamp>/`へコピーされます。新規の空ディレクトリへ導入する場合は、バックアップ対象がないためbackupは作成されません。
 
 導入後、実作業リポジトリを`<guild-root>/repositories/<repo>`へ配置します。
 
@@ -78,7 +78,7 @@ make validate
 配布元リポジトリを更新し、`sync.sh`で既存環境へ反映します。`sync.sh`は更新前のバックアップを自動で有効にします。
 
 ```bash
-cd /path/to/codex-guild-orchestra
+cd /path/to/agent-guild-orchestra
 git pull --ff-only
 make validate
 ./scripts/sync.sh --target /path/to/guild-root --dry-run
@@ -120,7 +120,7 @@ make validate
 
 通常の導入・更新では、指定したGuild rootの次の範囲を作成または更新します。
 
-- `AGENTS.md`内の`codex-guild-orchestra`管理ブロック
+- `AGENTS.md`内の`agent-guild-orchestra`管理ブロック
 - `.agents/orchestra/`と、ownerが本プロジェクトである`.agents/skills/`
 - `.codex/`
 - `.orchestra/`（queue、Ledger、dashboardなどの動的状態）
@@ -131,7 +131,7 @@ make validate
 
 ## 復元とアンインストール
 
-自動復元・アンインストールコマンドは現在ありません。復元が必要な場合は、Codexや関連プロセスを停止し、現在の状態も別途保全してから、`.codex-guild-orchestra-backups/<timestamp>/`に保存された各パスを元のGuild rootへ戻してください。backupに存在しない新規作成物は自動では削除されません。
+自動復元・アンインストールコマンドは現在ありません。復元が必要な場合は、Codexや関連プロセスを停止し、現在の状態も別途保全してから、`.agent-guild-orchestra-backups/<timestamp>/`に保存された各パスを元のGuild rootへ戻してください。backupに存在しない新規作成物は自動では削除されません。
 
 手動で管理対象を除去する場合も、`repositories/`配下には触れないでください。`AGENTS.md`と`.git/info/exclude`ではファイル全体ではなく、本プロジェクトの開始・終了markerで囲まれた管理ブロックだけを除去します。
 

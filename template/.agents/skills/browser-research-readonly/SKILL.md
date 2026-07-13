@@ -1,7 +1,7 @@
 ---
 name: browser-research-readonly
 description: "ブラウザ操作で情報収集だけを行う read-only workflow。画面遷移や表示確認は許可し、送信、保存、削除、購入、承認、ログイン状態変更、設定変更などの状態更新を禁止する場面で使います。"
-owner: codex-guild-orchestra
+owner: agent-guild-orchestra
 scope: target-repository-workflow
 ---
 

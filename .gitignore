@@ -30,7 +30,7 @@ dist/
 
 # Local runtime and backups
 .orchestra/
-.codex-guild-orchestra-backups/
+.agent-guild-orchestra-backups/
 
 # Secrets and local configuration
 .env

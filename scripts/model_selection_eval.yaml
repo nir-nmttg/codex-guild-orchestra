@@ -118,7 +118,7 @@ run_policy:
   fresh_ephemeral_session_per_run: true
   randomize_candidate_order: true
   blind_grading: true
-  raw_output_default: "/tmp/codex-guild-model-eval"
+  raw_output_default: "/tmp/agent-guild-model-eval"
   external_data_ack_required: true
   approved_isolation_wrapper_sha256: []
   approved_isolation_profile_sha256: []

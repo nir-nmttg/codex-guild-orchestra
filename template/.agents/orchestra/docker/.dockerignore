@@ -1,6 +1,6 @@
 .git
 .orchestra
-.codex-guild-orchestra-backups
+.agent-guild-orchestra-backups
 .DS_Store
 __pycache__/
 *.pyc

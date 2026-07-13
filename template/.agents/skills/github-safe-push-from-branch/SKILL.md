@@ -1,7 +1,7 @@
 ---
 name: github-safe-push-from-branch
 description: "Root が repositories/ 配下の対象リポジトリで、溜まっているコミットを GitHub へ push する前に秘密情報・PII・公開すべきでない情報を安全監査し、問題がない場合だけ人間確認後に通常 push する時に使います。"
-owner: codex-guild-orchestra
+owner: agent-guild-orchestra
 scope: target-repository-workflow
 ---
 

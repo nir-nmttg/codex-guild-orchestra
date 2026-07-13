@@ -12,6 +12,7 @@
 
 ### 変更
 
+- プロジェクト名を`agent-guild-orchestra`（Agent Guild Orchestra）へ変更し、GitHub URL、配布物の識別子、画像ファイル名を更新
 - READMEを日本語中心の公開用ドキュメントとして拡充
 - READMEの導入・通常更新・安全なクリーン再導入・復元・運用保護の手順を整理
 - Contributionのreview・merge要件、自己承認禁止、単独maintainer時のstrict運用条件と緊急bypass方針を明文化

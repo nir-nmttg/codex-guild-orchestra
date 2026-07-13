@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: セキュリティ脆弱性の非公開報告
-    url: https://github.com/nir-nmttg/codex-guild-orchestra/security/advisories/new
+    url: https://github.com/nir-nmttg/agent-guild-orchestra/security/advisories/new
     about: 脆弱性や機密性のある情報は公開Issueに書かず、Private vulnerability reportingを利用してください。
   - name: サポート方針
-    url: https://github.com/nir-nmttg/codex-guild-orchestra/blob/main/SUPPORT.md
+    url: https://github.com/nir-nmttg/agent-guild-orchestra/blob/main/SUPPORT.md
     about: 質問に含める情報とサポート範囲を確認してください。

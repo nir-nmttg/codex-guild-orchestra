@@ -1,7 +1,7 @@
 ---
 name: branch-implementation-final-review
 description: "repositories/配下の実装差分を、risk signalに応じたread-only Trialで最終確認します。"
-owner: codex-guild-orchestra
+owner: agent-guild-orchestra
 scope: target-repository-workflow
 ---
 

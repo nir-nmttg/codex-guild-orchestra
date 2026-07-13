@@ -1,7 +1,7 @@
 ---
 name: implementation-behavior-verification
 description: "Root が repositories/ 配下の対象リポジトリについて、実装差分や参考URLから動作確認項目を洗い出し、テスト、curl、CLI、ログ、in-app browser で実際に確認して evidence をまとめる時に使います。"
-owner: codex-guild-orchestra
+owner: agent-guild-orchestra
 scope: target-repository-workflow
 ---
 

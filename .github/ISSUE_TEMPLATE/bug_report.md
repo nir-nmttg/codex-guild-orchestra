@@ -30,7 +30,7 @@ assignees: ""
 
 ## 環境
 
-- codex-guild-orchestraのバージョンまたはcommit:
+- agent-guild-orchestraのバージョンまたはcommit:
 - OS:
 - Dockerのバージョン:
 - Codexの利用形態:

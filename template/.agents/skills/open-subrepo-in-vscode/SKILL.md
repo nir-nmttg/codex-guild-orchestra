@@ -1,7 +1,7 @@
 ---
 name: open-subrepo-in-vscode
 description: "Root が courier を呼び出し、ギルド規約ルート直下の repositories/ フォルダを VS Code で開かせる時に使います。"
-owner: codex-guild-orchestra
+owner: agent-guild-orchestra
 scope: target-repository-workflow
 ---
 

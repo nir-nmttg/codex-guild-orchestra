@@ -1,7 +1,7 @@
 ---
 name: orchestra-validation-review
 description: "親リポジトリの Codex オーケストレーションについて、validation、golden Quest、regression、Skill metadata 検証を設計またはレビューする時に使います。"
-owner: codex-guild-orchestra
+owner: agent-guild-orchestra
 scope: orchestration-template-workflow
 ---
 

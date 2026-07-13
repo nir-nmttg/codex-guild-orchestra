@@ -241,4 +241,12 @@ def validate_stop_hook() -> None:
     require("stop_quality_gate.sh" in hooks, "hooks.json はstop_quality_gate.shを呼び出してください。")
     require("python3" not in hooks and "/usr/bin/env python" not in hooks, "hooks.json はhost Pythonを直接探索しないでください。")
     require("valid_root()" in hooks and "*/repositories/*" in hooks and "$1/repositories" in hooks, "hooks.json のroot guardが不足しています。")
-    require("docker image inspect" in shell and "CODEX_GUILD_ORCHESTRA_DOCKER_SKIP_BUILD=1" in shell, "Stop hookはcold buildせず既存imageを使ってください。")
+    require("docker image inspect" in shell and "AGENT_GUILD_ORCHESTRA_DOCKER_SKIP_BUILD=1" in shell, "Stop hookはcold buildせず既存imageを使ってください。")
+    strict_env = "AGENT_GUILD_ORCHESTRA_STOP_QUALITY_STRICT"
+    legacy_strict_env = "CODEX" + "_STOP_QUALITY_STRICT"
+    require(strict_env in text and strict_env in shell, "Stop hookはAgent Guild固有のstrict環境変数を使ってください。")
+    require(legacy_strict_env not in text and legacy_strict_env not in shell, "Stop hookに旧strict環境変数を残さないでください。")
+    for rel in ("scripts/docker_python.sh", "template/.agents/orchestra/scripts/docker_python.sh"):
+        runner = read(rel)
+        require("CODEX_HOOK_PAYLOAD" in runner, f"{rel} はCodex hook payloadをコンテナへ渡してください。")
+        require(strict_env in runner and legacy_strict_env not in runner, f"{rel} はAgent Guild固有のstrict環境変数だけを渡してください。")

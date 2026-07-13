@@ -38,7 +38,7 @@ except ModuleNotFoundError:  # host runner は Ruby YAML fallback も利用で�
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "scripts/model_selection_eval.yaml"
-DEFAULT_OUTPUT_ROOT = Path("/tmp/codex-guild-model-eval")
+DEFAULT_OUTPUT_ROOT = Path("/tmp/agent-guild-model-eval")
 SUPPORTED_EFFORTS = {"none", "low", "medium", "high", "xhigh", "max"}
 SUPPORTED_SANDBOXES = {"read-only", "workspace-write"}
 CACHE_WRITE_INPUT_RATE_MULTIPLIER = 1.25
@@ -853,7 +853,7 @@ def _prepare_guild(case: dict[str, Any], destination: Path) -> tuple[Path, Path]
     target_repo.mkdir(parents=True, exist_ok=True)
     _write_files(target_repo, case.get("baseline_files", {}), "baseline_files")
     _run_checked(["git", "init", "--quiet"], target_repo)
-    _run_checked(["git", "config", "user.name", "Codex Guild Eval"], target_repo)
+    _run_checked(["git", "config", "user.name", "Agent Guild Eval"], target_repo)
     _run_checked(["git", "config", "user.email", "eval@example.invalid"], target_repo)
     _run_checked(["git", "add", "--all"], target_repo)
     _run_checked(["git", "commit", "--quiet", "--allow-empty", "-m", "eval baseline"], target_repo)
@@ -1134,7 +1134,7 @@ def _assert_pinned_wrapper(isolation_contract: dict[str, Any]) -> None:
 
 
 def _verify_wrapper_timeout_cleanup(isolation_contract: dict[str, Any]) -> dict[str, Any]:
-    probe_root = Path(tempfile.mkdtemp(prefix="codex-guild-wrapper-probe-"))
+    probe_root = Path(tempfile.mkdtemp(prefix="agent-guild-wrapper-probe-"))
     marker = probe_root / "detached-child-survived"
     probe_tmp = probe_root / "tmp"
     probe_tmp.mkdir()
@@ -1372,7 +1372,7 @@ def _run_one(
         raise EvalConfigError(f"output directory already exists: {output_dir}")
     output_dir.mkdir(parents=True)
     provenance_dir.mkdir(parents=True, exist_ok=True)
-    work_dir = Path(tempfile.mkdtemp(prefix="codex-guild-eval-"))
+    work_dir = Path(tempfile.mkdtemp(prefix="agent-guild-eval-"))
     started = time.monotonic()
     try:
         guild_root, target_repo = _prepare_guild(case, work_dir)

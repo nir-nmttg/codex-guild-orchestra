@@ -2,7 +2,7 @@
 
 この配下は代表例であり、すべてのtaskに同じ手順やfieldを要求する規範ではありません。共通の正本は`AGENTS.md`と`settings.yaml`のcompact contractです。各例では成果、安全、検証に必要な部分だけを選びます。
 
-このフォルダは、codex-guild-orchestra を一般公開されたテンプレートとして使う時の代表的な依頼パターンをまとめています。
+このフォルダは、agent-guild-orchestra を一般公開されたテンプレートとして使う時の代表的な依頼パターンをまとめています。
 正本は [オーケストレーションランタイム](../orchestration-runtime.md) と [Guild Quest Lifecycle](../guild-quest-lifecycle.md) です。
 
 ## 前提
