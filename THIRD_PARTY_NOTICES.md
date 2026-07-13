@@ -9,7 +9,7 @@
 
 ## Containerと間接依存関係
 
-`Dockerfile`は`python:3.12-slim`をbase imageとして利用し、build時に`bash`、`ca-certificates`、`git`とPython依存関係を導入します。これらにはMIT以外のライセンスも含まれます。base imageのdigest、OS package、Python packageはbuild時点で変わり得るため、この文書だけでは完全なSBOMまたはnoticeになりません。
+`Dockerfile`は`python:3.14-slim`をbase imageとして利用し、build時に`bash`、`ca-certificates`、`git`とPython依存関係を導入します。これらにはMIT以外のライセンスも含まれます。base imageのdigest、OS package、Python packageはbuild時点で変わり得るため、この文書だけでは完全なSBOMまたはnoticeになりません。
 
 release候補をbuildした時点で、少なくとも次を確認してください。
 
