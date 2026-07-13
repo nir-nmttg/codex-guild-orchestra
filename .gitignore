@@ -1,3 +1,45 @@
+# OS / editor
 .DS_Store
-*.pyc
+.idea/
+.vscode/
+*.swp
+
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+ENV/
+.tox/
+.nox/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Build / package
+build/
+dist/
+*.egg-info/
+
+# Local runtime and backups
+.orchestra/
+.codex-guild-orchestra-backups/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.*
