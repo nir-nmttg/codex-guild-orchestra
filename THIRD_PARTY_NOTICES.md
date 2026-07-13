@@ -5,7 +5,7 @@
 | 直接依存関係 | 使用条件 | 参照先 | 確認状況 |
 | --- | --- | --- | --- |
 | PyYAML (`PyYAML>=6.0.0`) | YAML設定の読み書き | [PyPI](https://pypi.org/project/PyYAML/) / [upstream LICENSE](https://github.com/yaml/pyyaml/blob/main/LICENSE) | upstreamはMIT Licenseを掲示しています。公開artifactで採用されるversionのmetadataと同梱LICENSEを要確認 |
-| tomli (`tomli>=2.0.1`; Python 3.11未満のみ) | `tomllib`がないPythonでTOMLを読むcompatibility dependency | [PyPI](https://pypi.org/project/tomli/) / [upstream LICENSE](https://github.com/hukkin/tomli/blob/master/LICENSE) | upstreamはMIT Licenseを掲示しています。条件付き依存のため、対象Pythonと採用versionのmetadata・同梱LICENSEを要確認 |
+| tomli (`tomli>=2.4.1`; Python 3.11未満のみ) | `tomllib`がないPythonでTOMLを読むcompatibility dependency | [PyPI](https://pypi.org/project/tomli/) / [upstream LICENSE](https://github.com/hukkin/tomli/blob/master/LICENSE) | upstreamはMIT Licenseを掲示しています。条件付き依存のため、対象Pythonと採用versionのmetadata・同梱LICENSEを要確認 |
 
 ## Containerと間接依存関係
 
