@@ -20,7 +20,7 @@ jobs:
     steps:
       # GitHub公式READMEで推奨されている現行majorを利用し、同major内のsecurity updateを受け取ります。
       - name: ソースを取得
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0

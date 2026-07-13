@@ -1,3 +1,7 @@
+<img src="docs/assets/codex-guild-orchestra-social-preview.png">
+
+---
+
 # codex-guild-orchestra
 
 Codexを、成果品質、安全な権限境界、検証可能性を優先して動かすためのGuild runtimeテンプレートです。実作業のリポジトリとオーケストレーション用の契約・状態を分離し、作業の大きさとリスクに応じた委譲、検証、監査を支援します。
