@@ -39,6 +39,7 @@ make install-dry-run
 
 ## Pull Request
 
+- 誰でもIssueやPull Requestで変更を提案できます。`main`へ直接pushせず、必ずbranchからPull Requestを作成してください。
 - 一つのPull Requestには、独立して説明・検証できる一つの目的を持たせてください。
 - 既存の利用者変更を不要に上書きせず、目的外の整形やrenameを混ぜないでください。
 - 変更内容、理由、検証結果、互換性への影響、残リスクを記載してください。
@@ -46,3 +47,13 @@ make install-dry-run
 - 依存関係を追加または更新する場合は、必要性、ライセンス、供給網リスクを説明してください。
 
 maintainerは、品質、安全性、scope、権利関係を確認し、修正や追加検証を依頼することがあります。
+
+## Reviewとmerge
+
+merge要件を満たす承認として扱うのは、対象リポジトリにwriteまたはadmin権限を持ち、かつ[CODEOWNERS](.github/CODEOWNERS)に指定されたreviewerの承認だけです。Pull Request作成者は自分のPull Requestを自己承認できません。作成者自身がwrite・admin権限を持つCODEOWNERであっても、別の適格なCODEOWNERによる承認が必要です。
+
+現在のCODEOWNERは`@nir-nmttg`一名だけです。そのため、本人が作成したPull Requestにも承認を必須とするno-bypassのstrict運用を行うには、別のwriteまたはadmin権限を持つCODEOWNERを追加する必要があります。
+
+この運用はCODEOWNERSファイルだけでは強制されません。maintainerはGitHubの`main` branch protectionまたはrulesetで、Pull Request、必要なCI、CODEOWNER review、古い承認の扱いなどを設定してください。
+
+単独maintainerで、repository recoveryや緊急のsecurity対応のためにowner・adminのbypassを残す場合も、通常のmergeには使用しません。やむを得ずbypassした場合は、理由、検証結果、残リスクをPull Requestまたは追跡可能な記録へ残してください。

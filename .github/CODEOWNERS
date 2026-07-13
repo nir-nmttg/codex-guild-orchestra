@@ -1,0 +1,5 @@
+# リポジトリ内の全pathに適用する既定owner。
+* @nir-nmttg
+
+# ownership規則自身の変更も同じCODEOWNER reviewで保護する。
+/.github/CODEOWNERS @nir-nmttg
