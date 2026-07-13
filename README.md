@@ -1,3 +1,7 @@
+<img src="docs/assets/agent-guild-orchestra-social-preview.png" alt="Agent Guild Orchestraのソーシャルプレビュー">
+
+---
+
 <p align="center">
   <img src="docs/assets/agent-guild-orchestra-logo.png" alt="Agent Guild Orchestraのロゴ" width="200">
 </p>
