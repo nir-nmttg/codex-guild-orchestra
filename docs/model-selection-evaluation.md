@@ -61,9 +61,9 @@ python3 scripts/model_selection_eval.py summarize --session-dir /tmp/agent-guild
 python3 scripts/model_selection_eval.py summarize --session-dir /tmp/agent-guild-model-eval/session-... --price-table /path/to/model-prices.json
 ```
 
-wrapper interfaceは `isolated-eval-wrapper -- <command> ...` です。runnerはhost環境を引き継がず、固定した最小 `PATH`、work directory内の `TMPDIR`、`CGO_EVAL_WORKDIR` / `CGO_EVAL_GUILD_ROOT` だけを渡します。TLS trustと評価専用認証はreview済みwrapper / image側で用意します。Codex本体だけでなく、候補が変更できるGit metadataを読むpostprocessも同じwrapper内で実行し、external diff、textconv、fsmonitor、host Git configを無効化し、timeoutを設けます。wrapperは実行対象をそのwork directoryへ閉じ込め、network destinationをOpenAI model serviceだけに制限する責任を持ちます。
+wrapper interfaceは `isolated-eval-wrapper -- <command> ...` です。runnerはhost環境を引き継がず、固定した最小 `PATH`、work directory内の `TMPDIR`、`AGENT_GUILD_ORCHESTRA_EVAL_WORKDIR` / `AGENT_GUILD_ORCHESTRA_EVAL_GUILD_ROOT` だけを渡します。TLS trustと評価専用認証はreview済みwrapper / image側で用意します。Codex本体だけでなく、候補が変更できるGit metadataを読むpostprocessも同じwrapper内で実行し、external diff、textconv、fsmonitor、host Git configを無効化し、timeoutを設けます。wrapperは実行対象をそのwork directoryへ閉じ込め、network destinationをOpenAI model serviceだけに制限する責任を持ちます。
 
-wrapperは `--cgo-timeout-cleanup-probe <marker-path>` も実装します。このmodeはguest/container内で親process groupからdetachした子を起動し、2秒後にmarkerを書こうとしたままblockします。runnerは1秒でwrapper groupを停止し、さらに2.5秒後もmarkerが存在しないことをlive session開始前に確認します。早期returnまたはmarker生成のどちらでもsessionを拒否し、probe evidenceをprivate provenanceへ記録します。
+wrapperは `--agent-guild-orchestra-timeout-cleanup-probe <marker-path>` も実装します。このmodeはguest/container内で親process groupからdetachした子を起動し、2秒後にmarkerを書こうとしたままblockします。runnerは1秒でwrapper groupを停止し、さらに2.5秒後もmarkerが存在しないことをlive session開始前に確認します。早期returnまたはmarker生成のどちらでもsessionを拒否し、probe evidenceをprivate provenanceへ記録します。
 
 attestationは次の完全一致schemaです。`wrapper_sha256`だけでなくimmutable image digest、実際にreviewしたnetwork policyとcredential profileのID、issuerをapproval単位へ含めます。runnerが技術的にクラウド側policyを証明するものではないため、summaryの保証水準は `operator_attested_reviewed_wrapper_and_profile` と明示されます。
 
@@ -81,7 +81,7 @@ attestationは次の完全一致schemaです。`wrapper_sha256`だけでなくim
   "credential_profile_id": "<evaluation-only credential profile ID>",
   "attestation_issuer": "<責任を持つoperatorまたはcontrol-planeのID>",
   "process_model": "same_process_group_no_daemonization",
-  "timeout_cleanup_protocol": "cgo-detached-child-probe-v1"
+  "timeout_cleanup_protocol": "agent-guild-orchestra-detached-child-probe-v1"
 }
 ```
 

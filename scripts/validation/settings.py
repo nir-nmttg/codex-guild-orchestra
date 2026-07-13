@@ -91,7 +91,7 @@ def validate_settings() -> None:
 
     snapshot = mapping(settings["snapshot"], "settings.snapshot")
     require(snapshot.get("helper") == ".agents/orchestra/scripts/snapshot_digest.py", "snapshot helperが不正です。")
-    require(snapshot.get("digest_version") == "cgo-snapshot-v1" and snapshot.get("mismatch") == "stale_evidence", "snapshot mismatchをfail closedにしてください。")
+    require(snapshot.get("digest_version") == "agent-guild-orchestra-snapshot-v1" and snapshot.get("mismatch") == "stale_evidence", "snapshot mismatchをfail closedにしてください。")
     require(snapshot.get("explicit_untracked_only") is True and snapshot.get("stage_state_excluded_from_digest") is True, "snapshot safety contractが不足しています。")
 
     delegation = mapping(settings["delegation"], "settings.delegation")

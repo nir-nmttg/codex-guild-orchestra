@@ -25,7 +25,7 @@ review scope:
 - revision_id: <Root が確認した HEAD commit SHA>
 - dirty_state: staged / unstaged / untracked を review に含めない。存在する場合は停止
 - scope_paths: <review対象 path。全差分なら repository root 相当の明示 scope>
-- diff_hash: <`commit_range` の `cgo-snapshot-v1` SHA-256>
+- diff_hash: <`commit_range` の `agent-guild-orchestra-snapshot-v1` SHA-256>
 
 focus:
 - `intent_analysis` の本質的な成果を満たし、`intent_alignment` が根拠付きか

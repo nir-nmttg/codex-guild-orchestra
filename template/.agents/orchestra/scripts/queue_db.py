@@ -815,7 +815,7 @@ def validate_helper_snapshot(value: Any, label: str, payload: dict[str, Any]) ->
     snapshot = require_mapping(value, label)
     if set(snapshot) != SNAPSHOT_FIELDS:
         raise SystemExit(f"{label} はcanonical snapshot fieldsにしてください。")
-    if snapshot.get("digest_version") != "cgo-snapshot-v1" or snapshot.get("kind") not in {"revision_only", "working_tree_content", "commit_range"}:
+    if snapshot.get("digest_version") != "agent-guild-orchestra-snapshot-v1" or snapshot.get("kind") not in {"revision_only", "working_tree_content", "commit_range"}:
         raise SystemExit(f"{label} のdigest_version/kindが不正です。")
     for key in ("scope_paths", "untracked_paths"):
         require_relative_path_list(snapshot.get(key), f"{label}.{key}")
@@ -1077,8 +1077,8 @@ def validate_assignment_machine_contract(payload: dict[str, Any]) -> None:
     snapshot_id = require_string(snapshot.get("snapshot_id"), "assignment.subject_snapshot.snapshot_id")
     if SHA256_ID_RE.fullmatch(snapshot_id) is None:
         raise SystemExit("assignment.subject_snapshot.snapshot_id は helper形式のsha256にしてください。")
-    if snapshot.get("digest_version") != "cgo-snapshot-v1":
-        raise SystemExit("assignment.subject_snapshot.digest_version は cgo-snapshot-v1 にしてください。")
+    if snapshot.get("digest_version") != "agent-guild-orchestra-snapshot-v1":
+        raise SystemExit("assignment.subject_snapshot.digest_version は agent-guild-orchestra-snapshot-v1 にしてください。")
     if snapshot.get("kind") not in {"revision_only", "working_tree_content", "commit_range"}:
         raise SystemExit("assignment.subject_snapshot.kind が不正です。")
     kind = snapshot["kind"]

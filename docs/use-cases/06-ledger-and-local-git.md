@@ -21,7 +21,7 @@ snapshot:
 - revision_id: <Trial が accept した HEAD commit SHA>
 - kind: working_tree_content
 - scope_paths: src/import/csv_parser.py と tests/test_csv_import.py だけ。untracked file は含めない
-- diff_hash: <`working_tree_content` として Trial が accept した上記 path 内容の `cgo-snapshot-v1` SHA-256。stage 状態は含めない>
+- diff_hash: <`working_tree_content` として Trial が accept した上記 path 内容の `agent-guild-orchestra-snapshot-v1` SHA-256。stage 状態は含めない>
 - dirty_state: 上記以外の既存変更は保持し、stage しない
 
 許可する操作:

@@ -657,8 +657,8 @@ def audit_assignment_machine_contract(payload: dict[str, Any], label: str, error
         snapshot_id = snapshot.get("snapshot_id")
         if not isinstance(snapshot_id, str) or SHA256_ID_RE.fullmatch(snapshot_id) is None:
             errors.append(f"{label}.subject_snapshot.snapshot_id: helper形式のsha256が必要です。")
-        if snapshot.get("digest_version") != "cgo-snapshot-v1":
-            errors.append(f"{label}.subject_snapshot.digest_version: cgo-snapshot-v1 が必要です。")
+        if snapshot.get("digest_version") != "agent-guild-orchestra-snapshot-v1":
+            errors.append(f"{label}.subject_snapshot.digest_version: agent-guild-orchestra-snapshot-v1 が必要です。")
         if snapshot.get("kind") not in {"revision_only", "working_tree_content", "commit_range"}:
             errors.append(f"{label}.subject_snapshot.kind: 不正です。")
         if not isinstance(snapshot.get("revision_id"), str) or COMMIT_OID_RE.fullmatch(snapshot["revision_id"]) is None:
@@ -984,7 +984,7 @@ def audit_helper_snapshot(value: Any, label: str, errors: list[str]) -> None:
     if not isinstance(value, dict) or set(value) != SNAPSHOT_FIELDS:
         errors.append(f"{label}: canonical snapshot fieldsが必要です。")
         return
-    if value.get("digest_version") != "cgo-snapshot-v1" or value.get("kind") not in {"revision_only", "working_tree_content", "commit_range"}:
+    if value.get("digest_version") != "agent-guild-orchestra-snapshot-v1" or value.get("kind") not in {"revision_only", "working_tree_content", "commit_range"}:
         errors.append(f"{label}: digest_version/kindが不正です。")
     if not isinstance(value.get("snapshot_id"), str) or SHA256_ID_RE.fullmatch(value["snapshot_id"]) is None:
         errors.append(f"{label}.snapshot_id: helper形式sha256が必要です。")

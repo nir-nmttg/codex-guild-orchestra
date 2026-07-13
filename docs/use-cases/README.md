@@ -16,7 +16,7 @@
 
 ## 共通 snapshot 契約
 
-Quest、assignment、report、Trial、Ledger / Git 操作は `subject_snapshot` で対象 state に結び付けます。snapshot は `.agents/orchestra/scripts/docker_python.sh .agents/orchestra/scripts/snapshot_digest.py --repo <target_repo_root> ...` で作る `cgo-snapshot-v1` を使い、次を持ちます。
+Quest、assignment、report、Trial、Ledger / Git 操作は `subject_snapshot` で対象 state に結び付けます。snapshot は `.agents/orchestra/scripts/docker_python.sh .agents/orchestra/scripts/snapshot_digest.py --repo <target_repo_root> ...` で作る `agent-guild-orchestra-snapshot-v1` を使い、次を持ちます。
 
 helperは通常repoに加え、targetと同じ親directoryにあるprimary worktree、backlink、common Git dir構造を検証できるstandard linked worktreeを扱います。任意のgitdir/commondir、Git config include / `core.worktree`、object alternates、worktree固有config、file-valued external config、fsmonitor、textconv、external diff、hostの`GIT_*`注入は拒否または無効化します。
 

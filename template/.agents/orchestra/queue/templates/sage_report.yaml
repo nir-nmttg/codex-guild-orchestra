@@ -24,7 +24,7 @@ report:
   recommended_next_action: null
   subject_snapshot:
     snapshot_id: null
-    digest_version: cgo-snapshot-v1
+    digest_version: agent-guild-orchestra-snapshot-v1
     kind: null
     revision_id: null
     base_ref: null

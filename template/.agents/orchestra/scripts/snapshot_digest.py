@@ -15,7 +15,7 @@ import sys
 from typing import Any
 
 
-DIGEST_VERSION = "cgo-snapshot-v1"
+DIGEST_VERSION = "agent-guild-orchestra-snapshot-v1"
 KINDS = {"revision_only", "working_tree_content", "commit_range"}
 SECRET_COMPONENTS = {
     ".env",

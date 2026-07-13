@@ -177,7 +177,7 @@ def validate_model_selection_eval() -> None:
             "credential_profile_id": "validator-ephemeral",
             "attestation_issuer": "validator",
             "process_model": "same_process_group_no_daemonization",
-            "timeout_cleanup_protocol": "cgo-detached-child-probe-v1",
+            "timeout_cleanup_protocol": "agent-guild-orchestra-detached-child-probe-v1",
         }
         attestation_sha256 = module.hashlib.sha256(
             json.dumps(attestation, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -342,7 +342,7 @@ def validate_model_selection_eval() -> None:
                     "expected_jobs": expected_jobs,
                     "isolation_contract": isolation_contract,
                     "timeout_cleanup_probe": {
-                        "protocol": "cgo-detached-child-probe-v1",
+                        "protocol": "agent-guild-orchestra-detached-child-probe-v1",
                         "passed": True,
                         "detached_child_marker_observed": False,
                         "elapsed_seconds": 3.5,
@@ -674,7 +674,7 @@ def validate_model_selection_eval() -> None:
             "credential_profile_id": "self-asserted",
             "attestation_issuer": "self",
             "process_model": "same_process_group_no_daemonization",
-            "timeout_cleanup_protocol": "cgo-detached-child-probe-v1",
+            "timeout_cleanup_protocol": "agent-guild-orchestra-detached-child-probe-v1",
         }
         attestation_path = test_root / "self-attestation.json"
         attestation_path.write_text(json.dumps(attestation), encoding="utf-8")

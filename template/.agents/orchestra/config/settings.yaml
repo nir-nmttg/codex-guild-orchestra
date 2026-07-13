@@ -59,7 +59,7 @@ contracts:
 
 snapshot:
   helper: .agents/orchestra/scripts/snapshot_digest.py
-  digest_version: cgo-snapshot-v1
+  digest_version: agent-guild-orchestra-snapshot-v1
   kinds: [revision_only, working_tree_content, commit_range]
   mismatch: stale_evidence
   explicit_untracked_only: true

@@ -49,7 +49,7 @@ def validate_subject_snapshot(value: object, label: str) -> None:
         "diff_hash",
     }
     require(set(snapshot) == required, f"{label} は canonical subject snapshot key と一致させてください。")
-    require(snapshot.get("digest_version") == "cgo-snapshot-v1", f"{label}.digest_version は cgo-snapshot-v1 にしてください。")
+    require(snapshot.get("digest_version") == "agent-guild-orchestra-snapshot-v1", f"{label}.digest_version は agent-guild-orchestra-snapshot-v1 にしてください。")
     require(snapshot.get("kind") in {"revision_only", "working_tree_content", "commit_range", None}, f"{label}.kind が不正です。")
     sequence(snapshot.get("scope_paths"), f"{label}.scope_paths")
     sequence(snapshot.get("untracked_paths"), f"{label}.untracked_paths")
