@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 HOST_CWD="$(pwd -P)"
-IMAGE="${CODEX_GUILD_ORCHESTRA_DOCKER_IMAGE:-codex-guild-orchestra-tools:local}"
+IMAGE="${AGENT_GUILD_ORCHESTRA_DOCKER_IMAGE:-agent-guild-orchestra-tools:local}"
 
 if [ "$#" -eq 0 ]; then
   echo "使い方: docker_python.sh <python-args...>" >&2
@@ -16,7 +16,7 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 127
 fi
 
-if [ "${CODEX_GUILD_ORCHESTRA_DOCKER_SKIP_BUILD:-0}" != "1" ]; then
+if [ "${AGENT_GUILD_ORCHESTRA_DOCKER_SKIP_BUILD:-0}" != "1" ]; then
   docker build --quiet -t "$IMAGE" "$ROOT" >/dev/null
 fi
 
@@ -84,15 +84,17 @@ scan_path_args() {
 add_mount "$ROOT"
 add_mount "$HOST_CWD"
 scan_path_args "$@"
-if [ -n "${CODEX_GUILD_ORCHESTRA_RUNTIME_ROOT:-}" ]; then
-  nearest_existing_mount "$CODEX_GUILD_ORCHESTRA_RUNTIME_ROOT"
+RUNTIME_ROOT_ENV="${AGENT_GUILD_ORCHESTRA_RUNTIME_ROOT:-}"
+GUILD_ROOT_ENV="${AGENT_GUILD_ORCHESTRA_ROOT:-}"
+if [ -n "$RUNTIME_ROOT_ENV" ]; then
+  nearest_existing_mount "$RUNTIME_ROOT_ENV"
 fi
-if [ -n "${CODEX_GUILD_ORCHESTRA_ROOT:-}" ]; then
-  nearest_existing_mount "$CODEX_GUILD_ORCHESTRA_ROOT"
+if [ -n "$GUILD_ROOT_ENV" ]; then
+  nearest_existing_mount "$GUILD_ROOT_ENV"
 fi
 
 env_args=("-e" "HOME=/tmp")
-for env_name in CODEX_HOOK_PAYLOAD CODEX_STOP_QUALITY_STRICT CODEX_GUILD_ORCHESTRA_ROOT CODEX_GUILD_ORCHESTRA_RUNTIME_ROOT; do
+for env_name in CODEX_HOOK_PAYLOAD AGENT_GUILD_ORCHESTRA_STOP_QUALITY_STRICT AGENT_GUILD_ORCHESTRA_ROOT AGENT_GUILD_ORCHESTRA_RUNTIME_ROOT; do
   if [ -n "${!env_name+x}" ]; then
     env_args+=("-e" "$env_name")
   fi

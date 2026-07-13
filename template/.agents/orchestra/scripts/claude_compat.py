@@ -99,7 +99,7 @@ SKILL_UNSUPPORTED_FIELDS = {
     "shell",
 }
 SKILL_BLOCKING_FIELDS = {"disallowed-tools", "context", "agent", "hooks"}
-DYNAMIC_COMMAND_MARKER = "[shell command omitted by codex-guild-orchestra]"
+DYNAMIC_COMMAND_MARKER = "[shell command omitted by agent-guild-orchestra]"
 
 
 class CompatError(Exception):

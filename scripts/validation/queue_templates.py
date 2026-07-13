@@ -70,7 +70,7 @@ def validate_queue_templates() -> None:
     request_text = read("template/.agents/orchestra/queue/templates/request.yaml")
     require("evidence_state:" in request_text and "subject_snapshot:" in request_text, "request example は compact evidence_state と helper snapshot を参照してください。")
     command_text = read("template/.agents/orchestra/queue/templates/command.yaml")
-    require("subject_snapshot:" in command_text and "cgo-snapshot-v1" in command_text, "command example は canonical subject snapshot を参照してください。")
+    require("subject_snapshot:" in command_text and "agent-guild-orchestra-snapshot-v1" in command_text, "command example は canonical subject snapshot を参照してください。")
     require(all(token in command_text for token in ("integration_contract:", "artificer:", "mutation_barrier_required:", "required_assignment_ids:", "required_report_refs:", "integration_scope:")), "command example はintegration前にrequired集合とintegration scopeを固定してください。")
 
     _, assignment = _doc("template/.agents/orchestra/queue/templates/adventurer_assignment.yaml", "assignment")

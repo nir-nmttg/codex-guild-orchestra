@@ -32,7 +32,7 @@ def _snapshot(repo: Path, *args: str, env: dict[str, str] | None = None) -> subp
 def validate_snapshot_digest() -> None:
     require(SCRIPT.exists(), "template/.agents/orchestra/scripts/snapshot_digest.py が必要です。")
     script_text = SCRIPT.read_text(encoding="utf-8")
-    for token in ("cgo-snapshot-v1", "--binary", "--full-index", "secret-like / PII-like path", "tracked symlink", "submodule / nested repository"):
+    for token in ("agent-guild-orchestra-snapshot-v1", "--binary", "--full-index", "secret-like / PII-like path", "tracked symlink", "submodule / nested repository"):
         require(token in script_text, f"snapshot digest helper に `{token}` が必要です。")
     if shutil.which("git") is None:
         return

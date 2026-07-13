@@ -7,6 +7,7 @@ import sys
 
 from validation.basic import (
     validate_active_prose_vocabulary,
+    validate_brand_identity,
     validate_dependencies,
     validate_required_paths,
     validate_version,
@@ -28,6 +29,7 @@ def main() -> int:
         validate_dependencies,
         validate_required_paths,
         validate_version,
+        validate_brand_identity,
         validate_settings,
         validate_queue_templates,
         validate_sqlite_schema,

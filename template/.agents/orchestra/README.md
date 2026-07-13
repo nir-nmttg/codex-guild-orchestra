@@ -8,7 +8,7 @@
 - `instructions/`: roleの補助資料。custom agentの起動promptには常時追加しない
 - `queue/templates/`: compact assignment/reportの雛形
 - `scripts/queue_db.py`: SQLite Ledger helper
-- `scripts/snapshot_digest.py`: `cgo-snapshot-v1` helper
+- `scripts/snapshot_digest.py`: `agent-guild-orchestra-snapshot-v1` helper
 - `<guild_root>/.orchestra/`: 動的状態
 
 対象repoは `<guild_root>/repositories/<repo>` のGit rootである `target_repo_root`だけです。

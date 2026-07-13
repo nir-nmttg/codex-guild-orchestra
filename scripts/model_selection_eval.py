@@ -38,7 +38,7 @@ except ModuleNotFoundError:  # host runner は Ruby YAML fallback も利用で�
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "scripts/model_selection_eval.yaml"
-DEFAULT_OUTPUT_ROOT = Path("/tmp/codex-guild-model-eval")
+DEFAULT_OUTPUT_ROOT = Path("/tmp/agent-guild-model-eval")
 SUPPORTED_EFFORTS = {"none", "low", "medium", "high", "xhigh", "max"}
 SUPPORTED_SANDBOXES = {"read-only", "workspace-write"}
 CACHE_WRITE_INPUT_RATE_MULTIPLIER = 1.25
@@ -853,7 +853,7 @@ def _prepare_guild(case: dict[str, Any], destination: Path) -> tuple[Path, Path]
     target_repo.mkdir(parents=True, exist_ok=True)
     _write_files(target_repo, case.get("baseline_files", {}), "baseline_files")
     _run_checked(["git", "init", "--quiet"], target_repo)
-    _run_checked(["git", "config", "user.name", "Codex Guild Eval"], target_repo)
+    _run_checked(["git", "config", "user.name", "Agent Guild Eval"], target_repo)
     _run_checked(["git", "config", "user.email", "eval@example.invalid"], target_repo)
     _run_checked(["git", "add", "--all"], target_repo)
     _run_checked(["git", "commit", "--quiet", "--allow-empty", "-m", "eval baseline"], target_repo)
@@ -1045,7 +1045,7 @@ def _load_isolation_contract(wrapper_path: Path, attestation_path: Path) -> dict
         "network_destination": "openai_model_service_only",
         "wrapper_sha256": wrapper_sha256,
         "process_model": "same_process_group_no_daemonization",
-        "timeout_cleanup_protocol": "cgo-detached-child-probe-v1",
+        "timeout_cleanup_protocol": "agent-guild-orchestra-detached-child-probe-v1",
     }
     if any(attestation.get(key) != value for key, value in expected.items()):
         raise EvalConfigError("isolation attestation が wrapper / containment contract と一致しません。")
@@ -1096,7 +1096,7 @@ def _validate_recorded_isolation_contract(value: object) -> dict[str, Any]:
         "network_destination": "openai_model_service_only",
         "wrapper_sha256": contract["wrapper_sha256"],
         "process_model": "same_process_group_no_daemonization",
-        "timeout_cleanup_protocol": "cgo-detached-child-probe-v1",
+        "timeout_cleanup_protocol": "agent-guild-orchestra-detached-child-probe-v1",
     }
     if any(attestation.get(key) != value for key, value in expected_attestation.items()):
         raise EvalConfigError("recorded isolation attestation が containment contract と一致しません。")
@@ -1134,19 +1134,19 @@ def _assert_pinned_wrapper(isolation_contract: dict[str, Any]) -> None:
 
 
 def _verify_wrapper_timeout_cleanup(isolation_contract: dict[str, Any]) -> dict[str, Any]:
-    probe_root = Path(tempfile.mkdtemp(prefix="codex-guild-wrapper-probe-"))
+    probe_root = Path(tempfile.mkdtemp(prefix="agent-guild-wrapper-probe-"))
     marker = probe_root / "detached-child-survived"
     probe_tmp = probe_root / "tmp"
     probe_tmp.mkdir()
     environment = {
         "PATH": "/usr/bin:/bin",
         "TMPDIR": str(probe_tmp),
-        "CGO_EVAL_WORKDIR": str(probe_root),
-        "CGO_EVAL_GUILD_ROOT": str(probe_root),
+        "AGENT_GUILD_ORCHESTRA_EVAL_WORKDIR": str(probe_root),
+        "AGENT_GUILD_ORCHESTRA_EVAL_GUILD_ROOT": str(probe_root),
     }
     command = [
         str(isolation_contract["wrapper_path"]),
-        "--cgo-timeout-cleanup-probe",
+        "--agent-guild-orchestra-timeout-cleanup-probe",
         str(marker),
     ]
     started = time.monotonic()
@@ -1161,7 +1161,7 @@ def _verify_wrapper_timeout_cleanup(isolation_contract: dict[str, Any]) -> dict[
         time.sleep(2.5)
         survived = marker.exists()
         evidence = {
-            "protocol": "cgo-detached-child-probe-v1",
+            "protocol": "agent-guild-orchestra-detached-child-probe-v1",
             "passed": not survived,
             "detached_child_marker_observed": survived,
             "elapsed_seconds": round(time.monotonic() - started, 3),
@@ -1372,7 +1372,7 @@ def _run_one(
         raise EvalConfigError(f"output directory already exists: {output_dir}")
     output_dir.mkdir(parents=True)
     provenance_dir.mkdir(parents=True, exist_ok=True)
-    work_dir = Path(tempfile.mkdtemp(prefix="codex-guild-eval-"))
+    work_dir = Path(tempfile.mkdtemp(prefix="agent-guild-eval-"))
     started = time.monotonic()
     try:
         guild_root, target_repo = _prepare_guild(case, work_dir)
@@ -1412,8 +1412,8 @@ def _run_one(
         isolated_tmp = work_dir / "tmp"
         isolated_tmp.mkdir()
         launch_env = {"PATH": "/usr/bin:/bin", "TMPDIR": str(isolated_tmp)}
-        launch_env["CGO_EVAL_WORKDIR"] = str(work_dir)
-        launch_env["CGO_EVAL_GUILD_ROOT"] = str(guild_root)
+        launch_env["AGENT_GUILD_ORCHESTRA_EVAL_WORKDIR"] = str(work_dir)
+        launch_env["AGENT_GUILD_ORCHESTRA_EVAL_GUILD_ROOT"] = str(guild_root)
         _assert_pinned_wrapper(isolation_contract)
         try:
             result, timed_out = _run_process_group(
@@ -1883,7 +1883,7 @@ def _summarize(
     timeout_cleanup_probe = _mapping(private_session.get("timeout_cleanup_probe"), "provenance.session.timeout_cleanup_probe")
     if (
         set(timeout_cleanup_probe) != {"protocol", "passed", "detached_child_marker_observed", "elapsed_seconds"}
-        or timeout_cleanup_probe.get("protocol") != "cgo-detached-child-probe-v1"
+        or timeout_cleanup_probe.get("protocol") != "agent-guild-orchestra-detached-child-probe-v1"
         or timeout_cleanup_probe.get("passed") is not True
         or timeout_cleanup_probe.get("detached_child_marker_observed") is not False
         or not isinstance(timeout_cleanup_probe.get("elapsed_seconds"), (int, float))

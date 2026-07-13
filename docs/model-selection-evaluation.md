@@ -1,6 +1,6 @@
 # GPT-5.6 role model selection
 
-この文書は、Codex Guild Orchestra の各 role に固定する model と reasoning effort の選定根拠を記録します。
+この文書は、Agent Guild Orchestra の各 role に固定する model と reasoning effort の選定根拠を記録します。
 以前の割り当てを正解として扱わず、role contract、失敗時の波及、並列頻度、ユースケース契約、代表 stress case を選定根拠にします。
 
 ## 前提
@@ -31,7 +31,7 @@ subagentはtask難度に応じてeffortを動的変更せず、認知負荷とde
 live runner は model / effort 差を分離するため `multi_agent=false` にし、単一 role component の出力とtool挙動を測ります。model / effort比較の正本はmanifestの`compact` profile内だけで行い、`full`は現行compact契約へ補助layerを重ねたsupplemental-layer ablationにだけ使います。削除前prompt stackのfrozen fixtureではないため、旧ルール削除の非劣化を証明するcontrolとは扱いません。prompt profile比較は同じmodel / effortのpaired recordだけで行います。実際のsubagent fan-out、caller identity、handoff、integrationはlive runnerが再現したと主張しません。queueはTrial lineageだけを機械検証し、許可辺とdepthはgolden fixtures、installer mutation smokeでpolicy検証します。end-to-end workflow evalもcomponent scoreと混ぜず別suiteにします。
 
 通常の `make validate` は外部 model を呼ばず、golden Quest と eval manifest の整合だけを検証します。
-live eval は明示実行に分け、出力、usage、elapsed time、worktree / staged / commit diff、commit log、grader worksheet を既定で `/tmp/codex-guild-model-eval` に保存します。
+live eval は明示実行に分け、出力、usage、elapsed time、worktree / staged / commit diff、commit log、grader worksheet を既定で `/tmp/agent-guild-model-eval` に保存します。
 live eval は role 指示と synthetic fixture を外部 model service へ送るため、実行環境のdata policyを確認し、明示的に許可された場合だけ起動します。acknowledgementだけでは起動せず、評価用work directory以外を読み書きできない隔離VM / container wrapperと、そのwrapper hashに結び付いたattestationも必須です。さらにreview済みwrapperのSHA-256を `run_policy.approved_isolation_wrapper_sha256`、canonical attestationのSHA-256を `run_policy.approved_isolation_profile_sha256` へ登録しなければ起動しません。既定値はどちらも空listで、未review wrapper / profileをfail closedにします。
 
 wrapper reviewでは、単なるpass-throughでないこと、hostのhome、repository、credential store、secret mountを隔離環境へ公開しないこと、OpenAI model service以外へ接続できないことを確認します。wrapperは一つのself-contained executableにし、子をdaemonize / 別session化せず `exec` または同じprocess groupで管理し、認証情報は評価専用の方法でwrapper側から注入してください。runnerは承認済み実体をsession provenanceへ固定し、各runの前後にhashを再確認します。timeout時はwrapperを含むprocess group全体をkillしてwaitし、子が残った状態でpostprocessやworkdir削除へ進みません。
@@ -53,17 +53,17 @@ python3 scripts/model_selection_eval.py run \
   --isolation-attestation /path/to/isolation-attestation.json
 # provenanceへアクセスできないgrader用packageを別access boundaryへ出力
 python3 scripts/model_selection_eval.py export-grading \
-  --session-dir /tmp/codex-guild-model-eval/session-... \
+  --session-dir /tmp/agent-guild-model-eval/session-... \
   --output-dir /path/visible-to-grader/examiner-grading
 # package内のgrader.jsonを埋め、grader.jsonだけをcontrolled copyで元sessionへ戻した後
-python3 scripts/model_selection_eval.py summarize --session-dir /tmp/codex-guild-model-eval/session-...
+python3 scripts/model_selection_eval.py summarize --session-dir /tmp/agent-guild-model-eval/session-...
 # current pricingを別管理する場合
-python3 scripts/model_selection_eval.py summarize --session-dir /tmp/codex-guild-model-eval/session-... --price-table /path/to/model-prices.json
+python3 scripts/model_selection_eval.py summarize --session-dir /tmp/agent-guild-model-eval/session-... --price-table /path/to/model-prices.json
 ```
 
-wrapper interfaceは `isolated-eval-wrapper -- <command> ...` です。runnerはhost環境を引き継がず、固定した最小 `PATH`、work directory内の `TMPDIR`、`CGO_EVAL_WORKDIR` / `CGO_EVAL_GUILD_ROOT` だけを渡します。TLS trustと評価専用認証はreview済みwrapper / image側で用意します。Codex本体だけでなく、候補が変更できるGit metadataを読むpostprocessも同じwrapper内で実行し、external diff、textconv、fsmonitor、host Git configを無効化し、timeoutを設けます。wrapperは実行対象をそのwork directoryへ閉じ込め、network destinationをOpenAI model serviceだけに制限する責任を持ちます。
+wrapper interfaceは `isolated-eval-wrapper -- <command> ...` です。runnerはhost環境を引き継がず、固定した最小 `PATH`、work directory内の `TMPDIR`、`AGENT_GUILD_ORCHESTRA_EVAL_WORKDIR` / `AGENT_GUILD_ORCHESTRA_EVAL_GUILD_ROOT` だけを渡します。TLS trustと評価専用認証はreview済みwrapper / image側で用意します。Codex本体だけでなく、候補が変更できるGit metadataを読むpostprocessも同じwrapper内で実行し、external diff、textconv、fsmonitor、host Git configを無効化し、timeoutを設けます。wrapperは実行対象をそのwork directoryへ閉じ込め、network destinationをOpenAI model serviceだけに制限する責任を持ちます。
 
-wrapperは `--cgo-timeout-cleanup-probe <marker-path>` も実装します。このmodeはguest/container内で親process groupからdetachした子を起動し、2秒後にmarkerを書こうとしたままblockします。runnerは1秒でwrapper groupを停止し、さらに2.5秒後もmarkerが存在しないことをlive session開始前に確認します。早期returnまたはmarker生成のどちらでもsessionを拒否し、probe evidenceをprivate provenanceへ記録します。
+wrapperは `--agent-guild-orchestra-timeout-cleanup-probe <marker-path>` も実装します。このmodeはguest/container内で親process groupからdetachした子を起動し、2秒後にmarkerを書こうとしたままblockします。runnerは1秒でwrapper groupを停止し、さらに2.5秒後もmarkerが存在しないことをlive session開始前に確認します。早期returnまたはmarker生成のどちらでもsessionを拒否し、probe evidenceをprivate provenanceへ記録します。
 
 attestationは次の完全一致schemaです。`wrapper_sha256`だけでなくimmutable image digest、実際にreviewしたnetwork policyとcredential profileのID、issuerをapproval単位へ含めます。runnerが技術的にクラウド側policyを証明するものではないため、summaryの保証水準は `operator_attested_reviewed_wrapper_and_profile` と明示されます。
 
@@ -81,7 +81,7 @@ attestationは次の完全一致schemaです。`wrapper_sha256`だけでなくim
   "credential_profile_id": "<evaluation-only credential profile ID>",
   "attestation_issuer": "<責任を持つoperatorまたはcontrol-planeのID>",
   "process_model": "same_process_group_no_daemonization",
-  "timeout_cleanup_protocol": "cgo-detached-child-probe-v1"
+  "timeout_cleanup_protocol": "agent-guild-orchestra-detached-child-probe-v1"
 }
 ```
 

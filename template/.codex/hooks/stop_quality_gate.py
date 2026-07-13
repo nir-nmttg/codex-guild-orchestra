@@ -71,7 +71,7 @@ def _is_low_pressure_report(text: str, *, strict: bool) -> bool:
 
 def main() -> int:
     payload = _load_payload()
-    strict = os.environ.get("CODEX_STOP_QUALITY_STRICT", "0") == "1"
+    strict = os.environ.get("AGENT_GUILD_ORCHESTRA_STOP_QUALITY_STRICT", "0") == "1"
     if payload.get("stop_hook_active"):
         return 0
 

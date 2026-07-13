@@ -2,7 +2,7 @@
 
 この配下は代表例であり、すべてのtaskに同じ手順やfieldを要求する規範ではありません。共通の正本は`AGENTS.md`と`settings.yaml`のcompact contractです。各例では成果、安全、検証に必要な部分だけを選びます。
 
-このフォルダは、codex-guild-orchestra を一般公開されたテンプレートとして使う時の代表的な依頼パターンをまとめています。
+このフォルダは、agent-guild-orchestra を一般公開されたテンプレートとして使う時の代表的な依頼パターンをまとめています。
 正本は [オーケストレーションランタイム](../orchestration-runtime.md) と [Guild Quest Lifecycle](../guild-quest-lifecycle.md) です。
 
 ## 前提
@@ -16,7 +16,7 @@
 
 ## 共通 snapshot 契約
 
-Quest、assignment、report、Trial、Ledger / Git 操作は `subject_snapshot` で対象 state に結び付けます。snapshot は `.agents/orchestra/scripts/docker_python.sh .agents/orchestra/scripts/snapshot_digest.py --repo <target_repo_root> ...` で作る `cgo-snapshot-v1` を使い、次を持ちます。
+Quest、assignment、report、Trial、Ledger / Git 操作は `subject_snapshot` で対象 state に結び付けます。snapshot は `.agents/orchestra/scripts/docker_python.sh .agents/orchestra/scripts/snapshot_digest.py --repo <target_repo_root> ...` で作る `agent-guild-orchestra-snapshot-v1` を使い、次を持ちます。
 
 helperは通常repoに加え、targetと同じ親directoryにあるprimary worktree、backlink、common Git dir構造を検証できるstandard linked worktreeを扱います。任意のgitdir/commondir、Git config include / `core.worktree`、object alternates、worktree固有config、file-valued external config、fsmonitor、textconv、external diff、hostの`GIT_*`注入は拒否または無効化します。
 

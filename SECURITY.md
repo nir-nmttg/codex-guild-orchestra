@@ -15,7 +15,7 @@
 
 脆弱性の可能性がある情報、再現手順、exploit、secret、個人情報を公開Issue、Discussion、Pull Requestへ投稿しないでください。
 
-GitHubの[Private vulnerability reporting](https://github.com/nir-nmttg/codex-guild-orchestra/security/advisories/new)から非公開で報告してください。リポジトリ公開時にこの機能が利用できない場合は、機密情報を公開せず、機能が有効になるまで詳細の送信を控えてください。
+GitHubの[Private vulnerability reporting](https://github.com/nir-nmttg/agent-guild-orchestra/security/advisories/new)から非公開で報告してください。リポジトリ公開時にこの機能が利用できない場合は、機密情報を公開せず、機能が有効になるまで詳細の送信を控えてください。
 
 報告には、可能な範囲で次を含めてください。
 

@@ -6,7 +6,7 @@ set -euo pipefail
 
 STATIC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GUILD_ROOT="$(cd "$STATIC_ROOT/../.." && pwd)"
-RUNTIME_ROOT="${CODEX_GUILD_ORCHESTRA_RUNTIME_ROOT:-$GUILD_ROOT/.orchestra}"
+RUNTIME_ROOT="${AGENT_GUILD_ORCHESTRA_RUNTIME_ROOT:-$GUILD_ROOT/.orchestra}"
 DOCKER_PYTHON="$STATIC_ROOT/scripts/docker_python.sh"
 
 if [ "$#" -ne 4 ]; then

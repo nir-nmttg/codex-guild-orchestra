@@ -1,7 +1,7 @@
 ---
 name: use-guild-workflow
 description: "repositories/配下のmaterialな作業をrisk-adaptiveなGuild workflowで進める入口です。"
-owner: codex-guild-orchestra
+owner: agent-guild-orchestra
 scope: target-repository-workflow
 ---
 

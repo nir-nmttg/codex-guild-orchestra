@@ -1,7 +1,7 @@
 ---
 name: github-pull-request-from-branch
 description: "Root が pull-request-description-from-branch と github-safe-push-from-branch を使い、未 push・未 PR かつ安全監査済みの対象ブランチだけを GitHub へ push して Pull Request を作成する時に使います。"
-owner: codex-guild-orchestra
+owner: agent-guild-orchestra
 scope: target-repository-workflow
 ---
 

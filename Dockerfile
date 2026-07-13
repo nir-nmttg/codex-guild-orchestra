@@ -10,8 +10,8 @@ RUN apt-get update \
 
 WORKDIR /workspace
 
-COPY requirements.txt /tmp/codex-guild-orchestra-requirements.txt
+COPY requirements.txt /tmp/agent-guild-orchestra-requirements.txt
 RUN python -m pip install --upgrade pip \
-    && python -m pip install -r /tmp/codex-guild-orchestra-requirements.txt
+    && python -m pip install -r /tmp/agent-guild-orchestra-requirements.txt
 
 CMD ["python", "--version"]

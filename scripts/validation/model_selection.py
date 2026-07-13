@@ -26,6 +26,12 @@ def validate_model_selection_eval() -> None:
     except module.EvalConfigError as exc:
         require(False, f"model selection eval manifest が不正です: {exc}")
 
+    output_root = str(module.DEFAULT_OUTPUT_ROOT)
+    run_policy = mapping(manifest.get("run_policy"), "model_selection.run_policy")
+    require(output_root == "/tmp/agent-guild-model-eval", "model selection runnerの既定出力先をAgent Guild名にしてください。")
+    require(run_policy.get("raw_output_default") == output_root, "model selection manifestの既定出力先をrunnerと一致させてください。")
+    require(output_root in read("docs/model-selection-evaluation.md"), "model selection docにrunnerと同じ既定出力先が必要です。")
+
     require(tomllib is not None, "model selection 設定同期には tomllib/tomli が必要です。")
     roles = mapping(manifest.get("roles"), "model_selection.roles")
     root_pair = mapping(mapping(roles.get("root"), "model_selection.roles.root").get("selected_pair"), "model_selection.roles.root.selected_pair")
@@ -171,7 +177,7 @@ def validate_model_selection_eval() -> None:
             "credential_profile_id": "validator-ephemeral",
             "attestation_issuer": "validator",
             "process_model": "same_process_group_no_daemonization",
-            "timeout_cleanup_protocol": "cgo-detached-child-probe-v1",
+            "timeout_cleanup_protocol": "agent-guild-orchestra-detached-child-probe-v1",
         }
         attestation_sha256 = module.hashlib.sha256(
             json.dumps(attestation, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -336,7 +342,7 @@ def validate_model_selection_eval() -> None:
                     "expected_jobs": expected_jobs,
                     "isolation_contract": isolation_contract,
                     "timeout_cleanup_probe": {
-                        "protocol": "cgo-detached-child-probe-v1",
+                        "protocol": "agent-guild-orchestra-detached-child-probe-v1",
                         "passed": True,
                         "detached_child_marker_observed": False,
                         "elapsed_seconds": 3.5,
@@ -668,7 +674,7 @@ def validate_model_selection_eval() -> None:
             "credential_profile_id": "self-asserted",
             "attestation_issuer": "self",
             "process_model": "same_process_group_no_daemonization",
-            "timeout_cleanup_protocol": "cgo-detached-child-probe-v1",
+            "timeout_cleanup_protocol": "agent-guild-orchestra-detached-child-probe-v1",
         }
         attestation_path = test_root / "self-attestation.json"
         attestation_path.write_text(json.dumps(attestation), encoding="utf-8")

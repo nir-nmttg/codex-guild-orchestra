@@ -1,7 +1,7 @@
 .PHONY: validate audit-ja install-dry-run docker-build
 
 DOCKER_PYTHON := ./scripts/docker_python.sh
-DOCKER_IMAGE ?= codex-guild-orchestra-tools:local
+DOCKER_IMAGE ?= agent-guild-orchestra-tools:local
 
 docker-build:
 	docker build -t "$(DOCKER_IMAGE)" .

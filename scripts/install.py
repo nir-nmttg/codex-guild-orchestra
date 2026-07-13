@@ -26,10 +26,11 @@ except ModuleNotFoundError:  # pragma: no cover
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE = ROOT / 'template'
-AGENTS_START = '<!-- codex-guild-orchestra:start -->'
-AGENTS_END = '<!-- codex-guild-orchestra:end -->'
-EXCLUDE_START = '# codex-guild-orchestra:start'
-EXCLUDE_END = '# codex-guild-orchestra:end'
+AGENTS_START = '<!-- agent-guild-orchestra:start -->'
+AGENTS_END = '<!-- agent-guild-orchestra:end -->'
+EXCLUDE_START = '# agent-guild-orchestra:start'
+EXCLUDE_END = '# agent-guild-orchestra:end'
+BACKUP_DIRECTORY = '.agent-guild-orchestra-backups'
 BACKUP_REL_PATHS = [
     'AGENTS.md',
     '.git/info/exclude',
@@ -237,7 +238,7 @@ SOURCE_REQUIRED_REL_PATHS = (
 SOURCE_REQUIRED_REL_PATHS += tuple(Path('.codex/agents') / f'{role}.toml' for role in sorted(EXPECTED_AGENT_SANDBOX_MODES))
 SOURCE_REQUIRED_REL_PATHS += tuple(Path('.agents/skills') / skill / 'SKILL.md' for skill in sorted(EXPECTED_ORCHESTRA_SKILL_DIRS))
 REPOSITORIES_REL_PATH = Path('repositories')
-ORCHESTRA_SKILL_OWNER = 'codex-guild-orchestra'
+ORCHESTRA_SKILL_OWNER = 'agent-guild-orchestra'
 TRUSTED_SOURCE_TOP_LEVELS = {'AGENTS.md', '.agents', '.codex'}
 UNTRUSTED_SOURCE_PATH_TOKENS = {
     '.aws',
@@ -522,7 +523,14 @@ def remove_block(text: str, start_marker: str, end_marker: str) -> str:
     return stripped + '\n' if stripped else ''
 
 
-def upsert_text_block(path: Path, block: str, start_marker: str, end_marker: str, target_root: Path, dry_run: bool) -> None:
+def upsert_text_block(
+    path: Path,
+    block: str,
+    start_marker: str,
+    end_marker: str,
+    target_root: Path,
+    dry_run: bool,
+) -> None:
     validate_target_write_path(path, target_root)
     current = path.read_text(encoding='utf-8') if path.exists() else ''
     updated = replace_or_append_block(current, block, start_marker, end_marker)
@@ -530,7 +538,13 @@ def upsert_text_block(path: Path, block: str, start_marker: str, end_marker: str
         write_text(path, updated, target_root, dry_run)
 
 
-def prune_text_block(path: Path, start_marker: str, end_marker: str, target_root: Path, dry_run: bool) -> None:
+def prune_text_block(
+    path: Path,
+    start_marker: str,
+    end_marker: str,
+    target_root: Path,
+    dry_run: bool,
+) -> None:
     validate_target_write_path(path, target_root)
     if not path.exists():
         return
@@ -556,7 +570,7 @@ def backup_existing(target_root: Path, dry_run: bool) -> None:
         return
 
     stamp = dt.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
-    backup_root = target_root / '.codex-guild-orchestra-backups' / stamp
+    backup_root = target_root / BACKUP_DIRECTORY / stamp
     validate_target_write_path(backup_root, target_root)
     for path in candidates:
         validate_backup_candidate(path, target_root)
@@ -1308,7 +1322,13 @@ def update_git_exclude(target_root: Path, enabled: bool, dry_run: bool) -> None:
     if not exclude_path.parent.exists():
         return
 
-    lines = [EXCLUDE_START, '.agents/orchestra/', '.codex/', '.orchestra/', '.codex-guild-orchestra-backups/']
+    lines = [
+        EXCLUDE_START,
+        '.agents/orchestra/',
+        '.codex/',
+        '.orchestra/',
+        f'{BACKUP_DIRECTORY}/',
+    ]
     lines.append(EXCLUDE_END)
     block = '\n'.join(lines) + '\n'
     upsert_text_block(exclude_path, block, EXCLUDE_START, EXCLUDE_END, target_root, dry_run)
