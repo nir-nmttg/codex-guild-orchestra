@@ -247,8 +247,12 @@ def validate_golden_quests() -> None:
     courier = mapping(courier_doc.get("expected"), "courier.expected")
     require(_authority(courier.get("authority"), "courier.authority") == {"read": True, "edit": False, "validate": False, "local_git": True, "external_actions": False}, "courier authority が不正です。")
     auth = mapping(courier.get("authorization"), "courier.authorization")
-    require(auth.get("source") == "latest_human_instruction" and auth.get("accepted_revision_id") == courier_input.get("accepted_revision_id") and auth.get("accepted_diff_hash") == courier_input.get("accepted_diff_hash"), "courier Git authority は latest instruction と accepted snapshot に固定してください。")
+    require(auth.get("source") == "explicit_human_skill_invocation" and auth.get("skill_name") == "git-split-commits-from-diff", "courier Git authority は人間が明示指定したコマンド実行系Skillに固定してください。")
+    require(auth.get("target_repo_root") == courier_input.get("target_repo_root"), "courier Git authority の target_repo_root は人間入力に固定してください。")
+    require(auth.get("allowed_paths") == courier_input.get("allowed_paths"), "courier Git authority の allowed_paths は人間入力に固定してください。")
+    require(auth.get("allowed_operations") == ["stage", "commit"] and auth.get("accepted_revision_id") == courier_input.get("accepted_revision_id") and auth.get("accepted_diff_hash") == courier_input.get("accepted_diff_hash"), "Skill指定のGit authorityはSkill定義操作とaccepted snapshotに固定してください。")
     require(auth.get("implicit_request_allowed") is False, "暗黙の Git request を許可しないでください。")
+    require(auth.get("skill_defined_scope_only") is True and auth.get("safety_gates_bypassed") is False, "Skill指定でscope拡張や安全gate迂回を許可しないでください。")
     _forbidden(courier.get("forbidden"), "courier.forbidden")
 
     ledger = _expected("ledger_injection_negative.yaml")
