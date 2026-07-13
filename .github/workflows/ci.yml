@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # GitHub公式READMEで推奨されている現行majorを利用し、同major内のsecurity updateを受け取ります。
+      - name: ソースを取得
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: リポジトリ提供の検証を実行
+        run: make validate
+
+      - name: イベント範囲のwhitespace errorを確認
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ "$BASE_SHA" =~ ^0{40}$ ]]; then
+            EMPTY_TREE="$(git hash-object -t tree /dev/null)"
+            git diff --check "$EMPTY_TREE" HEAD
+          else
+            git diff --check "$BASE_SHA...HEAD"
+          fi
