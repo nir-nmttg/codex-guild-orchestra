@@ -41,6 +41,10 @@ guild_law:
     - external_network_enablement
   state_changes:
     local_git_requires_explicit_operation: true
+    explicit_command_skill_invocation_authorizes_defined_operations: true
+    explicit_command_skill_invocation_scope: skill_defined_operations_and_human_target
+    non_human_skill_reference_grants_authority: false
+    scoped_skill_authority_bypasses_safety_gates: false
     external_update_requires_immediate_reconfirmation: true
 
 contracts:

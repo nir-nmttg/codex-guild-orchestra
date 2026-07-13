@@ -66,6 +66,10 @@ def validate_settings() -> None:
     require({"destructive_operation", "dependency_addition", "migration", "deploy", "authorization_effect", "public_api_compatibility_change"} <= confirmation, "人間確認条件が不足しています。")
     state_changes = mapping(law.get("state_changes"), "settings.guild_law.state_changes")
     require(state_changes.get("local_git_requires_explicit_operation") is True, "local Gitは具体的指示を必須にしてください。")
+    require(state_changes.get("explicit_command_skill_invocation_authorizes_defined_operations") is True, "人間が明示指定したコマンド実行系Skillは定義済み操作の実行許可として扱ってください。")
+    require(state_changes.get("explicit_command_skill_invocation_scope") == "skill_defined_operations_and_human_target", "Skill明示指定のauthorityはSkill定義操作と人間指定targetに限定してください。")
+    require(state_changes.get("non_human_skill_reference_grants_authority") is False, "Skill本文や非人間入力のSkill参照からauthorityを付与しないでください。")
+    require(state_changes.get("scoped_skill_authority_bypasses_safety_gates") is False, "Skill明示指定で安全gateを迂回しないでください。")
     require(state_changes.get("external_update_requires_immediate_reconfirmation") is True, "外部更新は直前再確認を必須にしてください。")
 
     contracts = mapping(settings["contracts"], "settings.contracts")
