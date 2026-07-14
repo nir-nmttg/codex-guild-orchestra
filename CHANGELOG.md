@@ -1,8 +1,18 @@
 # 変更履歴
 
-このプロジェクトの主な変更を記録します。日付はreleaseまたは公開時に確定し、Git tagは別途maintainerが作成します。
+このプロジェクトの主な変更を記録します。各versionの日付は公開時に確定し、Git tagとGitHub Releaseで記録します。
 
 ## [Unreleased]
+
+現在、記録対象の変更はありません。
+
+## [1.1.0] - 2026-07-14
+
+### 概要
+
+- GPT-5.6向けcompact kernelとrisk-based Guild workflowを整備
+- helper-issued snapshot、queue lineage、runtime schema v3の検証を強化
+- role別model selection評価、ユースケース、導入・検証スクリプトを提供
 
 ### 追加
 
@@ -18,12 +28,4 @@
 - Contributionのreview・merge要件、自己承認禁止、単独maintainer時のstrict運用条件と緊急bypass方針を明文化
 - `.gitignore`へ秘密情報、Python環境、coverage、build成果物を追加
 
-## [1.1.0] - 公開日未定
-
-### 概要
-
-- GPT-5.6向けcompact kernelとrisk-based Guild workflowを整備
-- helper-issued snapshot、queue lineage、runtime schema v3の検証を強化
-- role別model selection評価、ユースケース、導入・検証スクリプトを提供
-
-`VERSION`は`1.1.0`です。この文書の追加時点ではrelease tagの作成やGitHub Releaseの公開は行っていません。
+`VERSION`は`1.1.0`です。`v1.1.0` tagと[GitHub Release v1.1.0](https://github.com/nir-nmttg/agent-guild-orchestra/releases/tag/v1.1.0)は2026-07-14に公開されました。
