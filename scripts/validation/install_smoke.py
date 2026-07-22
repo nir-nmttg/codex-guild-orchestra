@@ -139,6 +139,8 @@ def _assert_installed_surface(target: Path) -> None:
             INSTALLER.read_skill_owner(skill_path) == "agent-guild-orchestra",
             f"{skill_path.relative_to(target)} の owner は agent-guild-orchestra にしてください。",
         )
+        openai_yaml = skill_dir / skill_name / "agents/openai.yaml"
+        require(openai_yaml.is_file(), f"{openai_yaml.relative_to(target)} を導入してください。")
     require((skill_dir / "quest-awareness-loop/SKILL.md").exists(), "install.py は quest-awareness-loop skill を導入してください。")
     require((target / ".agents/orchestra/docs/agent-memory.md").exists(), "install.py は agent-memory runtime artifact を導入してください。")
     require((target / ".orchestra/dashboard.md").exists(), "install.py は dashboard runtime artifact を .orchestra/dashboard.md に導入してください。")
@@ -350,6 +352,59 @@ def _assert_incompatible_runtime_install_rejected(target: Path, label: str) -> N
 
 def validate_install_upgrade_smoke() -> None:
     _assert_managed_block_helper_matrix()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        skill_root = Path(tmp)
+        standard_skill = skill_root / "standard.md"
+        standard_skill.write_text(
+            "---\nname: standard\ndescription: standard\nmetadata:\n  owner: agent-guild-orchestra\n  scope: target-repository-workflow\n---\n",
+            encoding="utf-8",
+        )
+        legacy_skill = skill_root / "legacy.md"
+        legacy_skill.write_text(
+            "---\nname: legacy\ndescription: legacy\nowner: agent-guild-orchestra\nscope: target-repository-workflow\n---\n",
+            encoding="utf-8",
+        )
+        canonical_third_party = skill_root / "canonical-third-party.md"
+        canonical_third_party.write_text(
+            "---\nname: canonical-third-party\ndescription: canonical owner wins\nowner: agent-guild-orchestra\nmetadata:\n  owner: third-party\n  scope: target-repository-workflow\n---\n",
+            encoding="utf-8",
+        )
+        canonical_orchestra = skill_root / "canonical-orchestra.md"
+        canonical_orchestra.write_text(
+            "---\nname: canonical-orchestra\ndescription: canonical owner wins\nowner: third-party\nmetadata:\n  owner: agent-guild-orchestra\n  scope: target-repository-workflow\n---\n",
+            encoding="utf-8",
+        )
+        original_yaml = INSTALLER.yaml
+        try:
+            for parser_name, parser in (("PyYAML", original_yaml), ("fallback", None)):
+                INSTALLER.yaml = parser
+                require(
+                    INSTALLER.read_skill_owner(standard_skill) == "agent-guild-orchestra",
+                    f"install.py の{parser_name} parserはmetadata.ownerを読めるようにしてください。",
+                )
+                require(
+                    INSTALLER.read_skill_owner(legacy_skill) == "agent-guild-orchestra",
+                    f"install.py の{parser_name} parserは旧top-level ownerを後方互換で読めるようにしてください。",
+                )
+                require(
+                    INSTALLER.read_skill_owner(canonical_third_party) == "third-party"
+                    and INSTALLER.read_skill_owner(canonical_orchestra) == "agent-guild-orchestra",
+                    f"install.py の{parser_name} parserはmetadata.ownerを旧top-level ownerより優先してください。",
+                )
+
+                clean_target = skill_root / f"clean-{parser_name.casefold()}"
+                keep_skill = clean_target / ".agents/skills/keep/SKILL.md"
+                remove_skill = clean_target / ".agents/skills/remove/SKILL.md"
+                keep_skill.parent.mkdir(parents=True)
+                remove_skill.parent.mkdir(parents=True)
+                keep_skill.write_text(canonical_third_party.read_text(encoding="utf-8"), encoding="utf-8")
+                remove_skill.write_text(canonical_orchestra.read_text(encoding="utf-8"), encoding="utf-8")
+                INSTALLER.clean_owner_scoped_skills(clean_target, dry_run=False)
+                require(keep_skill.exists(), f"install.py の{parser_name} clean-install cleanupはcanonical third-party Skillを保持してください。")
+                require(not remove_skill.exists(), f"install.py の{parser_name} clean-install cleanupはcanonical orchestra Skillを除去してください。")
+        finally:
+            INSTALLER.yaml = original_yaml
 
     original_yaml = INSTALLER.yaml
     try:
@@ -926,6 +981,12 @@ def validate_install_upgrade_smoke() -> None:
 
     missing_quest_awareness_skill = run_with_mutated_source("missing quest-awareness-loop skill", lambda source: shutil.rmtree(source / ".agents/skills/quest-awareness-loop"))
     require("quest-awareness-loop" in (missing_quest_awareness_skill.stdout + missing_quest_awareness_skill.stderr), "install.py の quest-awareness-loop 不足拒否 message は skill 名を示してください。")
+
+    missing_skill_openai = run_with_mutated_source(
+        "missing skill openai metadata",
+        lambda source: (source / ".agents/skills/use-guild-workflow/agents/openai.yaml").unlink(),
+    )
+    require("openai.yaml" in (missing_skill_openai.stdout + missing_skill_openai.stderr), "install.py の Skill openai metadata 不足拒否 message は openai.yaml を示してください。")
 
     missing_runtime_doc = run_with_mutated_source("missing runtime memory doc", lambda source: (source / ".agents/orchestra/docs/agent-memory.md").unlink())
     require("agent-memory.md" in (missing_runtime_doc.stdout + missing_runtime_doc.stderr), "install.py の runtime docs 不足拒否 message は agent-memory.md を示してください。")

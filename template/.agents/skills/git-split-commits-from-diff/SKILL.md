@@ -1,7 +1,9 @@
 ---
 name: git-split-commits-from-diff
 description: "Root が courier を呼び出し、repositories/ 配下の対象リポジトリの未コミット差分を対応内容ごとの小さな commit unit に分け、意図した範囲だけを順番に stage / commit させる時に使います。ユーザーが「コミットして」「差分からコミットして」「小分けにコミットして」など、stage / commit を明示した時だけ使います。"
-owner: agent-guild-orchestra
+metadata:
+  owner: agent-guild-orchestra
+  scope: target-repository-workflow
 ---
 
 # git-split-commits-from-diff

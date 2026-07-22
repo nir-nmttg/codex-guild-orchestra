@@ -1,8 +1,9 @@
 ---
 name: git-branch-from-session
 description: "Root が courier を呼び出し、セッションの依頼内容や作業意図から repositories/ 配下の対象リポジトリ用の Git ブランチ名を作成し、対象リポジトリでブランチ作成を実行させる時に使います。"
-owner: agent-guild-orchestra
-scope: target-repository-workflow
+metadata:
+  owner: agent-guild-orchestra
+  scope: target-repository-workflow
 ---
 
 # git-branch-from-session

@@ -1,8 +1,9 @@
 ---
 name: implementation-behavior-verification
 description: "Root が repositories/ 配下の対象リポジトリについて、実装差分や参考URLからの動作確認を adventurer へ委譲し、テスト、curl、CLI、ログ、in-app browser の evidence を受け取る時に使います。"
-owner: agent-guild-orchestra
-scope: target-repository-workflow
+metadata:
+  owner: agent-guild-orchestra
+  scope: target-repository-workflow
 ---
 
 # implementation-behavior-verification

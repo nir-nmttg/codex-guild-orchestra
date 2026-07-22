@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import re
 import tempfile
 
-from .core import ROOT, load_yaml, mapping, read, require, sequence, tomllib
+from .core import ROOT, load_yaml, mapping, read, require, sequence, tomllib, yaml
 
 
 EXPECTED_AGENT_SANDBOX_MODES = {
@@ -60,6 +61,18 @@ QUALITY_REDUCING_TOKENS = (
     "extra_file_reads",
     "validation_iterations",
 )
+
+VSCODE_SKILL_FRONTMATTER_FIELDS = {
+    "argument-hint",
+    "compatibility",
+    "context",
+    "description",
+    "disable-model-invocation",
+    "license",
+    "metadata",
+    "name",
+    "user-invocable",
+}
 
 
 def _line_count(rel: str) -> int:
@@ -331,6 +344,63 @@ def validate_skills() -> None:
         rel = str(skill_md.relative_to(ROOT))
         text = skill_md.read_text(encoding="utf-8")
         require(text.startswith("---\n"), f"{rel} はfrontmatterで始めてください。")
+        end_marker = text.find("\n---\n", 4)
+        require(end_marker != -1, f"{rel} のfrontmatterを `---` で閉じてください。")
+        require(yaml is not None, "Skill frontmatter検証にはPyYAMLが必要です。")
+        try:
+            document = yaml.safe_load(text[4:end_marker])  # type: ignore[union-attr]
+        except yaml.YAMLError as exc:  # type: ignore[union-attr]
+            require(False, f"{rel} のfrontmatterをYAMLとして読めません: {exc}")
+        frontmatter = mapping(document, f"{rel} frontmatter")
+        require(all(isinstance(key, str) for key in frontmatter), f"{rel} のfrontmatter keyは文字列にしてください。")
+        unexpected_fields = sorted(set(frontmatter) - VSCODE_SKILL_FRONTMATTER_FIELDS)
+        require(
+            not unexpected_fields,
+            f"{rel} にVS Code Agent Skills schema非対応のfrontmatter fieldがあります: " + ", ".join(unexpected_fields),
+        )
+
+        name = frontmatter.get("name")
+        description = frontmatter.get("description")
+        require(isinstance(name, str) and re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name) is not None, f"{rel}.name はhyphen-caseにしてください。")
+        require(len(name) <= 64 and name == skill_md.parent.name, f"{rel}.name は64文字以内で親directory名と一致させてください。")
+        require(isinstance(description, str) and 1 <= len(description) <= 1024, f"{rel}.description は1〜1024文字にしてください。")
+
+        skill_metadata = mapping(frontmatter.get("metadata"), f"{rel}.metadata")
+        require(
+            all(isinstance(key, str) and isinstance(value, str) for key, value in skill_metadata.items()),
+            f"{rel}.metadata は文字列key/valueのmappingにしてください。",
+        )
+        require(skill_metadata.get("owner") == "agent-guild-orchestra", f"{rel}.metadata.owner は agent-guild-orchestra にしてください。")
+        require(isinstance(skill_metadata.get("scope"), str) and bool(skill_metadata["scope"]), f"{rel}.metadata.scope を空でない文字列にしてください。")
+
+        for key in ("argument-hint", "license"):
+            if key in frontmatter:
+                require(isinstance(frontmatter[key], str) and bool(frontmatter[key]), f"{rel}.{key} は空でない文字列にしてください。")
+        if "compatibility" in frontmatter:
+            compatibility = frontmatter["compatibility"]
+            require(isinstance(compatibility, str) and 1 <= len(compatibility) <= 500, f"{rel}.compatibility は1〜500文字にしてください。")
+        if "context" in frontmatter:
+            require(frontmatter["context"] == "fork", f"{rel}.context はVS Codeが対応する `fork` にしてください。")
+        for key in ("disable-model-invocation", "user-invocable"):
+            if key in frontmatter:
+                require(isinstance(frontmatter[key], bool), f"{rel}.{key} はboolにしてください。")
+
+        openai_yaml = skill_md.parent / "agents/openai.yaml"
+        require(openai_yaml.is_file(), f"{rel} には agents/openai.yaml が必要です。")
+        openai_rel = str(openai_yaml.relative_to(ROOT))
+        openai_document = mapping(load_yaml(openai_rel), openai_rel)
+        interface = mapping(openai_document.get("interface"), f"{openai_rel}.interface")
+        for key in ("display_name", "short_description", "default_prompt"):
+            require(
+                isinstance(interface.get(key), str) and bool(interface[key].strip()),
+                f"{openai_rel}.interface.{key} は空でない文字列にしてください。",
+            )
+        short_description = interface["short_description"]
+        require(25 <= len(short_description) <= 64, f"{openai_rel}.interface.short_description は25〜64文字にしてください。")
+        require(
+            f"${name}" in interface["default_prompt"],
+            f"{openai_rel}.interface.default_prompt は `${name}` を明示してください。",
+        )
         for section in ("## 使う時", "## 入力", "## 手順", "## 出力", "## 安全", "## 停止条件"):
             require(section in text, f"{rel} に {section} が必要です。")
         require("未信頼" in text or "外部入力" in text or "秘密" in text, f"{rel} は安全境界を明記してください。")

@@ -60,7 +60,7 @@ default `workspace-write` でも `.git/`、`.agents/`、`.codex/` は protected 
 
 クリーンインストールは、ギルド規約ルートへ導入済みのランタイム一式をいったん片付けてから再導入します。
 メジャー更新時や、テンプレートを完全に入れ替えたい時に使います。
-`clean_install.sh` wrapper はバックアップを作らず、既存導入物、`owner: agent-guild-orchestra` の同梱 Skillを片付けてから置き換えます。
+`clean_install.sh` wrapper はバックアップを作らず、既存導入物、`metadata.owner: agent-guild-orchestra` の同梱 Skillを片付けてから置き換えます。旧版との互換性のため、frontmatter直下の`owner`もcleanup時だけ認識します。
 `scripts/docker_python.sh scripts/install.py --target /path/to/guild-root --mode copy --clean-install` を使う場合も、バックアップなしで実行できます。導入先は `/` や `$HOME` ではなく、専用のギルド規約ルートを指定してください。
 `repositories/` 配下の実リポジトリ移動や破壊的 cleanup は行いません。
 
@@ -96,8 +96,9 @@ Git 管理したい場合は `--no-git-exclude` を付けてください。
 これは `.git/info/exclude` を新規更新せず、既存の管理ブロックも変更しません。`.agents/orchestra/` と `.codex/` はテンプレート本体として配置されます。
 Codex Skills を共有したい場合の `.agents/skills/` は除外しません。`AGENTS.md` には毎回必要な短い規約だけを置き、再利用ワークフローは Skills 側へ分けてください。
 このテンプレートは設計、レビュー、検証、コミット作成などのリポジトリ単位の Skills を `.agents/skills/` に同梱します。
-同梱 Skill は `owner: agent-guild-orchestra` と用途別の `scope` を持ちます。オーケストレーション本体向けだけ `orchestra-` 接頭辞を使い、`repositories/` 配下対象リポジトリ向けは接頭辞なしにします。
-不要な Skill は削除できますが、残す場合は `SKILL.md` の `name`、`description`、`owner`、`scope` を壊さないでください。
+同梱 Skill の `SKILL.md` frontmatter は、VS Code Agent Skills schemaが対応するfieldだけを使います。このテンプレートではportableな共通部分である`name`、`description`、`metadata`だけを置き、管理用の`owner: agent-guild-orchestra`と用途別の`scope`は文字列値として`metadata`配下に置きます。オーケストレーション本体向けだけ `orchestra-` 接頭辞を使い、`repositories/` 配下対象リポジトリ向けは接頭辞なしにします。
+同梱する全Skillには `agents/openai.yaml` を置き、OpenAI向けの `interface.display_name`、`interface.short_description`、`interface.default_prompt` を定義します。invocation policy、tool dependency、icon、brand colorなどの追加fieldは、具体的な用途があるSkillだけに加えます。
+不要な Skill は削除できますが、残す場合は `SKILL.md` の `name`、`description`、`metadata.owner`、`metadata.scope` を壊さないでください。
 
 ## 状態ファイル
 

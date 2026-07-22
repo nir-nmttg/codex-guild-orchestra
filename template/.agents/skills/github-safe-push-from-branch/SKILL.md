@@ -1,8 +1,9 @@
 ---
 name: github-safe-push-from-branch
 description: "Root が repositories/ 配下の対象リポジトリで、push 前のread-only安全監査を inquisitor へ委譲し、問題がない場合だけ人間確認後に通常 push する時に使います。"
-owner: agent-guild-orchestra
-scope: target-repository-workflow
+metadata:
+  owner: agent-guild-orchestra
+  scope: target-repository-workflow
 ---
 
 # github-safe-push-from-branch

@@ -242,6 +242,7 @@ SOURCE_REQUIRED_REL_PATHS = (
 )
 SOURCE_REQUIRED_REL_PATHS += tuple(Path('.codex/agents') / f'{role}.toml' for role in sorted(EXPECTED_AGENT_SANDBOX_MODES))
 SOURCE_REQUIRED_REL_PATHS += tuple(Path('.agents/skills') / skill / 'SKILL.md' for skill in sorted(EXPECTED_ORCHESTRA_SKILL_DIRS))
+SOURCE_REQUIRED_REL_PATHS += tuple(Path('.agents/skills') / skill / 'agents/openai.yaml' for skill in sorted(EXPECTED_ORCHESTRA_SKILL_DIRS))
 REPOSITORIES_REL_PATH = Path('repositories')
 ORCHESTRA_SKILL_OWNER = 'agent-guild-orchestra'
 TRUSTED_SOURCE_TOP_LEVELS = {'AGENTS.md', '.agents', '.codex'}
@@ -445,23 +446,37 @@ def read_skill_owner(skill_path: Path) -> str | None:
     frontmatter = text[4:end_marker]
     if yaml is not None:
         try:
-            metadata = yaml.safe_load(frontmatter)
+            document = yaml.safe_load(frontmatter)
         except yaml.YAMLError:
-            metadata = None
-        if isinstance(metadata, dict):
-            owner = metadata.get('owner')
-            if isinstance(owner, str):
-                return owner
-            skill_metadata = metadata.get('metadata')
+            document = None
+        if isinstance(document, dict):
+            skill_metadata = document.get('metadata')
             if isinstance(skill_metadata, dict):
                 nested_owner = skill_metadata.get('owner')
-                return nested_owner if isinstance(nested_owner, str) else None
+                if isinstance(nested_owner, str):
+                    return nested_owner
+            legacy_owner = document.get('owner')
+            if isinstance(legacy_owner, str):
+                return legacy_owner
             return None
+    in_metadata = False
+    nested_owner = None
+    legacy_owner = None
     for line in frontmatter.splitlines():
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
         key, separator, value = line.partition(':')
-        if separator and key.strip() == 'owner':
-            return value.strip().strip('"\'')
-    return None
+        if not separator:
+            continue
+        normalized_key = key.strip()
+        if indent == 0:
+            in_metadata = normalized_key == 'metadata' and not value.strip()
+            if normalized_key == 'owner':
+                legacy_owner = value.strip().strip('"\'')
+            continue
+        if in_metadata and normalized_key == 'owner':
+            nested_owner = value.strip().strip('"\'')
+    return nested_owner if nested_owner is not None else legacy_owner
 
 
 def clean_owner_scoped_skills(target_root: Path, dry_run: bool) -> None:

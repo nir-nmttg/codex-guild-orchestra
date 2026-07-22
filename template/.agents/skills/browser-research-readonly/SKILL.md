@@ -1,8 +1,9 @@
 ---
 name: browser-research-readonly
 description: "対象リポジトリに関係するブラウザ情報収集を cartographer へ委譲する read-only workflow。画面遷移や表示確認は許可し、送信、保存、削除、購入、承認、ログイン状態変更、設定変更などの状態更新を禁止します。"
-owner: agent-guild-orchestra
-scope: target-repository-workflow
+metadata:
+  owner: agent-guild-orchestra
+  scope: target-repository-workflow
 ---
 
 # browser-research-readonly

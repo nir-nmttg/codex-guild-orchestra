@@ -1,8 +1,9 @@
 ---
 name: git-rename-unpushed-branch-from-diff
 description: "Root が courier を呼び出し、repositories/ 配下の対象リポジトリで origin 未 push と確認できる現在ブランチだけを、現状差分やコミット内容から安全に rename させる時に使います。"
-owner: agent-guild-orchestra
-scope: target-repository-workflow
+metadata:
+  owner: agent-guild-orchestra
+  scope: target-repository-workflow
 ---
 
 # git-rename-unpushed-branch-from-diff
