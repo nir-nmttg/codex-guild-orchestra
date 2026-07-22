@@ -50,7 +50,7 @@ EXPECTED_SKILL_DIRS = {
     "branch-implementation-final-review",
     "browser-research-readonly",
     "communicate-work-estimates",
-    "explain-for-newcomers",
+    "explain-clearly",
     "git-branch-from-session",
     "git-rename-unpushed-branch-from-diff",
     "git-split-commits-from-diff",
@@ -110,7 +110,7 @@ def _installed_text_paths(target: Path) -> list[Path]:
     )
 
 
-def _assert_installed_surface(target: Path) -> None:
+def _assert_installed_surface(target: Path, allowed_extra_skills: set[str] | None = None) -> None:
     require((target / "AGENTS.md").exists(), "install.py は AGENTS.md を生成してください。")
     require((target / ".codex/config.toml").exists(), "install.py は .codex/config.toml を導入してください。")
     root_config = INSTALLER.read_toml_document(target / ".codex/config.toml")
@@ -132,7 +132,8 @@ def _assert_installed_surface(target: Path) -> None:
         )
     skill_dir = target / ".agents/skills"
     actual_skills = {path.name for path in skill_dir.iterdir() if path.is_dir()}
-    require(actual_skills == EXPECTED_SKILL_DIRS, ".agents/skills の導入 directory set が期待値と一致しません: " + ", ".join(sorted(actual_skills)))
+    expected_skills = EXPECTED_SKILL_DIRS | (allowed_extra_skills or set())
+    require(actual_skills == expected_skills, ".agents/skills の導入 directory set が期待値と一致しません: " + ", ".join(sorted(actual_skills)))
     for skill_name in sorted(EXPECTED_SKILL_DIRS):
         skill_path = skill_dir / skill_name / "SKILL.md"
         require(
@@ -459,14 +460,26 @@ def validate_install_upgrade_smoke() -> None:
             target / ".agents/orchestra/queue/templates/adventurer_task.yaml",
             target / ".agents/orchestra/queue/templates/inquisitor_task.yaml",
             target / ".agents/skills" / ("meta" "cognitive-task-loop") / "SKILL.md",
+            target / ".agents/skills/explain-for-newcomers/SKILL.md",
         ]
         for path in legacy_paths:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("legacy: true\n", encoding="utf-8")
+        legacy_explanation_skill = target / ".agents/skills/explain-for-newcomers/SKILL.md"
+        legacy_explanation_skill.write_text(
+            "---\nname: explain-for-newcomers\ndescription: legacy explanation skill\nmetadata:\n  owner: agent-guild-orchestra\n  scope: response-explanation-workflow\n---\n",
+            encoding="utf-8",
+        )
+        third_party_skill = target / ".agents/skills/third-party-example/SKILL.md"
+        third_party_skill.parent.mkdir(parents=True, exist_ok=True)
+        third_party_skill.write_text(
+            "---\nname: third-party-example\ndescription: user-owned third-party skill\nmetadata:\n  owner: third-party\n  scope: example\n---\n",
+            encoding="utf-8",
+        )
 
         installed = _run_install("--target", target, "--mode", "copy")
         require(installed.returncode == 0, "install.py の通常 install smoke が失敗しました: " + installed.stderr)
-        _assert_installed_surface(target)
+        _assert_installed_surface(target, {"third-party-example"})
         _assert_agents_block_idempotent(target)
         _assert_git_exclude_block_idempotent(target)
 
@@ -483,11 +496,12 @@ def validate_install_upgrade_smoke() -> None:
                 "model_reasoning_effort" not in INSTALLER.read_toml_document(root_config_path),
                 f"install.py の通常再installは既存Root {effort} effortをproject-local configから除去してください。",
             )
-        _assert_installed_surface(target)
+        _assert_installed_surface(target, {"third-party-example"})
         _assert_agents_block_idempotent(target)
         _assert_git_exclude_block_idempotent(target)
         remaining = [str(path.relative_to(target)) for path in legacy_paths if path.exists()]
         require(not remaining, "install.py は削除済み旧 template を prune してください: " + ", ".join(remaining))
+        require(third_party_skill.exists(), "install.py はunrelated third-party Skillを保持してください。")
 
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"

@@ -1,4 +1,0 @@
-interface:
-  display_name: "初参加者向けに説明"
-  short_description: "プロジェクト初参加者にも分かるよう前提から丁寧に説明します"
-  default_prompt: "$explain-for-newcomers を使い、プロジェクト初参加者にも分かるよう、この内容を前提から丁寧に説明してください。"

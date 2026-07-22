@@ -174,7 +174,7 @@ EXPECTED_ORCHESTRA_SKILL_DIRS = {
     'branch-implementation-final-review',
     'browser-research-readonly',
     'communicate-work-estimates',
-    'explain-for-newcomers',
+    'explain-clearly',
     'git-branch-from-session',
     'git-rename-unpushed-branch-from-diff',
     'git-split-commits-from-diff',
@@ -302,6 +302,7 @@ REMOVED_TEMPLATE_REL_PATHS = [
     Path('.agents/orchestra/queue/templates/adventurer_task.yaml'),
     Path('.agents/orchestra/queue/templates/inquisitor_task.yaml'),
     Path('.agents/skills/' 'meta' 'cognitive-task-loop'),
+    Path('.agents/skills/explain-for-newcomers'),
     Path('.agents/orchestra/instructions/receptionist.md'),
 ]
 SAGE_DEVELOPER_INSTRUCTION_TOKENS = (
