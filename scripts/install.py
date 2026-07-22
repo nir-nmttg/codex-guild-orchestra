@@ -185,6 +185,7 @@ EXPECTED_ORCHESTRA_SKILL_DIRS = {
     'orchestra-validation-review',
     'pull-request-description-from-branch',
     'quest-awareness-loop',
+    'refine-design-plan',
     'repository-design-mapmaking',
     'use-guild-workflow',
 }
@@ -447,7 +448,13 @@ def read_skill_owner(skill_path: Path) -> str | None:
             metadata = None
         if isinstance(metadata, dict):
             owner = metadata.get('owner')
-            return owner if isinstance(owner, str) else None
+            if isinstance(owner, str):
+                return owner
+            skill_metadata = metadata.get('metadata')
+            if isinstance(skill_metadata, dict):
+                nested_owner = skill_metadata.get('owner')
+                return nested_owner if isinstance(nested_owner, str) else None
+            return None
     for line in frontmatter.splitlines():
         key, separator, value = line.partition(':')
         if separator and key.strip() == 'owner':

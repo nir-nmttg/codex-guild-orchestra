@@ -61,6 +61,7 @@ EXPECTED_SKILL_DIRS = {
     "orchestra-validation-review",
     "pull-request-description-from-branch",
     "quest-awareness-loop",
+    "refine-design-plan",
     "repository-design-mapmaking",
     "use-guild-workflow",
 }
