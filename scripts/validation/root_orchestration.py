@@ -6,6 +6,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 import tempfile
 from pathlib import Path
 
@@ -348,6 +349,62 @@ def validate_root_orchestration_eval() -> None:
             encoding="utf-8",
         )
         module.validate_session(session_manifest, session_dir)
+        outside_artifacts = session_dir.parent / "outside-artifacts"
+        outside_artifacts.mkdir()
+        artifact_filenames = [
+            "session.json",
+            session_policy["wrapper_artifact_filename"],
+            session_policy["isolation_profile_filename"],
+            *sorted(trace_digests),
+        ]
+        for filename in artifact_filenames:
+            (outside_artifacts / filename).write_bytes((session_dir / filename).read_bytes())
+
+        def require_safety_rejection(label: str, required_error: str) -> None:
+            try:
+                module.validate_session(session_manifest, session_dir)
+            except module.OrchestrationEvalError as exc:
+                require(required_error in str(exc), f"{label}をsafety-specific errorで拒否してください: {exc}")
+            else:
+                require(False, f"Root orchestration session validatorは{label}を内容読取前に拒否してください。")
+
+        def require_symlink_rejection(filename: str, label: str) -> None:
+            path = session_dir / filename
+            contents = path.read_bytes()
+            path.unlink()
+            path.symlink_to(outside_artifacts / filename)
+            require_safety_rejection(label, "symlinkまたはopen errorを拒否しました")
+            path.unlink()
+            path.write_bytes(contents)
+
+        def require_special_file_rejection(filename: str, label: str) -> None:
+            path = session_dir / filename
+            contents = path.read_bytes()
+            path.unlink()
+            os.mkfifo(path)
+            require_safety_rejection(label, "regular fileにしてください")
+            path.unlink()
+            path.write_bytes(contents)
+
+        require_symlink_rejection("session.json", "session manifest symlink")
+        require_special_file_rejection("session.json", "session manifest special file")
+        require_symlink_rejection("high__solo.json", "trace symlink")
+        require_special_file_rejection("high__solo.json", "trace special file")
+        require_symlink_rejection(session_policy["wrapper_artifact_filename"], "wrapper symlink")
+        require_special_file_rejection(session_policy["wrapper_artifact_filename"], "wrapper special file")
+        require_symlink_rejection(session_policy["isolation_profile_filename"], "isolation profile symlink")
+        require_special_file_rejection(session_policy["isolation_profile_filename"], "isolation profile special file")
+
+        session_directory_fd = module._open_session_directory(session_dir)
+        try:
+            try:
+                module._read_session_artifact(session_directory_fd, "../outside-artifacts/session.json", "trace")
+            except module.OrchestrationEvalError as exc:
+                require("filenameが不正です" in str(exc), "path escapeをsafety-specific errorで拒否してください。")
+            else:
+                require(False, "Root orchestration session validatorはsession artifact path escapeを拒否してください。")
+        finally:
+            os.close(session_directory_fd)
         tampered = session_dir / "high__solo.json"
         original_trace = tampered.read_text(encoding="utf-8")
         tampered.write_text(original_trace + " ", encoding="utf-8")

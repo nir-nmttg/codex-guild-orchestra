@@ -7,8 +7,10 @@ import argparse
 from collections import defaultdict
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 from typing import Any
@@ -923,12 +925,60 @@ def build_contract_trace(manifest: dict[str, Any], case_id: str, mode: str) -> d
     return trace
 
 
-def _load_trace(path: Path) -> dict[str, Any]:
+def _load_trace(data: bytes, label: str) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        value = json.loads(data)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise OrchestrationEvalError(f"{label} artifactのJSONを読めません: {exc}") from exc
+    return _mapping(value, label)
+
+
+def _load_trace_file(path: Path) -> dict[str, Any]:
+    try:
+        return _load_trace(path.read_bytes(), str(path))
+    except OSError as exc:
         raise OrchestrationEvalError(f"traceを読めません: {path}: {exc}") from exc
-    return _mapping(value, str(path))
+
+
+def _open_session_directory(session_dir: Path) -> int:
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise OrchestrationEvalError("session artifact検証にはO_NOFOLLOWを使えるplatformが必要です。")
+    directory_flags |= os.O_NOFOLLOW
+    try:
+        directory_fd = os.open(session_dir, directory_flags)
+    except OSError as exc:
+        raise OrchestrationEvalError(f"session directoryを安全に開けません: {exc}") from exc
+    try:
+        if not stat.S_ISDIR(os.fstat(directory_fd).st_mode):
+            raise OrchestrationEvalError("session directoryがdirectoryではありません。")
+    except OSError as exc:
+        os.close(directory_fd)
+        raise OrchestrationEvalError(f"session directoryを安全に検査できません: {exc}") from exc
+    except OrchestrationEvalError:
+        os.close(directory_fd)
+        raise
+    return directory_fd
+
+
+def _read_session_artifact(session_directory_fd: int, filename: str, label: str) -> bytes:
+    """同じdescriptorからdirect-childのregular artifactを一度だけ読む。"""
+    if Path(filename).name != filename or filename in {"", ".", ".."}:
+        raise OrchestrationEvalError(f"{label} artifact filenameが不正です。")
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise OrchestrationEvalError("session artifact検証にはO_NOFOLLOWを使えるplatformが必要です。")
+    file_flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0)
+    try:
+        descriptor = os.open(filename, file_flags, dir_fd=session_directory_fd)
+    except OSError as exc:
+        raise OrchestrationEvalError(f"{label} artifactのsymlinkまたはopen errorを拒否しました: {exc}") from exc
+    try:
+        with os.fdopen(descriptor, "rb") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise OrchestrationEvalError(f"{label} artifactはregular fileにしてください。")
+            return stream.read()
+    except OSError as exc:
+        raise OrchestrationEvalError(f"{label} artifactを安全に読めません: {exc}") from exc
 
 
 def validate_session(manifest: dict[str, Any], session_dir: Path) -> None:
@@ -938,14 +988,36 @@ def validate_session(manifest: dict[str, Any], session_dir: Path) -> None:
     policy = _mapping(manifest["live_evidence_policy"], "live_evidence_policy")
     session_filename = str(policy["session_manifest_filename"])
     profile_filename = str(policy["isolation_profile_filename"])
-    actual = {
-        path.name
-        for path in session_dir.glob("*.json")
-        if path.name not in {session_filename, profile_filename}
-    }
-    if actual != expected:
-        raise OrchestrationEvalError(f"session trace matrixが不足または過剰です: expected={sorted(expected)}, actual={sorted(actual)}")
-    session = _load_trace(session_dir / session_filename)
+    session_directory_fd = _open_session_directory(session_dir)
+    try:
+        actual = {
+            filename
+            for filename in os.listdir(session_directory_fd)
+            if filename.endswith(".json") and filename not in {session_filename, profile_filename}
+        }
+        if actual != expected:
+            raise OrchestrationEvalError(
+                f"session trace matrixが不足または過剰です: expected={sorted(expected)}, actual={sorted(actual)}"
+            )
+        session = _load_trace(
+            _read_session_artifact(session_directory_fd, session_filename, "session manifest"),
+            "session manifest",
+        )
+        _validate_session_artifacts(manifest, policy, expected, session_directory_fd, session)
+    except OSError as exc:
+        raise OrchestrationEvalError(f"session directoryを安全に読めません: {exc}") from exc
+    finally:
+        os.close(session_directory_fd)
+
+
+def _validate_session_artifacts(
+    manifest: dict[str, Any],
+    policy: dict[str, Any],
+    expected: set[str],
+    session_directory_fd: int,
+    session: dict[str, Any],
+) -> None:
+    profile_filename = str(policy["isolation_profile_filename"])
     if set(session) != {
         "version",
         "source",
@@ -968,24 +1040,21 @@ def validate_session(manifest: dict[str, Any], session_dir: Path) -> None:
         raise OrchestrationEvalError("live session collector_idが必要です。")
     wrapper_sha256 = session.get("wrapper_sha256")
     profile_sha256 = session.get("isolation_profile_sha256")
-    wrapper_path = session_dir / str(policy["wrapper_artifact_filename"])
-    profile_path = session_dir / profile_filename
-    if (
-        wrapper_path.is_symlink()
-        or profile_path.is_symlink()
-        or not wrapper_path.is_file()
-        or not profile_path.is_file()
-    ):
-        raise OrchestrationEvalError("live sessionにはregular wrapper/profile artifactの実体が必要です。")
-    if hashlib.sha256(wrapper_path.read_bytes()).hexdigest() != wrapper_sha256:
+    wrapper_bytes = _read_session_artifact(
+        session_directory_fd,
+        str(policy["wrapper_artifact_filename"]),
+        "wrapper",
+    )
+    profile_bytes = _read_session_artifact(session_directory_fd, profile_filename, "isolation profile")
+    if hashlib.sha256(wrapper_bytes).hexdigest() != wrapper_sha256:
         raise OrchestrationEvalError("live session wrapper artifactのSHA-256がsession manifestと一致しません。")
-    if hashlib.sha256(profile_path.read_bytes()).hexdigest() != profile_sha256:
+    if hashlib.sha256(profile_bytes).hexdigest() != profile_sha256:
         raise OrchestrationEvalError("live session isolation profile artifactのSHA-256がsession manifestと一致しません。")
     if wrapper_sha256 not in _string_set(policy.get("approved_isolation_wrapper_sha256"), "approved wrapper hashes"):
         raise OrchestrationEvalError("live session wrapper hashがapproved allowlistにありません。")
     if profile_sha256 not in _string_set(policy.get("approved_isolation_profile_sha256"), "approved profile hashes"):
         raise OrchestrationEvalError("live session isolation profile hashがapproved allowlistにありません。")
-    profile = _load_trace(profile_path)
+    profile = _load_trace(profile_bytes, "isolation profile")
     if profile != {
         "version": "1.0",
         "collector_id": session["collector_id"],
@@ -1004,11 +1073,11 @@ def validate_session(manifest: dict[str, Any], session_dir: Path) -> None:
     if set(trace_digests) != expected:
         raise OrchestrationEvalError("live session trace digest一覧がrequired matrixと一致しません。")
     for filename in sorted(expected):
-        trace_path = session_dir / filename
-        digest = hashlib.sha256(trace_path.read_bytes()).hexdigest()
+        trace_bytes = _read_session_artifact(session_directory_fd, filename, "trace")
+        digest = hashlib.sha256(trace_bytes).hexdigest()
         if trace_digests.get(filename) != digest:
             raise OrchestrationEvalError(f"{filename}のSHA-256がsession manifestと一致しません。")
-        trace = _load_trace(trace_path)
+        trace = _load_trace(trace_bytes, filename)
         mode, case_name = filename.removesuffix(".json").split("__", 1)
         if trace.get("root_mode") != mode or trace.get("case_id") != case_name:
             raise OrchestrationEvalError(f"{filename}のmode/case provenanceがfilenameと一致しません。")
@@ -1042,7 +1111,7 @@ def main() -> int:
             for case_id in sorted(_mapping(manifest["cases"], "cases")):
                 print(f"{mode}__{case_id}.json")
     elif args.command == "validate-trace":
-        validate_trace(manifest, _load_trace(args.trace))
+        validate_trace(manifest, _load_trace_file(args.trace))
         print("root-orchestration-eval: trace ok")
     else:
         validate_session(manifest, args.session_dir)
