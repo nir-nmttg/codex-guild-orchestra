@@ -1,4 +1,4 @@
 interface:
-  display_name: "対象リポジトリをVS Codeで開く"
+  display_name: "Open Repository in VS Code"
   short_description: "ギルド配下のrepositoriesフォルダを対象としてVS Codeで安全に開きます"
   default_prompt: "$open-subrepo-in-vscode を使い、ギルド配下のrepositoriesフォルダをVS Codeで開いてください。"
