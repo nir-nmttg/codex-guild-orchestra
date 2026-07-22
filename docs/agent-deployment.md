@@ -135,11 +135,13 @@ source template内のsymlink、secret-like path、MCPなどの外部tool連携pa
 
 ```bash
 make validate
-python3 scripts/model_selection_eval.py validate
-python3 scripts/model_selection_eval.py plan
-python3 scripts/root_orchestration_eval.py validate
-python3 scripts/root_orchestration_eval.py plan
+./scripts/docker_python.sh scripts/model_selection_eval.py validate
+./scripts/docker_python.sh scripts/model_selection_eval.py plan
+./scripts/docker_python.sh scripts/root_orchestration_eval.py validate
+./scripts/docker_python.sh scripts/root_orchestration_eval.py plan
 ```
+
+これらはREADMEの前提どおりDocker image内で実行する再現可能な標準経路です。hostの`python3`を直接使うのは任意で、Python 3.10以上かつ`requirements.txt`の依存関係（Python 3.10では`tomli`を含む）を満たす場合だけにしてください。
 
 validatorは次を確認します。
 

@@ -35,7 +35,7 @@ Codexを、成果品質、安全な権限境界、検証可能性を優先して
 - Codexのproject-local設定とcustom agentを利用できる環境
 - Docker imageの初回build時に、base imageとPython依存関係を取得できるネットワーク
 
-ホストへPythonパッケージを直接インストールする必要はありません。検証と導入スクリプトはDocker内のPythonで実行されます。
+通常の検証と導入でホストへPythonパッケージを直接インストールする必要はありません。`make validate`と`./scripts/docker_python.sh`は、requirementsを含むDocker image内のPythonで実行されます。hostで直接`python3`を使うのは任意の運用であり、Python 3.10以上かつ`requirements.txt`の依存関係（Python 3.10では`tomli`を含む）を満たす場合だけにしてください。
 
 ## 初回導入
 

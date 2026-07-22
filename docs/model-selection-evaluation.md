@@ -35,13 +35,15 @@ live component runner は model / effort 差を分離するため `multi_agent=f
 live eval は明示実行に分け、出力、usage、elapsed time、worktree / staged / commit diff、commit log、grader worksheet を既定で `/tmp/agent-guild-model-eval` に保存します。
 live eval は role 指示と synthetic fixture を外部 model service へ送るため、実行環境のdata policyを確認し、明示的に許可された場合だけ起動します。acknowledgementだけでは起動せず、評価用work directory以外を読み書きできない隔離VM / container wrapperと、そのwrapper hashに結び付いたattestationも必須です。さらにreview済みwrapperのSHA-256を `run_policy.approved_isolation_wrapper_sha256`、canonical attestationのSHA-256を `run_policy.approved_isolation_profile_sha256` へ登録しなければ起動しません。既定値はどちらも空listで、未review wrapper / profileをfail closedにします。
 
+通常のvalidationはREADMEの前提どおりDocker経由で実行します。以下のlive artifact操作例でhostの`python3`を直接使う場合は、Python 3.10以上かつ`requirements.txt`の依存関係（Python 3.10では`tomli`を含む）を事前に満たしてください。host依存を追加したくない通常検証には、`make validate`または`./scripts/docker_python.sh`を使います。
+
 wrapper reviewでは、単なるpass-throughでないこと、hostのhome、repository、credential store、secret mountを隔離環境へ公開しないこと、OpenAI model service以外へ接続できないことを確認します。wrapperは一つのself-contained executableにし、子をdaemonize / 別session化せず `exec` または同じprocess groupで管理し、認証情報は評価専用の方法でwrapper側から注入してください。runnerは承認済み実体をsession provenanceへ固定し、各runの前後にhashを再確認します。timeout時はwrapperを含むprocess group全体をkillしてwaitし、子が残った状態でpostprocessやworkdir削除へ進みません。
 
 ```bash
-python3 scripts/model_selection_eval.py validate
-python3 scripts/model_selection_eval.py plan
-python3 scripts/root_orchestration_eval.py validate
-python3 scripts/root_orchestration_eval.py plan
+./scripts/docker_python.sh scripts/model_selection_eval.py validate
+./scripts/docker_python.sh scripts/model_selection_eval.py plan
+./scripts/docker_python.sh scripts/root_orchestration_eval.py validate
+./scripts/docker_python.sh scripts/root_orchestration_eval.py plan
 # review済み隔離環境で収集した27件のrecorded session artifact integrityを検証
 python3 scripts/root_orchestration_eval.py validate-session \
   --session-dir /path/to/root-orchestration-traces
