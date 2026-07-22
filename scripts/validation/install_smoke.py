@@ -19,7 +19,7 @@ AGENTS_END = "<!-- agent-guild-orchestra:end -->"
 EXCLUDE_START = "# agent-guild-orchestra:start"
 EXCLUDE_END = "# agent-guild-orchestra:end"
 BACKUP_DIRECTORY = ".agent-guild-orchestra-backups"
-RUNTIME_SCHEMA_VERSION = "3.0"
+RUNTIME_SCHEMA_VERSION = "4.0"
 
 READ_ONLY_AGENT_ROLES = (
     "sage",
@@ -41,6 +41,10 @@ EXPECTED_AGENT_FILES = {
     "artificer.toml",
     "captain.toml",
     "warden.toml",
+}
+EXPECTED_UPDATED_AGENT_PAIRS = {
+    "sage": ("gpt-5.6-luna", "xhigh"),
+    "inquisitor": ("gpt-5.6-sol", "xhigh"),
 }
 EXPECTED_SKILL_DIRS = {
     "branch-implementation-final-review",
@@ -109,9 +113,20 @@ def _assert_installed_surface(target: Path) -> None:
     root_config = INSTALLER.read_toml_document(target / ".codex/config.toml")
     require(root_config.get("model") == "gpt-5.6-sol", "install.py はRoot modelをSolにしてください。")
     require("model_reasoning_effort" not in root_config, "install.py はRoot reasoning effortをproject-localに出力しないでください。")
+    agents_config = root_config.get("agents")
+    require(
+        isinstance(agents_config, dict) and agents_config.get("job_max_runtime_seconds") == 2400,
+        "install.py は導入先のagents.job_max_runtime_secondsを2400秒にしてください。",
+    )
     agent_dir = target / ".codex/agents"
     actual_agents = {path.name for path in agent_dir.glob("*.toml")}
     require(actual_agents == EXPECTED_AGENT_FILES, ".codex/agents の導入 file set が期待値と一致しません: " + ", ".join(sorted(actual_agents)))
+    for role, expected_pair in EXPECTED_UPDATED_AGENT_PAIRS.items():
+        agent = INSTALLER.read_toml_document(agent_dir / f"{role}.toml")
+        require(
+            (agent.get("model"), agent.get("model_reasoning_effort")) == expected_pair,
+            f"install.py は導入先の{role} model/effortを{expected_pair[0]}/{expected_pair[1]}にしてください。",
+        )
     skill_dir = target / ".agents/skills"
     actual_skills = {path.name for path in skill_dir.iterdir() if path.is_dir()}
     require(actual_skills == EXPECTED_SKILL_DIRS, ".agents/skills の導入 directory set が期待値と一致しません: " + ", ".join(sorted(actual_skills)))
@@ -130,7 +145,7 @@ def _assert_installed_surface(target: Path) -> None:
     with sqlite3.connect(database) as connection:
         schema_version = connection.execute("SELECT value FROM queue_metadata WHERE key = 'schema_version'").fetchone()
         tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-    require(schema_version is not None and schema_version[0] == RUNTIME_SCHEMA_VERSION, "install.py は runtime DB schema_version を 3.0 にしてください。")
+    require(schema_version is not None and schema_version[0] == RUNTIME_SCHEMA_VERSION, "install.py は runtime DB schema_version を 4.0 にしてください。")
     missing_tables = sorted(LEDGER_TABLES - tables)
     require(not missing_tables, "install.py が初期化した runtime DB に不足 table があります: " + ", ".join(missing_tables))
     for path in _installed_text_paths(target):
@@ -333,6 +348,21 @@ def _assert_incompatible_runtime_install_rejected(target: Path, label: str) -> N
 def validate_install_upgrade_smoke() -> None:
     _assert_managed_block_helper_matrix()
 
+    original_yaml = INSTALLER.yaml
+    try:
+        INSTALLER.yaml = None
+        INSTALLER.validate_settings_release_contract(ROOT / "template")
+        fallback_root_model, fallback_pairs = INSTALLER.load_model_policy(ROOT / "template")
+    finally:
+        INSTALLER.yaml = original_yaml
+    require(fallback_root_model == "gpt-5.6-sol", "install.py のPyYAMLなしfallbackでもRoot model policyを読めるようにしてください。")
+    require(
+        fallback_pairs.get("adventurer") == ("gpt-5.6-terra", "high")
+        and all(fallback_pairs.get(role) == pair for role, pair in EXPECTED_UPDATED_AGENT_PAIRS.items())
+        and fallback_pairs.get("courier") == ("gpt-5.3-codex-spark", "xhigh"),
+        "install.py のPyYAMLなしfallbackでも固定subagent pairを保持してください。",
+    )
+
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"
         dry_run = _run_install("--target", target, "--mode", "copy", "--dry-run")
@@ -383,7 +413,7 @@ def validate_install_upgrade_smoke() -> None:
         _assert_git_exclude_block_idempotent(target)
 
         root_config_path = target / ".codex/config.toml"
-        for effort in ("high", "xhigh", "max", "medium"):
+        for effort in ("high", "xhigh", "ultra"):
             root_config = root_config_path.read_text(encoding="utf-8")
             root_config_path.write_text(
                 root_config.replace('model = "gpt-5.6-sol"', f'model = "gpt-5.6-sol"\nmodel_reasoning_effort = "{effort}"', 1),
@@ -406,14 +436,14 @@ def validate_install_upgrade_smoke() -> None:
         existing_database = target / ".orchestra/queue/state.sqlite"
         existing_database.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(existing_database) as connection:
-            connection.execute("CREATE TABLE queue_metadata(key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
-            connection.execute("INSERT INTO queue_metadata(key, value, updated_at) VALUES('schema_version', '2.0', 'legacy')")
+            connection.executescript((ROOT / "template/.agents/orchestra/scripts/queue_schema.sql").read_text(encoding="utf-8"))
+            connection.execute("INSERT INTO queue_metadata(key, value) VALUES('schema_version', '3.0')")
             connection.commit()
 
-        _assert_incompatible_runtime_install_rejected(target, "schema_version=2.0")
+        _assert_incompatible_runtime_install_rejected(target, "旧schema_version=3.0")
         with sqlite3.connect(existing_database) as connection:
             schema_version = connection.execute("SELECT value FROM queue_metadata WHERE key = 'schema_version'").fetchone()
-        require(schema_version is not None and schema_version[0] == "2.0", "install.py の拒否時は既存 runtime DB を変更しないでください。")
+        require(schema_version is not None and schema_version[0] == "3.0", "install.py の拒否時は旧v3 runtime DB を変更しないでください。")
 
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"
@@ -421,11 +451,11 @@ def validate_install_upgrade_smoke() -> None:
         existing_database.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(existing_database) as connection:
             connection.execute("CREATE TABLE queue_metadata(key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
-            connection.execute("INSERT INTO queue_metadata(key, value, updated_at) VALUES('schema_version', '3.0', 'legacy')")
+            connection.execute("INSERT INTO queue_metadata(key, value, updated_at) VALUES('schema_version', '4.0', 'legacy')")
             connection.execute("CREATE TABLE assignments(task_id TEXT PRIMARY KEY, status TEXT)")
             connection.commit()
 
-        _assert_incompatible_runtime_install_rejected(target, "v3 physical schema mismatch")
+        _assert_incompatible_runtime_install_rejected(target, "v4 physical schema mismatch")
         with sqlite3.connect(existing_database) as connection:
             tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
             columns = {row[1] for row in connection.execute("PRAGMA table_info(assignments)")}
@@ -437,12 +467,12 @@ def validate_install_upgrade_smoke() -> None:
         existing_database.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(existing_database) as connection:
             connection.executescript((ROOT / "template/.agents/orchestra/scripts/queue_schema.sql").read_text(encoding="utf-8"))
-            connection.execute("INSERT INTO queue_metadata(key, value) VALUES('schema_version', '3.0')")
+            connection.execute("INSERT INTO queue_metadata(key, value) VALUES('schema_version', '4.0')")
             connection.execute("ALTER TABLE quests ADD COLUMN raw_log TEXT")
             connection.execute("CREATE TABLE unsafe_runtime_payload(secret TEXT)")
             connection.commit()
 
-        _assert_incompatible_runtime_install_rejected(target, "v3 unexpected physical schema")
+        _assert_incompatible_runtime_install_rejected(target, "v4 unexpected physical schema")
         with sqlite3.connect(existing_database) as connection:
             tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
             columns = {row[1] for row in connection.execute("PRAGMA table_info(quests)")}
@@ -452,18 +482,35 @@ def validate_install_upgrade_smoke() -> None:
         target = Path(tmp) / "guild"
         existing_database = target / ".orchestra/queue/state.sqlite"
         existing_database.parent.mkdir(parents=True, exist_ok=True)
+        canonical_schema = (ROOT / "template/.agents/orchestra/scripts/queue_schema.sql").read_text(encoding="utf-8")
+        type_drift_schema = canonical_schema.replace("  status TEXT NOT NULL,", "  status INTEGER,", 1)
+        require(type_drift_schema != canonical_schema, "runtime schema type drift fixtureを構築できません。")
+        with sqlite3.connect(existing_database) as connection:
+            connection.executescript(type_drift_schema)
+            connection.execute("INSERT INTO queue_metadata(key, value) VALUES('schema_version', '4.0')")
+            connection.commit()
+
+        _assert_incompatible_runtime_install_rejected(target, "v4 column type/not-null drift")
+        with sqlite3.connect(existing_database) as connection:
+            quest_status = next(row for row in connection.execute("PRAGMA table_info(quests)") if row[1] == "status")
+        require(quest_status[2] == "INTEGER" and quest_status[3] == 0, "install.py の拒否時はtype/not-null drift DBを変更しないでください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "guild"
+        existing_database = target / ".orchestra/queue/state.sqlite"
+        existing_database.parent.mkdir(parents=True, exist_ok=True)
         old_runtime_value = "integration_owner"
         with sqlite3.connect(existing_database) as connection:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.executescript((ROOT / "template/.agents/orchestra/scripts/queue_schema.sql").read_text(encoding="utf-8"))
-            connection.execute("INSERT INTO queue_metadata(key, value) VALUES('schema_version', '3.0')")
+            connection.execute("INSERT INTO queue_metadata(key, value) VALUES('schema_version', '4.0')")
             connection.execute(
                 "INSERT INTO quests(quest_id, workflow_id, rank, status, payload_json) VALUES(?, ?, ?, ?, ?)",
                 ("quest_legacy_value", "workflow_legacy_value", "solo_quest", "active", json.dumps({"control_decision": old_runtime_value})),
             )
             connection.commit()
 
-        _assert_incompatible_runtime_install_rejected(target, "v3 legacy runtime value")
+        _assert_incompatible_runtime_install_rejected(target, "v4 legacy runtime value")
         with sqlite3.connect(existing_database) as connection:
             payload = connection.execute("SELECT payload_json FROM quests WHERE quest_id = 'quest_legacy_value'").fetchone()
         require(payload is not None and json.loads(payload[0]).get("control_decision") == old_runtime_value, "install.py の拒否時は既存 runtime 値を変更しないでください。")
@@ -727,6 +774,36 @@ def validate_install_upgrade_smoke() -> None:
     pinned_root_effort = run_with_mutated_source("Root reasoning effort pinned", pin_root_reasoning_effort)
     require("reasoning effort" in (pinned_root_effort.stdout + pinned_root_effort.stderr), "install.py preflightはRootのproject-local effort指定を拒否してください。")
 
+    def downgrade_settings_version(source: Path) -> None:
+        path = source / ".agents/orchestra/config/settings.yaml"
+        path.write_text(path.read_text(encoding="utf-8").replace('version: "5.0"', 'version: "4.0"', 1), encoding="utf-8")
+
+    old_settings_contract = run_with_mutated_source("settings version 4.0", downgrade_settings_version)
+    require("settings.yaml.version" in (old_settings_contract.stdout + old_settings_contract.stderr) and "5.0" in (old_settings_contract.stdout + old_settings_contract.stderr), "install.py preflightは旧settings 4.0を拒否してください。")
+
+    def disable_root_control_plane_contract(source: Path) -> None:
+        path = source / ".agents/orchestra/config/settings.yaml"
+        path.write_text(path.read_text(encoding="utf-8").replace("  control_plane_only: true", "  control_plane_only: false", 1), encoding="utf-8")
+
+    stale_root_contract = run_with_mutated_source("Root direct work fallback", disable_root_control_plane_contract)
+    require("control-plane" in (stale_root_contract.stdout + stale_root_contract.stderr), "install.py preflightはcoordination-onlyでないRoot contractを拒否してください。")
+
+    def drift_settings_adventurer_pair(source: Path) -> None:
+        path = source / ".agents/orchestra/config/settings.yaml"
+        old = "    adventurer: {model: gpt-5.6-terra, model_reasoning_effort: high}"
+        new = "    adventurer: {model: gpt-5.6-sol, model_reasoning_effort: high}"
+        path.write_text(path.read_text(encoding="utf-8").replace(old, new, 1), encoding="utf-8")
+
+    stale_model_policy = run_with_mutated_source("settings adventurer pair drift", drift_settings_adventurer_pair)
+    require("adventurer" in (stale_model_policy.stdout + stale_model_policy.stderr) and "gpt-5.6-terra" in (stale_model_policy.stdout + stale_model_policy.stderr), "install.py preflightはsettings model pair driftを拒否してください。")
+
+    def drift_queue_schema_contract(source: Path) -> None:
+        path = source / ".agents/orchestra/scripts/queue_schema.sql"
+        path.write_text(path.read_text(encoding="utf-8").replace("  status TEXT NOT NULL,", "  status INTEGER,", 1), encoding="utf-8")
+
+    stale_queue_schema = run_with_mutated_source("queue schema type drift", drift_queue_schema_contract)
+    require("queue_schema.sql SHA-256" in (stale_queue_schema.stdout + stale_queue_schema.stderr), "install.py preflightはcanonical queue schema driftを拒否してください。")
+
     def enable_focus_recursive_agents(source: Path) -> None:
         path = source / ".codex/agents/examiner.toml"
         path.write_text(path.read_text(encoding="utf-8").replace("multi_agent = false", "multi_agent = true"), encoding="utf-8")
@@ -756,12 +833,12 @@ def validate_install_upgrade_smoke() -> None:
         invalid_max_depth = run_with_mutated_source(f"max_depth {invalid_depth}", lambda source, depth=invalid_depth: set_max_depth(source, depth))
         require("max_depth=2" in (invalid_max_depth.stdout + invalid_max_depth.stderr), f"install.py は max_depth={invalid_depth} を拒否してください。")
 
-    def shorten_job_runtime(source: Path) -> None:
+    def restore_legacy_job_runtime(source: Path) -> None:
         path = source / ".codex/config.toml"
-        path.write_text(path.read_text(encoding="utf-8").replace("job_max_runtime_seconds = 1800", "job_max_runtime_seconds = 1200"), encoding="utf-8")
+        path.write_text(path.read_text(encoding="utf-8").replace("job_max_runtime_seconds = 2400", "job_max_runtime_seconds = 1800"), encoding="utf-8")
 
-    invalid_job_runtime = run_with_mutated_source("job runtime 1200", shorten_job_runtime)
-    require("job_max_runtime_seconds" in (invalid_job_runtime.stdout + invalid_job_runtime.stderr) and "1800" in (invalid_job_runtime.stdout + invalid_job_runtime.stderr), "install.py は1800秒以外のjob runtimeを拒否してください。")
+    invalid_job_runtime = run_with_mutated_source("legacy job runtime 1800", restore_legacy_job_runtime)
+    require("job_max_runtime_seconds" in (invalid_job_runtime.stdout + invalid_job_runtime.stderr) and "2400" in (invalid_job_runtime.stdout + invalid_job_runtime.stderr), "install.py は2400秒以外のjob runtimeを拒否してください。")
 
     def set_adventurer_parallelism(source: Path, value: int) -> None:
         path = source / ".agents/orchestra/config/settings.yaml"

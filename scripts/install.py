@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -39,7 +40,8 @@ BACKUP_REL_PATHS = [
     '.orchestra',
 ]
 SQLITE_STATE_REL_PATH = Path('.orchestra/queue/state.sqlite')
-RUNTIME_SCHEMA_VERSION = '3.0'
+RUNTIME_SCHEMA_VERSION = '4.0'
+RUNTIME_SCHEMA_SHA256 = 'a883418f960b28bc84381ed00fe4a9b55eb870e50a41fa26122ace122acb7c7c'
 QUEST_RANKS = {'mapmaking', 'errand', 'solo_quest', 'party_quest', 'guild_quest'}
 LEGACY_QUEST_RANKS = {'campaign'}
 REQUIRED_RUNTIME_TABLES = {
@@ -157,13 +159,13 @@ EXPECTED_AGENT_SANDBOX_MODES = {
     'captain': 'read-only',
 }
 EXPECTED_AGENT_MODEL_CONFIGS = {
-    'adventurer': ('gpt-5.6-sol', 'high'),
-    'sage': ('gpt-5.6-sol', 'high'),
+    'adventurer': ('gpt-5.6-terra', 'high'),
+    'sage': ('gpt-5.6-luna', 'xhigh'),
     'cartographer': ('gpt-5.6-sol', 'high'),
     'courier': ('gpt-5.3-codex-spark', 'xhigh'),
-    'examiner': ('gpt-5.6-sol', 'high'),
+    'examiner': ('gpt-5.6-terra', 'high'),
     'guildmaster': ('gpt-5.6-sol', 'xhigh'),
-    'inquisitor': ('gpt-5.6-sol', 'high'),
+    'inquisitor': ('gpt-5.6-sol', 'xhigh'),
     'artificer': ('gpt-5.6-sol', 'high'),
     'warden': ('gpt-5.6-sol', 'high'),
     'captain': ('gpt-5.6-sol', 'high'),
@@ -613,7 +615,7 @@ def reset_runtime_state(target_root: Path, dry_run: bool) -> None:
 def runtime_schema_incompatibility_message(database: Path, detail: str) -> str:
     return (
         f'既存 runtime DB を v{RUNTIME_SCHEMA_VERSION} の runtime contract と確認できません: {database} ({detail})\n'
-        '2 系以前、v3 metadata だけで物理 schema が一致しない、旧agent ID、または旧 runtime 値を含む `state.sqlite` は保持更新できません。'
+        '4.0より前、v4 metadata だけで物理 schema が一致しない、旧agent ID、または旧 runtime 値を含む `state.sqlite` は保持更新できません。'
         '既存状態を保全して初期化する場合は `--backup --reset-runtime`、'
         '導入物全体を入れ直す場合は `--clean-install` を使ってください。'
     )
@@ -632,7 +634,61 @@ def read_runtime_schema_version(database: Path) -> str | None:
     return str(row[0])
 
 
-def collect_runtime_schema_errors(connection: sqlite3.Connection) -> list[str]:
+def runtime_schema_signature(connection: sqlite3.Connection) -> tuple[tuple[str, str, str, str], ...]:
+    rows = connection.execute(
+        """
+        SELECT type, name, tbl_name, sql
+        FROM sqlite_master
+        WHERE type IN ('table', 'index', 'view', 'trigger')
+        ORDER BY type, name, tbl_name
+        """
+    ).fetchall()
+    return tuple(
+        (str(row[0]), str(row[1]), str(row[2]), ' '.join(str(row[3] or '').split()))
+        for row in rows
+        if not str(row[1]).startswith('sqlite_')
+    )
+
+
+def canonical_runtime_schema_signature(schema_file: Path | None = None) -> tuple[tuple[str, str, str, str], ...]:
+    path = schema_file or (DEFAULT_SOURCE / '.agents' / 'orchestra' / 'scripts' / 'queue_schema.sql')
+    content = path.read_bytes()
+    digest = hashlib.sha256(content).hexdigest()
+    if digest != RUNTIME_SCHEMA_SHA256:
+        raise SystemExit(f'queue_schema.sql SHA-256 がv{RUNTIME_SCHEMA_VERSION} contractと一致しません: {digest}')
+    try:
+        with sqlite3.connect(':memory:') as expected:
+            expected.executescript(content.decode('utf-8'))
+            return runtime_schema_signature(expected)
+    except (UnicodeDecodeError, sqlite3.DatabaseError) as exc:
+        raise SystemExit(f'canonical queue_schema.sqlを検証できません: {exc}') from exc
+
+
+def collect_runtime_signature_errors(connection: sqlite3.Connection, schema_file: Path | None = None) -> list[str]:
+    expected = canonical_runtime_schema_signature(schema_file)
+    actual = runtime_schema_signature(connection)
+    if actual == expected:
+        return []
+    expected_by_name = {(item[0], item[1]): item for item in expected}
+    actual_by_name = {(item[0], item[1]): item for item in actual}
+    missing = sorted(f'{kind}:{name}' for kind, name in expected_by_name.keys() - actual_by_name.keys())
+    unexpected = sorted(f'{kind}:{name}' for kind, name in actual_by_name.keys() - expected_by_name.keys())
+    changed = sorted(
+        f'{kind}:{name}'
+        for kind, name in expected_by_name.keys() & actual_by_name.keys()
+        if expected_by_name[(kind, name)] != actual_by_name[(kind, name)]
+    )
+    details = []
+    if missing:
+        details.append('不足=' + ','.join(missing))
+    if unexpected:
+        details.append('未知=' + ','.join(unexpected))
+    if changed:
+        details.append('定義差分=' + ','.join(changed))
+    return ['canonical table/index/constraint signature不一致: ' + '; '.join(details)]
+
+
+def collect_runtime_schema_errors(connection: sqlite3.Connection, schema_file: Path | None = None) -> list[str]:
     errors: list[str] = []
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     legacy_tables = sorted(LEGACY_RUNTIME_TABLES & tables)
@@ -658,6 +714,7 @@ def collect_runtime_schema_errors(connection: sqlite3.Connection) -> list[str]:
         unexpected_columns = sorted(columns - required_columns - LEGACY_RUNTIME_COLUMNS.get(table, set()))
         if unexpected_columns:
             errors.append(f'{table} の未知 column: ' + ', '.join(unexpected_columns))
+    errors.extend(collect_runtime_signature_errors(connection, schema_file))
     return errors
 
 
@@ -734,10 +791,10 @@ def collect_runtime_value_errors(connection: sqlite3.Connection) -> list[str]:
     return errors
 
 
-def validate_runtime_physical_schema(database: Path) -> None:
+def validate_runtime_physical_schema(database: Path, schema_file: Path) -> None:
     try:
         with sqlite3.connect(f'file:{database}?mode=ro', uri=True) as connection:
-            errors = collect_runtime_schema_errors(connection)
+            errors = collect_runtime_schema_errors(connection, schema_file)
             if not errors:
                 errors.extend(collect_runtime_value_errors(connection))
     except (OSError, sqlite3.DatabaseError) as exc:
@@ -746,7 +803,7 @@ def validate_runtime_physical_schema(database: Path) -> None:
         raise SystemExit(runtime_schema_incompatibility_message(database, '; '.join(errors)))
 
 
-def validate_existing_runtime_schema(target_root: Path, reset_runtime: bool, clean_install: bool) -> None:
+def validate_existing_runtime_schema(source_root: Path, target_root: Path, reset_runtime: bool, clean_install: bool) -> None:
     database = target_root / SQLITE_STATE_REL_PATH
     validate_target_managed_path(database, target_root)
     if reset_runtime or clean_install:
@@ -757,7 +814,7 @@ def validate_existing_runtime_schema(target_root: Path, reset_runtime: bool, cle
     if schema_version != RUNTIME_SCHEMA_VERSION:
         detail = 'schema_version is missing' if schema_version is None else f'schema_version={schema_version!r}'
         raise SystemExit(runtime_schema_incompatibility_message(database, detail))
-    validate_runtime_physical_schema(database)
+    validate_runtime_physical_schema(database, source_root / '.agents' / 'orchestra' / 'scripts' / 'queue_schema.sql')
 
 
 def initialize_sqlite_runtime(source_root: Path, target_root: Path, reset_runtime: bool, dry_run: bool) -> None:
@@ -777,7 +834,7 @@ def initialize_sqlite_runtime(source_root: Path, target_root: Path, reset_runtim
         connection.execute('PRAGMA foreign_keys = ON')
         connection.execute('PRAGMA journal_mode = WAL')
         connection.executescript(schema_path.read_text(encoding='utf-8'))
-        errors = collect_runtime_schema_errors(connection)
+        errors = collect_runtime_schema_errors(connection, schema_path)
         if errors:
             raise SystemExit(runtime_schema_incompatibility_message(destination, '; '.join(errors)))
         connection.execute(
@@ -920,16 +977,38 @@ def parse_limited_settings_scalar(raw_value: str) -> object:
     value = raw_value.strip()
     if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
         return value[1:-1]
+    if value in {'true', 'false'}:
+        return value == 'true'
     if value.isdecimal():
         return int(value)
+    if len(value) >= 2 and value[0] == '[' and value[-1] == ']':
+        inner = value[1:-1].strip()
+        if not inner:
+            return []
+        return [parse_limited_settings_scalar(item) for item in inner.split(',')]
+    if len(value) >= 2 and value[0] == '{' and value[-1] == '}':
+        inner = value[1:-1].strip()
+        if not inner:
+            return {}
+        result: dict[str, object] = {}
+        for item in inner.split(','):
+            key, separator, nested_value = item.partition(':')
+            if not separator or not key.strip() or not nested_value.strip():
+                raise SystemExit('settings.yaml の inline mapping が不正です。')
+            result[key.strip()] = parse_limited_settings_scalar(nested_value)
+        return result
     return value
 
 
 def read_settings_install_subset(settings_path: Path) -> dict[str, object]:
     delegation: dict[str, object] = {}
     workers: dict[str, dict[str, object]] = {}
+    model_policy: dict[str, object] = {}
+    root_session: dict[str, object] = {}
+    settings_version: object = None
     section: str | None = None
     worker_key: str | None = None
+    model_policy_subsection: str | None = None
 
     for line in settings_path.read_text(encoding='utf-8').splitlines():
         if not line.strip() or line.lstrip().startswith('#'):
@@ -939,8 +1018,11 @@ def read_settings_install_subset(settings_path: Path) -> dict[str, object]:
 
         if indent == 0:
             key, separator, rest = stripped.partition(':')
-            section = key if separator and not rest.strip() and key in {'delegation', 'workers'} else None
+            if key == 'version' and separator and rest.strip():
+                settings_version = parse_limited_settings_scalar(rest)
+            section = key if separator and not rest.strip() and key in {'delegation', 'model_policy', 'root_session', 'workers'} else None
             worker_key = None
+            model_policy_subsection = None
             continue
 
         if section == 'delegation' and indent == 2:
@@ -948,6 +1030,26 @@ def read_settings_install_subset(settings_path: Path) -> dict[str, object]:
             if separator:
                 delegation[key] = parse_limited_settings_scalar(rest)
             continue
+
+        if section == 'root_session' and indent == 2:
+            key, separator, rest = stripped.partition(':')
+            if separator:
+                root_session[key] = parse_limited_settings_scalar(rest)
+            continue
+
+        if section == 'model_policy':
+            if indent == 2:
+                key, separator, rest = stripped.partition(':')
+                model_policy_subsection = key if separator and not rest.strip() else None
+                if separator:
+                    model_policy[key] = {} if model_policy_subsection else parse_limited_settings_scalar(rest)
+                continue
+            if indent == 4 and model_policy_subsection:
+                key, separator, rest = stripped.partition(':')
+                subsection = model_policy.get(model_policy_subsection)
+                if separator and isinstance(subsection, dict):
+                    subsection[key] = parse_limited_settings_scalar(rest)
+                continue
 
         if section == 'workers':
             if indent == 2:
@@ -963,7 +1065,10 @@ def read_settings_install_subset(settings_path: Path) -> dict[str, object]:
             continue
 
     return {
+        'version': settings_version,
         'delegation': delegation,
+        'model_policy': model_policy,
+        'root_session': root_session,
         'workers': workers,
     }
 
@@ -979,6 +1084,111 @@ def read_settings(source_root: Path) -> dict[str, object]:
     if not isinstance(document, dict):
         raise SystemExit('settings.yaml は mapping にしてください。')
     return document
+
+
+def load_model_policy(source_root: Path) -> tuple[str, dict[str, tuple[str, str]]]:
+    settings = read_settings(source_root)
+    policy = settings.get('model_policy')
+    if not isinstance(policy, dict):
+        raise SystemExit('settings.yaml model_policy は mapping にしてください。')
+    expected_policy_keys = {
+        'root_model',
+        'root_project_local_reasoning_effort',
+        'root_user_selectable_reasoning_efforts',
+        'fixed_pair_per_subagent',
+        'subagent_pairs',
+    }
+    if set(policy) != expected_policy_keys:
+        raise SystemExit('settings.yaml model_policy は定義済みのRoot方針とsubagent pairだけを含めてください。')
+
+    root_model = policy.get('root_model')
+    if root_model != 'gpt-5.6-sol':
+        raise SystemExit('settings.yaml model_policy.root_model は gpt-5.6-sol にしてください。')
+    if policy.get('root_project_local_reasoning_effort') != 'unset':
+        raise SystemExit('settings.yaml model_policy はRoot reasoning effortをproject-localで固定しないでください。')
+    if policy.get('root_user_selectable_reasoning_efforts') != ['high', 'xhigh', 'ultra']:
+        raise SystemExit('settings.yaml model_policy のRoot選択肢は high / xhigh / ultra にしてください。')
+    if policy.get('fixed_pair_per_subagent') is not True:
+        raise SystemExit('settings.yaml model_policy はsubagentごとの固定pairを要求してください。')
+
+    pairs = policy.get('subagent_pairs')
+    if not isinstance(pairs, dict) or set(pairs) != set(EXPECTED_AGENT_MODEL_CONFIGS):
+        raise SystemExit('settings.yaml model_policy.subagent_pairs は定義済みの10 roleだけを含めてください。')
+    normalized: dict[str, tuple[str, str]] = {}
+    for role, expected_pair in EXPECTED_AGENT_MODEL_CONFIGS.items():
+        pair = pairs.get(role)
+        if not isinstance(pair, dict) or set(pair) != {'model', 'model_reasoning_effort'}:
+            raise SystemExit(f'settings.yaml model_policy.subagent_pairs.{role} はmodel/effortの固定pairにしてください。')
+        actual_pair = (pair.get('model'), pair.get('model_reasoning_effort'))
+        if actual_pair != expected_pair:
+            raise SystemExit(
+                f'settings.yaml model_policy.subagent_pairs.{role} は '
+                f'{expected_pair[0]} / {expected_pair[1]} にしてください。'
+            )
+        normalized[role] = expected_pair
+    return root_model, normalized
+
+
+def validate_settings_release_contract(source_root: Path) -> None:
+    settings = read_settings(source_root)
+    if settings.get('version') != '5.0':
+        raise SystemExit('settings.yaml.version は major release contract 5.0 にしてください。')
+    root = settings.get('root_session')
+    if not isinstance(root, dict):
+        raise SystemExit('settings.yaml root_session は mapping にしてください。')
+    expected_keys = {
+        'control_plane_only',
+        'owns',
+        'allowed_observations',
+        'delegated_work',
+        'forbids',
+        'report_required_before_next_action',
+        'worker_unavailable_outcome',
+        'ultra_mode',
+    }
+    if set(root) != expected_keys:
+        raise SystemExit('settings.yaml root_session は5.0のcoordination-only fieldだけを含めてください。')
+
+    def require_exact_string_set(field: str, expected: set[str]) -> None:
+        value = root.get(field)
+        if (
+            not isinstance(value, list)
+            or any(not isinstance(item, str) for item in value)
+            or len(value) != len(set(value))
+            or set(value) != expected
+        ):
+            raise SystemExit(f'settings.yaml root_session.{field} が5.0 contractと一致しません。')
+
+    owns = {
+        'intake',
+        'target_repo_binding',
+        'authority_check',
+        'snapshot_request',
+        'direct_assignment',
+        'agent_wait',
+        'report_evidence_gate',
+        'next_action',
+        'report_synthesis',
+    }
+    observations = {'target_repo_identity', 'git_status', 'snapshot_helper', 'queue_state'}
+    delegated_work = {
+        'repository_exploration',
+        'implementation',
+        'validation_execution',
+        'browser_execution',
+        'debugging',
+        'review_evidence_generation',
+    }
+    require_exact_string_set('owns', owns)
+    require_exact_string_set('allowed_observations', observations)
+    require_exact_string_set('delegated_work', delegated_work)
+    require_exact_string_set('forbids', delegated_work | {'trial_acceptance', 'ledger_write'})
+    if root.get('control_plane_only') is not True or root.get('report_required_before_next_action') is not True:
+        raise SystemExit('settings.yaml root_session はcontrol-plane onlyかつworker report待機を必須にしてください。')
+    if root.get('worker_unavailable_outcome') != 'needs_human':
+        raise SystemExit('settings.yaml root_session はworker不在時にRootが直接fallbackせずneeds_humanにしてください。')
+    if root.get('ultra_mode') != 'proactive_delegation_within_fixed_topology':
+        raise SystemExit('settings.yaml root_session.ultra_mode は固定topology内のproactive delegationに限定してください。')
 
 
 def load_worker_roles(source_root: Path) -> dict[str, dict[str, int]]:
@@ -1102,12 +1312,14 @@ def validate_examiner_worker_contract(source_root: Path) -> None:
 
 
 def validate_codex_agent_preflight(source_root: Path) -> None:
+    validate_settings_release_contract(source_root)
     validate_examiner_worker_contract(source_root)
+    expected_root_model, expected_agent_model_configs = load_model_policy(source_root)
     config_path = source_root / '.codex' / 'config.toml'
     config_text = config_path.read_text(encoding='utf-8')
     config = read_toml_document(config_path)
     required_config_values = {
-        'model': 'gpt-5.6-sol',
+        'model': expected_root_model,
         'sandbox_mode': 'read-only',
         'approval_policy': 'on-request',
         'approvals_reviewer': 'auto_review',
@@ -1134,8 +1346,8 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
         raise SystemExit('template/.codex/config.toml の [agents] が必要です。')
     if agents_config.get('max_depth') != 2 or agents_config.get('max_threads') != 64:
         raise SystemExit('template/.codex/config.toml の agents は max_depth=2 / max_threads=64 にしてください。')
-    if agents_config.get('job_max_runtime_seconds') != 1800:
-        raise SystemExit('template/.codex/config.toml の agents.job_max_runtime_seconds は 1800 にしてください。')
+    if agents_config.get('job_max_runtime_seconds') != 2400:
+        raise SystemExit('template/.codex/config.toml の agents.job_max_runtime_seconds は 2400 にしてください。')
 
     agents_dir = source_root / '.codex' / 'agents'
     expected_agent_files = {f'{role}.toml' for role in EXPECTED_AGENT_SANDBOX_MODES}
@@ -1156,7 +1368,7 @@ def validate_codex_agent_preflight(source_root: Path) -> None:
             raise SystemExit(f'template/.codex/agents/{role}.toml の name は {role} にしてください。')
         if agent.get('sandbox_mode') != expected_sandbox:
             raise SystemExit(f'template/.codex/agents/{role}.toml の sandbox_mode は {expected_sandbox} にしてください。')
-        expected_model, expected_effort = EXPECTED_AGENT_MODEL_CONFIGS[role]
+        expected_model, expected_effort = expected_agent_model_configs[role]
         if agent.get('model') != expected_model:
             raise SystemExit(f'template/.codex/agents/{role}.toml の model は {expected_model} にしてください。')
         if agent.get('model_reasoning_effort') != expected_effort:
@@ -1260,6 +1472,7 @@ def validate_source_file_set_preflight(source_root: Path) -> None:
 
 def preflight_source_template(source_root: Path) -> None:
     validate_source_file_set_preflight(source_root)
+    canonical_runtime_schema_signature(source_root / '.agents' / 'orchestra' / 'scripts' / 'queue_schema.sql')
     load_worker_roles(source_root)
     validate_codex_agent_preflight(source_root)
 
@@ -1363,7 +1576,7 @@ def main() -> int:
     validate_target(target_root)
     validate_source_tree_trust(source_root, args.allow_non_default_source)
     preflight_source_template(source_root)
-    validate_existing_runtime_schema(target_root, args.reset_runtime, args.clean_install)
+    validate_existing_runtime_schema(source_root, target_root, args.reset_runtime, args.clean_install)
     if args.reset_runtime and not args.clean_install and not args.backup and not args.dry_run and not args.allow_reset_runtime_without_backup:
         raise SystemExit('`--reset-runtime` は既存の Ledger/dashboard 状態を削除します。通常は `--backup` を併用してください。バックアップなしで進める場合だけ `--allow-reset-runtime-without-backup` を明示してください。')
     ensure_directory(target_root, args.dry_run)

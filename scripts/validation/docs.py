@@ -6,7 +6,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 
-from .core import ROOT, mapping, read, require, sequence, tomllib
+from .core import ROOT, load_yaml, mapping, read, require, sequence, tomllib
 
 
 EXPECTED_AGENT_SANDBOX_MODES = {
@@ -23,13 +23,13 @@ EXPECTED_AGENT_SANDBOX_MODES = {
 }
 
 EXPECTED_AGENT_MODEL_CONFIGS = {
-    "adventurer": ("gpt-5.6-sol", "high"),
-    "sage": ("gpt-5.6-sol", "high"),
+    "adventurer": ("gpt-5.6-terra", "high"),
+    "sage": ("gpt-5.6-luna", "xhigh"),
     "cartographer": ("gpt-5.6-sol", "high"),
     "courier": ("gpt-5.3-codex-spark", "xhigh"),
-    "examiner": ("gpt-5.6-sol", "high"),
+    "examiner": ("gpt-5.6-terra", "high"),
     "guildmaster": ("gpt-5.6-sol", "xhigh"),
-    "inquisitor": ("gpt-5.6-sol", "high"),
+    "inquisitor": ("gpt-5.6-sol", "xhigh"),
     "artificer": ("gpt-5.6-sol", "high"),
     "captain": ("gpt-5.6-sol", "high"),
     "warden": ("gpt-5.6-sol", "high"),
@@ -64,6 +64,45 @@ QUALITY_REDUCING_TOKENS = (
 
 def _line_count(rel: str) -> int:
     return len(read(rel).splitlines())
+
+
+def _validated_model_policy() -> tuple[str, dict[str, tuple[str, str]]]:
+    settings = mapping(load_yaml("template/.agents/orchestra/config/settings.yaml"), "settings.yaml")
+    policy = mapping(settings.get("model_policy"), "settings.model_policy")
+    require(
+        set(policy)
+        == {
+            "root_model",
+            "root_project_local_reasoning_effort",
+            "root_user_selectable_reasoning_efforts",
+            "fixed_pair_per_subagent",
+            "subagent_pairs",
+        },
+        "settings.model_policy は定義済みのRoot方針とsubagent pairだけを含めてください。",
+    )
+    root_model = policy.get("root_model")
+    require(root_model == "gpt-5.6-sol", "settings.model_policy.root_model は gpt-5.6-sol にしてください。")
+    require(
+        policy.get("root_project_local_reasoning_effort") == "unset",
+        "settings.model_policy はRoot reasoning effortをproject-localで固定しないでください。",
+    )
+    require(
+        sequence(policy.get("root_user_selectable_reasoning_efforts"), "settings.model_policy.root_user_selectable_reasoning_efforts")
+        == ["high", "xhigh", "ultra"],
+        "settings.model_policy のRoot選択肢は high / xhigh / ultra にしてください。",
+    )
+    require(policy.get("fixed_pair_per_subagent") is True, "settings.model_policy はsubagentごとの固定pairを要求してください。")
+
+    pairs = mapping(policy.get("subagent_pairs"), "settings.model_policy.subagent_pairs")
+    require(set(pairs) == set(EXPECTED_AGENT_MODEL_CONFIGS), "settings.model_policy.subagent_pairs は定義済みの10 roleだけを含めてください。")
+    normalized: dict[str, tuple[str, str]] = {}
+    for role, expected_pair in EXPECTED_AGENT_MODEL_CONFIGS.items():
+        pair = mapping(pairs.get(role), f"settings.model_policy.subagent_pairs.{role}")
+        require(set(pair) == {"model", "model_reasoning_effort"}, f"settings.model_policy.subagent_pairs.{role} はmodel/effortの固定pairにしてください。")
+        actual_pair = (pair.get("model"), pair.get("model_reasoning_effort"))
+        require(actual_pair == expected_pair, f"settings.model_policy.subagent_pairs.{role} は {expected_pair[0]} / {expected_pair[1]} にしてください。")
+        normalized[role] = expected_pair
+    return str(root_model), normalized
 
 
 def validate_audit_english_path_guard() -> None:
@@ -108,6 +147,7 @@ def validate_audit_english_path_guard() -> None:
 
 def validate_agents() -> None:
     require(tomllib is not None, "TOML検証にはtomllib/tomliが必要です。")
+    expected_root_model, expected_agent_model_configs = _validated_model_policy()
     agent_paths = sorted((ROOT / "template/.codex/agents").glob("*.toml"))
     actual = {path.stem for path in agent_paths}
     require(actual == set(EXPECTED_AGENT_SANDBOX_MODES), "custom agent一覧が期待値と一致しません: " + ", ".join(sorted(actual)))
@@ -121,7 +161,7 @@ def validate_agents() -> None:
             require(key in data, f"{rel} に {key} が必要です。")
         require(data["name"] == role, f"{rel} のnameはfilenameと一致させてください。")
         require(data["sandbox_mode"] == EXPECTED_AGENT_SANDBOX_MODES[role], f"{rel} のsandbox_modeが不正です。")
-        require((data["model"], data["model_reasoning_effort"]) == EXPECTED_AGENT_MODEL_CONFIGS[role], f"{rel} のmodel/effortが不正です。")
+        require((data["model"], data["model_reasoning_effort"]) == expected_agent_model_configs[role], f"{rel} のmodel/effortが不正です。")
         features = mapping(data.get("features"), f"{rel}.features")
         expected_multi_agent = role == "inquisitor"
         require(features.get("multi_agent") is expected_multi_agent, f"{rel} のmulti_agentはinquisitorだけtrueにしてください。")
@@ -132,7 +172,7 @@ def validate_agents() -> None:
             require(token not in developer, f"{rel} に旧制約 `{token}` が残っています。")
 
     config = tomllib.loads(read("template/.codex/config.toml"))
-    require(config.get("model") == "gpt-5.6-sol", "Root templateのmodelはSolにしてください。")
+    require(config.get("model") == expected_root_model, "Root templateのmodelはSolにしてください。")
     require("model_reasoning_effort" not in config, "Root templateでreasoning effortを固定しないでください。")
     require(config.get("sandbox_mode") == "read-only", "Root sandboxはread-onlyにしてください。")
     require(config.get("approval_policy") == "on-request" and config.get("approvals_reviewer") == "auto_review", "Root approval contractが不正です。")
@@ -140,7 +180,7 @@ def validate_agents() -> None:
     require(mapping(config.get("sandbox_workspace_write"), "config.sandbox_workspace_write").get("network_access") is True, "workspace-write networkは有効にしてください。")
     agents = mapping(config.get("agents"), "config.agents")
     require(agents.get("max_threads") == 64 and agents.get("max_depth") == 2, "agent concurrencyはmax_threads=64/max_depth=2にしてください。")
-    require(agents.get("job_max_runtime_seconds") == 1800, "agent job runtimeは1800秒にしてください。")
+    require(agents.get("job_max_runtime_seconds") == 2400, "agent job runtimeは2400秒にしてください。")
 
 
 def _validate_parallelism_doc(rel: str, text: str) -> None:
@@ -169,6 +209,53 @@ def _validate_parallelism_doc(rel: str, text: str) -> None:
     )
 
 
+def _markdown_h2_section(rel: str, text: str, heading: str) -> str:
+    marker = f"## {heading}\n"
+    require(text.count(marker) == 1, f"{rel} にH2 section `{heading}` を1つ定義してください。")
+    start = text.index(marker)
+    end = text.find("\n## ", start + len(marker))
+    return text[start:] if end == -1 else text[start:end]
+
+
+def _validate_current_deployment_docs() -> None:
+    readme = _markdown_h2_section("README.md", read("README.md"), "仕組み")
+    for token in ("`sage`はLuna/xhigh", "`inquisitor`はSol/xhigh"):
+        require(token in readme, f"README.md の現行deployment説明に `{token}` が必要です。")
+
+    changelog = _markdown_h2_section("CHANGELOG.md", read("CHANGELOG.md"), "[Unreleased]")
+    for token in (
+        "`sage`をLuna/xhigh",
+        "`inquisitor`をSol/xhigh",
+        "`job_max_runtime_seconds`を1800秒から2400秒へ延長",
+    ):
+        require(token in changelog, f"CHANGELOG.md のUnreleased契約に `{token}` が必要です。")
+
+    deployment_text = read("docs/agent-deployment.md")
+    configuration = _markdown_h2_section("docs/agent-deployment.md", deployment_text, "Configuration")
+    require("job_max_runtime_seconds = 2400" in configuration, "agent-deployment.md の現行job runtimeは2400秒にしてください。")
+    deployment_pairs = _markdown_h2_section("docs/agent-deployment.md", deployment_text, "Deployment role pairs")
+    for row in (
+        "| `sage` | `gpt-5.6-luna` | `read-only` | `xhigh` |",
+        "| `inquisitor` | `gpt-5.6-sol` | `read-only` | `xhigh` |",
+    ):
+        require(row in deployment_pairs, f"agent-deployment.md の現行role pair表に `{row}` が必要です。")
+    for token in ("`sage`はLuna/xhigh", "`inquisitor`はSol/xhigh"):
+        require(token in deployment_pairs, f"agent-deployment.md の現行pair説明に `{token}` が必要です。")
+
+    selection_text = read("docs/model-selection-evaluation.md")
+    fixed_matrix = _markdown_h2_section("docs/model-selection-evaluation.md", selection_text, "固定マトリクス")
+    for row in (
+        "| `sage` | `gpt-5.6-luna` | `xhigh` |",
+        "| `inquisitor` | `gpt-5.6-sol` | `xhigh` |",
+        "| `inquisitor` | Sol `xhigh` / Sol `high` |",
+        "| `sage` | Luna `xhigh` / Terra `xhigh` / Sol `xhigh`",
+        "別dimensionの診断用effort challengerはLuna `high`",
+    ):
+        require(row in fixed_matrix, f"model-selection-evaluation.md の現行固定マトリクスに `{row}` が必要です。")
+    for token in ("`sage`のみxhighでLuna/Terra/Solを比べます", "`inquisitor`はSol/xhighをdeploymentへ固定"):
+        require(token in selection_text, f"model-selection-evaluation.md の現行evaluation説明に `{token}` が必要です。")
+
+
 def validate_docs_and_instructions() -> None:
     require(_line_count("template/AGENTS.md") <= 125, "AGENTS.mdを125行以内のcompact kernelにしてください。")
     require(_line_count("template/.agents/orchestra/instructions/common.md") <= 55, "common.mdを55行以内にしてください。")
@@ -179,15 +266,39 @@ def validate_docs_and_instructions() -> None:
         require(token in agents, f"AGENTS.md のcompact kernelに `{token}` が必要です。")
     for token in QUALITY_REDUCING_TOKENS:
         require(token not in agents, f"AGENTS.md に旧制約 `{token}` が残っています。")
+    for token in (
+        "対象repoを読まない回答・説明",
+        "Rootはcoordinationとjudgeに専念",
+        "対象repoの調査、実装、検証、browser、debug、review evidence収集",
+        "Rootだけがtop-level custom agent",
+        "`inquisitor`だけがdepth 2の`examiner`",
+        "`high`、`xhigh`、`ultra`",
+        "Rootは返されたevidenceをsuccess criteriaとsnapshotへ照合して次actionを決めます",
+    ):
+        require(token in agents, f"AGENTS.md にRoot coordination-only契約 `{token}` が必要です。")
+    for stale_root_contract in (
+        "説明とread-only調査は不要なQuestを作らずRootが直接進めます",
+        "read-only fast pathはRootが継続できる",
+        "Rootが変更に直接対応する検証を実行",
+        "Rootが`examiner`を直接起動",
+    ):
+        require(stale_root_contract not in agents, f"AGENTS.md に旧Root直接作業契約 `{stale_root_contract}` を戻さないでください。")
 
     common = read("template/.agents/orchestra/instructions/common.md")
     require("custom agentの起動時promptへ重ねて読み込みません" in common, "common.mdは常時promptではないことを明記してください。")
     require("数値confidence" in common and "要求しません" in common, "common.mdは数値confidenceを要求しないでください。")
+    for token in (
+        "担当roleの完了を待ってevidenceをgate",
+        "対象repoの探索、コード・差分・repo文書の読み取り、実装、validation、browser、debug、review evidence収集",
+        "Rootへreportを返します",
+    ):
+        require(token in common, f"common.md にRoot/worker report loop `{token}` が必要です。")
 
     deployment = read("docs/agent-deployment.md")
     runtime = read("docs/orchestration-runtime.md")
     for rel, text in (("docs/agent-deployment.md", deployment), ("docs/orchestration-runtime.md", runtime)):
         _validate_parallelism_doc(rel, text)
+    _validate_current_deployment_docs()
 
     role_paths = sorted((ROOT / "template/.agents/orchestra/instructions").glob("*.md"))
     for path in role_paths:

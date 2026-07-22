@@ -25,6 +25,7 @@ EXPECTED_FIXTURES = {
     "ledger_injection_negative.yaml",
     "mapmaking_readonly_no_edit.yaml",
     "party_integration_barrier_stable_revision.yaml",
+    "root_coordination_only.yaml",
     "safety_approval_scope_absolute_deny.yaml",
     "safety_gate_needs_human.yaml",
     "warden_evidence_trigger.yaml",
@@ -66,6 +67,71 @@ def validate_golden_quests() -> None:
     require(root.exists(), "golden Quest fixture directory が必要です。")
     actual = {path.name for path in root.glob("*.yaml")}
     require(actual == EXPECTED_FIXTURES, "golden Quest fixture 一覧が期待値と一致しません: " + ", ".join(sorted(actual)))
+
+    # Root is a control-plane judge. Target-repository work always returns through a worker report.
+    root_coordination = _expected("root_coordination_only.yaml")
+    require(root_coordination.get("root_model") == "gpt-5.6-sol", "Root model は gpt-5.6-sol に固定してください。")
+    root_effort = mapping(root_coordination.get("root_reasoning_effort"), "root_coordination.root_reasoning_effort")
+    require(root_effort.get("project_local_pin") is False, "Root effortをproject-localに固定しないでください。")
+    require(
+        set(sequence(root_effort.get("user_selectable_modes"), "root_coordination.root_reasoning_effort.user_selectable_modes"))
+        == {"high", "xhigh", "ultra"},
+        "Root effort mode は high / xhigh / ultra にしてください。",
+    )
+    control_plane = mapping(root_coordination.get("control_plane"), "root_coordination.control_plane")
+    require(control_plane.get("control_plane_only") is True, "Rootをcontrol-plane onlyにしてください。")
+    require(
+        set(sequence(control_plane.get("allowed_observations"), "root_coordination.control_plane.allowed_observations"))
+        == {"target_repo_identity", "git_status", "snapshot_helper", "queue_state"},
+        "Rootの直接観測はcontrol-plane状態だけにしてください。",
+    )
+    delegated_work = {
+        "repository_exploration",
+        "implementation",
+        "validation_execution",
+        "browser_execution",
+        "debugging",
+        "review_evidence_generation",
+    }
+    require(
+        set(sequence(control_plane.get("delegated_work"), "root_coordination.control_plane.delegated_work")) == delegated_work,
+        "対象repositoryの作業はworkerへ委譲してください。",
+    )
+    require(
+        delegated_work | {"trial_acceptance", "ledger_write"}
+        == _forbidden(control_plane.get("forbidden_root_work"), "root_coordination.control_plane.forbidden_root_work"),
+        "Rootの直接作業禁止集合が不正です。",
+    )
+    require(control_plane.get("report_required_before_next_action") is True, "Rootはworker report前に次actionへ進まないでください。")
+    require(control_plane.get("worker_unavailable_outcome") == "needs_human", "worker不在時はRoot直接fallbackでなくneeds_humanにしてください。")
+    routing = mapping(root_coordination.get("routing_cases"), "root_coordination.routing_cases")
+    require(
+        mapping(routing.get("repository_read_only"), "root_coordination.routing_cases.repository_read_only")
+        == {"worker_id": "cartographer", "root_executes": False, "report_required": True},
+        "read-only repository調査はcartographerへ委譲してください。",
+    )
+    require(
+        mapping(routing.get("bounded_mutation"), "root_coordination.routing_cases.bounded_mutation")
+        == {"worker_id": "adventurer", "root_executes": False, "report_required": True},
+        "bounded mutationはadventurerへ委譲してください。",
+    )
+    require(
+        mapping(routing.get("worker_unavailable"), "root_coordination.routing_cases.worker_unavailable")
+        == {"outcome": "needs_human", "root_direct_fallback": False},
+        "worker不在時にRootが対象repository作業を代行しないでください。",
+    )
+    ultra = mapping(root_coordination.get("ultra_mode"), "root_coordination.ultra_mode")
+    require(
+        ultra
+        == {
+            "proactive_delegation": True,
+            "authority_unchanged": True,
+            "role_topology_unchanged": True,
+            "subagent_pair_overrides_allowed": False,
+            "report_gate_unchanged": True,
+        },
+        "Ultraは委譲の積極性だけを変え、authority/topology/fixed pair/report gateを変えないでください。",
+    )
 
     # Read-only mapmaking stays safe without forcing a ceremonial sage pass.
     mapmaking = _expected("mapmaking_readonly_no_edit.yaml")

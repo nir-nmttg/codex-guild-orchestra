@@ -13,7 +13,7 @@ def _exact_list(value: object, expected: set[str], label: str) -> None:
 def validate_settings() -> None:
     path = "template/.agents/orchestra/config/settings.yaml"
     settings = mapping(load_yaml(path), "settings.yaml")
-    require(settings.get("version") == "4.0", "settings.yaml.version は 4.0 にしてください。")
+    require(settings.get("version") == "5.0", "settings.yaml.version は 5.0 にしてください。")
 
     required_sections = {
         "guild_runtime",
@@ -23,6 +23,7 @@ def validate_settings() -> None:
         "contracts",
         "snapshot",
         "delegation",
+        "model_policy",
         "workers",
         "execution",
         "trial",
@@ -116,6 +117,48 @@ def validate_settings() -> None:
     sentinel = mapping(delegation.get("warden"), "settings.delegation.warden")
     require(sentinel.get("routine_use") is False and sentinel.get("read_only") is True and sentinel.get("decision_authority") is False, "Wardenは例外的terminal診断に限定してください。")
 
+    model_policy = mapping(settings["model_policy"], "settings.model_policy")
+    require(
+        set(model_policy)
+        == {
+            "root_model",
+            "root_project_local_reasoning_effort",
+            "root_user_selectable_reasoning_efforts",
+            "fixed_pair_per_subagent",
+            "subagent_pairs",
+        },
+        "settings.model_policy はRoot方針と固定subagent pairだけを含めてください。",
+    )
+    require(model_policy.get("root_model") == "gpt-5.6-sol", "Root modelはgpt-5.6-solにしてください。")
+    require(model_policy.get("root_project_local_reasoning_effort") == "unset", "Root reasoning effortをproject-localで固定しないでください。")
+    require(
+        sequence(model_policy.get("root_user_selectable_reasoning_efforts"), "settings.model_policy.root_user_selectable_reasoning_efforts")
+        == ["high", "xhigh", "ultra"],
+        "Root reasoning effortは利用者がhigh/xhigh/ultraから選べるようにしてください。",
+    )
+    require(model_policy.get("fixed_pair_per_subagent") is True, "subagentはroleごとの固定model/effort pairにしてください。")
+    expected_pairs = {
+        "cartographer": ("gpt-5.6-sol", "high"),
+        "guildmaster": ("gpt-5.6-sol", "xhigh"),
+        "captain": ("gpt-5.6-sol", "high"),
+        "adventurer": ("gpt-5.6-terra", "high"),
+        "artificer": ("gpt-5.6-sol", "high"),
+        "inquisitor": ("gpt-5.6-sol", "xhigh"),
+        "examiner": ("gpt-5.6-terra", "high"),
+        "sage": ("gpt-5.6-luna", "xhigh"),
+        "warden": ("gpt-5.6-sol", "high"),
+        "courier": ("gpt-5.3-codex-spark", "xhigh"),
+    }
+    pairs = mapping(model_policy.get("subagent_pairs"), "settings.model_policy.subagent_pairs")
+    require(set(pairs) == set(expected_pairs), "settings.model_policy.subagent_pairs は定義済みの10 roleだけにしてください。")
+    for role, expected_pair in expected_pairs.items():
+        pair = mapping(pairs.get(role), f"settings.model_policy.subagent_pairs.{role}")
+        require(set(pair) == {"model", "model_reasoning_effort"}, f"settings.model_policy.subagent_pairs.{role} schemaが不正です。")
+        require(
+            (pair.get("model"), pair.get("model_reasoning_effort")) == expected_pair,
+            f"settings.model_policy.subagent_pairs.{role} は {expected_pair[0]} / {expected_pair[1]} にしてください。",
+        )
+
     workers = mapping(settings["workers"], "settings.workers")
     expected_parallel = {
         "cartographer": 2,
@@ -176,7 +219,47 @@ def validate_settings() -> None:
     require(reviewers.get("multiple_examiners_require_focus_split") is True and reviewers.get("final_decision_owner") == "inquisitor", "複数reviewerのfocus分割とdecision ownerが不正です。")
 
     root = mapping(settings["root_session"], "settings.root_session")
-    require({"implementation", "trial_acceptance", "ledger_write"} == set(sequence(root.get("forbids"), "settings.root_session.forbids")), "Rootのauthority separationが不正です。")
+    require(root.get("control_plane_only") is True, "Rootはcontrol-plane onlyにしてください。")
+    require(
+        set(sequence(root.get("owns"), "settings.root_session.owns"))
+        == {
+            "intake",
+            "target_repo_binding",
+            "authority_check",
+            "snapshot_request",
+            "direct_assignment",
+            "agent_wait",
+            "report_evidence_gate",
+            "next_action",
+            "report_synthesis",
+        },
+        "Rootのcontrol-plane責務が不正です。",
+    )
+    require(
+        set(sequence(root.get("allowed_observations"), "settings.root_session.allowed_observations"))
+        == {"target_repo_identity", "git_status", "snapshot_helper", "queue_state"},
+        "Rootの直接観測はcontrol-plane状態だけにしてください。",
+    )
+    delegated_work = {
+        "repository_exploration",
+        "implementation",
+        "validation_execution",
+        "browser_execution",
+        "debugging",
+        "review_evidence_generation",
+    }
+    require(set(sequence(root.get("delegated_work"), "settings.root_session.delegated_work")) == delegated_work, "Rootの委譲対象が不正です。")
+    require(
+        set(sequence(root.get("forbids"), "settings.root_session.forbids"))
+        == delegated_work | {"trial_acceptance", "ledger_write"},
+        "Rootのauthority separationが不正です。",
+    )
+    require(root.get("report_required_before_next_action") is True, "Rootはworker reportを待ってから次actionを判断してください。")
+    require(root.get("worker_unavailable_outcome") == "needs_human", "worker不在時にRootが直接fallbackしないでください。")
+    require(
+        root.get("ultra_mode") == "proactive_delegation_within_fixed_topology",
+        "Root Ultraは固定topology内のproactive delegationに限定してください。",
+    )
 
     ledger = mapping(settings["ledger"], "settings.ledger")
     require({"raw_log", "raw_discussion", "secret", "pii"} <= set(sequence(ledger.get("never_record"), "settings.ledger.never_record")), "Ledger deny fieldが不足しています。")

@@ -2,6 +2,8 @@
 
 `AGENTS.md` が全roleに適用される安全・権限・委譲の正本です。このファイルはrole文書を手動で参照する場合の補助であり、custom agentの起動時promptへ重ねて読み込みません。
 
+Rootはtarget、authority、snapshot、queueを固定してassignmentを発行し、担当roleの完了を待ってevidenceをgateします。対象repoの探索、コード・差分・repo文書の読み取り、実装、validation、browser、debug、review evidence収集はassignmentを受けたroleが行い、Rootへreportを返します。
+
 ## 実行の基本
 
 1. assignmentのobjective、success criteria、scope、authority、snapshotを確認する。

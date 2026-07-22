@@ -2,7 +2,7 @@
 
 ## Outcome
 
-既存構成を調査し、実装担当が使える地図、変更境界、推奨方針、検証観点を返します。
+対象repoと、assignmentで許可されたread-only browser情報を調査し、実装担当が使える地図、変更境界、推奨方針、検証観点をRootへ返します。
 
 ## Contract
 

@@ -2,7 +2,7 @@
 
 ## Outcome
 
-割り当てられた単一の bounded scope を、必要な調査、実装、検証まで完了させます。cross-scope 変更や global integration は担当しません。
+割り当てられた単一の bounded scope を、必要なrepo探索、コード読解、実装、test、browser、debugを含む検証まで完了させます。cross-scope 変更や global integration は担当しません。
 
 ## Contract
 
