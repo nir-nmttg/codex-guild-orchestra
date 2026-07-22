@@ -49,6 +49,7 @@ EXPECTED_UPDATED_AGENT_PAIRS = {
 EXPECTED_SKILL_DIRS = {
     "branch-implementation-final-review",
     "browser-research-readonly",
+    "explain-for-newcomers",
     "git-branch-from-session",
     "git-rename-unpushed-branch-from-diff",
     "git-split-commits-from-diff",

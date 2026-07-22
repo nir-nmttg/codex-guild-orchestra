@@ -173,6 +173,7 @@ EXPECTED_AGENT_MODEL_CONFIGS = {
 EXPECTED_ORCHESTRA_SKILL_DIRS = {
     'branch-implementation-final-review',
     'browser-research-readonly',
+    'explain-for-newcomers',
     'git-branch-from-session',
     'git-rename-unpushed-branch-from-diff',
     'git-split-commits-from-diff',
