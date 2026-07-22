@@ -1413,6 +1413,12 @@ def _estimate_usage_cost(usage: object, model_price: object, label: str) -> floa
     ) / 1_000_000
 
 
+def _non_negative_finite_number(value: object, label: str) -> float:
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) or value < 0:
+        raise EvalConfigError(f"{label} は0以上の有限な数値にしてください。")
+    return float(value)
+
+
 def _count_tool_events(jsonl: str) -> int:
     count = 0
     for line in jsonl.splitlines():
@@ -2040,9 +2046,12 @@ def _summarize(
         or timeout_cleanup_probe.get("protocol") != "agent-guild-orchestra-detached-child-probe-v1"
         or timeout_cleanup_probe.get("passed") is not True
         or timeout_cleanup_probe.get("detached_child_marker_observed") is not False
-        or not isinstance(timeout_cleanup_probe.get("elapsed_seconds"), (int, float))
     ):
         raise EvalConfigError("session timeout cleanup probe evidence が不正です。")
+    _non_negative_finite_number(
+        timeout_cleanup_probe.get("elapsed_seconds"),
+        "session timeout cleanup probe elapsed_seconds",
+    )
     selection_complete = private_session.get("selection_complete_expected") is True
     if session.get("selection_complete_expected") is not selection_complete:
         raise EvalConfigError("selection completeness metadata が一致しません。")
@@ -2247,6 +2256,10 @@ def _summarize(
             not isinstance(value, bool) for value in automatic_final_outcome_violations.values()
         ):
             raise EvalConfigError(f"{blind_label} automatic final outcome evidence が不正です。")
+        elapsed_seconds = _non_negative_finite_number(
+            metrics.get("elapsed_seconds"),
+            f"{blind_label} metrics.elapsed_seconds",
+        )
         prompt_layer_metrics = _mapping(
             provenance.get("prompt_layer_metrics"),
             f"{blind_label}.provenance.prompt_layer_metrics",
@@ -2324,7 +2337,7 @@ def _summarize(
                 "prompt_cache_write_equivalent_estimated_tokens": prompt_layer_metrics.get(
                     "cache_write_equivalent_estimated_tokens"
                 ),
-                "elapsed_seconds": metrics.get("elapsed_seconds"),
+                "elapsed_seconds": elapsed_seconds,
                 "estimated_cost": estimated_cost,
             }
         )

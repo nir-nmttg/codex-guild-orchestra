@@ -506,6 +506,40 @@ def validate_model_selection_eval() -> None:
             summary.get("formal_recommendation_blockers"),
             "confirmatory条件が未完了ならformal recommendation blockerを列挙してください。",
         )
+
+        elapsed_metrics_path = next(grading_root.glob("*/run_metrics.json"))
+        original_elapsed_metrics = json.loads(elapsed_metrics_path.read_text(encoding="utf-8"))
+
+        def refresh_grading_input_attestations() -> None:
+            grading_input_sha256 = module._grading_input_bundle_sha256(grading_root)
+            for grader_path in grading_root.glob("*/grader.json"):
+                grader = json.loads(grader_path.read_text(encoding="utf-8"))
+                grader["grading_package_input_sha256"] = grading_input_sha256
+                grader_path.write_text(json.dumps(grader), encoding="utf-8")
+
+        def require_elapsed_rejection(value: object, label: str, *, missing: bool = False) -> None:
+            metrics = dict(original_elapsed_metrics)
+            if missing:
+                metrics.pop("elapsed_seconds")
+            else:
+                metrics["elapsed_seconds"] = value
+            elapsed_metrics_path.write_text(json.dumps(metrics), encoding="utf-8")
+            refresh_grading_input_attestations()
+            try:
+                module._summarize(session_dir, evaluation_manifest, manifest_path=manifest_path)
+            except module.EvalConfigError:
+                return
+            require(False, f"elapsed_secondsの{label}をEvalConfigErrorで拒否してください。")
+
+        require_elapsed_rejection(None, "欠損", missing=True)
+        require_elapsed_rejection("one second", "文字列")
+        require_elapsed_rejection(True, "bool")
+        require_elapsed_rejection(-1, "負値")
+        require_elapsed_rejection(float("nan"), "NaN")
+        require_elapsed_rejection(float("inf"), "Infinity")
+        elapsed_metrics_path.write_text(json.dumps(original_elapsed_metrics), encoding="utf-8")
+        refresh_grading_input_attestations()
+
         compact_job = next(job for job in expected_jobs if job["prompt_profile"] == "compact")
         compact_grader_path = grading_root / compact_job["blind_label"] / "grader.json"
         compact_grader = json.loads(compact_grader_path.read_text(encoding="utf-8"))
