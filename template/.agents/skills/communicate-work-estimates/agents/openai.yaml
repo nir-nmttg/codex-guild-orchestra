@@ -1,0 +1,4 @@
+interface:
+  display_name: "作業時間の見積もり共有"
+  short_description: "開始・委任・見通し変更時に完了時間の目安を共有します"
+  default_prompt: "$communicate-work-estimates を使い、この作業の開始時と見通し変更時に完了までの推定時間を共有してください。"

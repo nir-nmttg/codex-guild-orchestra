@@ -342,6 +342,9 @@ def validate_skills() -> None:
         require(token in control_skill, f"quest-awareness-loop skillに `{token}` が必要です。")
     guild_skill = read("template/.agents/skills/use-guild-workflow/SKILL.md")
     require("risk-adaptive" in guild_skill and "fast path" in guild_skill, "use-guild-workflowはrisk-adaptive fast pathを説明してください。")
+    estimate_skill = read("template/.agents/skills/communicate-work-estimates/SKILL.md")
+    for token in ("開始時", "subagentへ委任", "critical path", "残り時間", "増加だけでなく"):
+        require(token in estimate_skill, f"communicate-work-estimates skillに `{token}` が必要です。")
 
 
 def validate_stop_hook() -> None:
