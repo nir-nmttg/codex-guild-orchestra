@@ -80,6 +80,17 @@ def _line_count(rel: str) -> int:
     return len(read(rel).splitlines())
 
 
+def _validate_root_only_work_estimates(description: str, interface: dict[str, object]) -> None:
+    require("Root専用" in description, "communicate-work-estimates のfrontmatter descriptionはRoot専用を明記してください。")
+    require(
+        re.search(r"subagent.{0,40}(?:使わず|使用しない|利用しない)", description) is not None,
+        "communicate-work-estimates のfrontmatter descriptionはsubagentが利用しないことを明記してください。",
+    )
+    for field in ("display_name", "short_description", "default_prompt"):
+        value = interface.get(field)
+        require(isinstance(value, str) and "Root" in value, f"communicate-work-estimates のUI metadata {field} はRootを見積もり主体として明記してください。")
+
+
 def _validated_model_policy() -> tuple[str, dict[str, tuple[str, str]]]:
     settings = mapping(load_yaml("template/.agents/orchestra/config/settings.yaml"), "settings.yaml")
     policy = mapping(settings.get("model_policy"), "settings.model_policy")
@@ -416,6 +427,8 @@ def validate_skills() -> None:
             f"${name}" in interface["default_prompt"],
             f"{openai_rel}.interface.default_prompt は `${name}` を明示してください。",
         )
+        if name == "communicate-work-estimates":
+            _validate_root_only_work_estimates(description, interface)
         for section in ("## 使う時", "## 入力", "## 手順", "## 出力", "## 安全", "## 停止条件"):
             require(section in text, f"{rel} に {section} が必要です。")
         require("未信頼" in text or "外部入力" in text or "秘密" in text, f"{rel} は安全境界を明記してください。")
@@ -428,7 +441,14 @@ def validate_skills() -> None:
     guild_skill = read("template/.agents/skills/use-guild-workflow/SKILL.md")
     require("risk-adaptive" in guild_skill and "fast path" in guild_skill, "use-guild-workflowはrisk-adaptive fast pathを説明してください。")
     estimate_skill = read("template/.agents/skills/communicate-work-estimates/SKILL.md")
-    for token in ("開始時", "subagentへ委任", "critical path", "残り時間", "増加だけでなく"):
+    for token in (
+        "開始時",
+        "subagentへ委任",
+        "subagentはこのSkillを使わず、見積もり生成・通知・更新をしません",
+        "critical path",
+        "残り時間",
+        "増加だけでなく",
+    ):
         require(token in estimate_skill, f"communicate-work-estimates skillに `{token}` が必要です。")
     _validate_skill_candidate_helper()
     _validate_vscode_launch_skill()
