@@ -50,6 +50,7 @@ EXPECTED_SKILL_DIRS = {
     "branch-implementation-final-review",
     "browser-research-readonly",
     "communicate-work-estimates",
+    "create-skill-candidate-from-gap",
     "explain-clearly",
     "git-branch-from-session",
     "git-rename-unpushed-branch-from-diff",
@@ -67,6 +68,8 @@ EXPECTED_SKILL_DIRS = {
     "repository-design-mapmaking",
     "use-guild-workflow",
 }
+VSCODE_HELPER_REL = Path(".agents/skills/open-subrepo-in-vscode/scripts/open_repositories_in_vscode.py")
+CANDIDATE_VALIDATOR_REL = Path(".agents/skills/create-skill-candidate-from-gap/scripts/validate_skill_candidate.py")
 INSTALLED_OLD_TERM_TOKENS = (
     "fa" "ble",
     "meta" "cognitive",
@@ -142,6 +145,27 @@ def _assert_installed_surface(target: Path, allowed_extra_skills: set[str] | Non
         )
         openai_yaml = skill_dir / skill_name / "agents/openai.yaml"
         require(openai_yaml.is_file(), f"{openai_yaml.relative_to(target)} を導入してください。")
+    installed_vscode_helper = target / VSCODE_HELPER_REL
+    source_vscode_helper = ROOT / "template" / VSCODE_HELPER_REL
+    require(installed_vscode_helper.is_file(), f"{VSCODE_HELPER_REL} を導入してください。")
+    require(
+        installed_vscode_helper.read_bytes() == source_vscode_helper.read_bytes(),
+        "install.py は VS Code launch helper を template と byte-identical に導入してください。",
+    )
+    installed_candidate_validator = target / CANDIDATE_VALIDATOR_REL
+    source_candidate_validator = ROOT / "template" / CANDIDATE_VALIDATOR_REL
+    require(installed_candidate_validator.is_file(), f"{CANDIDATE_VALIDATOR_REL} を導入してください。")
+    require(
+        installed_candidate_validator.read_bytes() == source_candidate_validator.read_bytes(),
+        "install.py は Skill candidate validator を template と byte-identical に導入してください。",
+    )
+    installed_candidate_root = target / ".orchestra/skill-candidates"
+    source_candidate_root = ROOT / "template/.agents/orchestra/skill-candidates"
+    require((installed_candidate_root / "README.md").is_file(), ".orchestra/skill-candidates/README.md を導入してください。")
+    require(
+        (installed_candidate_root / "README.md").read_bytes() == (source_candidate_root / "README.md").read_bytes(),
+        "install.py は candidate root marker を template と byte-identical に導入してください。",
+    )
     require((skill_dir / "quest-awareness-loop/SKILL.md").exists(), "install.py は quest-awareness-loop skill を導入してください。")
     require((target / ".agents/orchestra/docs/agent-memory.md").exists(), "install.py は agent-memory runtime artifact を導入してください。")
     require((target / ".orchestra/dashboard.md").exists(), "install.py は dashboard runtime artifact を .orchestra/dashboard.md に導入してください。")
@@ -482,6 +506,9 @@ def validate_install_upgrade_smoke() -> None:
         _assert_installed_surface(target, {"third-party-example"})
         _assert_agents_block_idempotent(target)
         _assert_git_exclude_block_idempotent(target)
+        runtime_candidate = target / ".orchestra/skill-candidates/demo/keep/SKILL.md"
+        runtime_candidate.parent.mkdir(parents=True)
+        runtime_candidate.write_text("candidate\n", encoding="utf-8")
 
         root_config_path = target / ".codex/config.toml"
         for effort in ("high", "xhigh", "ultra"):
@@ -502,6 +529,7 @@ def validate_install_upgrade_smoke() -> None:
         remaining = [str(path.relative_to(target)) for path in legacy_paths if path.exists()]
         require(not remaining, "install.py は削除済み旧 template を prune してください: " + ", ".join(remaining))
         require(third_party_skill.exists(), "install.py はunrelated third-party Skillを保持してください。")
+        require(runtime_candidate.read_text(encoding="utf-8") == "candidate\n", "install.py の通常再導入は runtime sibling candidate を保持してください。")
 
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"
@@ -595,6 +623,9 @@ def validate_install_upgrade_smoke() -> None:
         existing_database.parent.mkdir(parents=True, exist_ok=True)
         existing_database.write_bytes(b"legacy runtime state")
         (target / ".orchestra/dashboard.md").write_text("legacy dashboard\n", encoding="utf-8")
+        clean_candidate = target / ".orchestra/skill-candidates/demo/keep/SKILL.md"
+        clean_candidate.parent.mkdir(parents=True)
+        clean_candidate.write_text("candidate\n", encoding="utf-8")
 
         clean_dry_run = _run_install("--target", target, "--mode", "copy", "--clean-install", "--dry-run")
         clean_dry_run_output = clean_dry_run.stdout + clean_dry_run.stderr
@@ -608,6 +639,7 @@ def validate_install_upgrade_smoke() -> None:
         _assert_installed_surface(target)
         _assert_agents_block_idempotent(target, expect_update_position=False)
         _assert_git_exclude_block_idempotent(target, expect_update_position=False)
+        require(clean_candidate.read_text(encoding="utf-8") == "candidate\n", "install.py --clean-install は runtime sibling candidate を保持してください。")
 
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"
@@ -1001,6 +1033,15 @@ def validate_install_upgrade_smoke() -> None:
         lambda source: (source / ".agents/skills/use-guild-workflow/agents/openai.yaml").unlink(),
     )
     require("openai.yaml" in (missing_skill_openai.stdout + missing_skill_openai.stderr), "install.py の Skill openai metadata 不足拒否 message は openai.yaml を示してください。")
+
+    missing_vscode_helper = run_with_mutated_source(
+        "missing VS Code launch helper",
+        lambda source: (source / VSCODE_HELPER_REL).unlink(),
+    )
+    require(
+        "open_repositories_in_vscode.py" in (missing_vscode_helper.stdout + missing_vscode_helper.stderr),
+        "install.py の VS Code launch helper 不足拒否 message は helper file を示してください。",
+    )
 
     missing_runtime_doc = run_with_mutated_source("missing runtime memory doc", lambda source: (source / ".agents/orchestra/docs/agent-memory.md").unlink())
     require("agent-memory.md" in (missing_runtime_doc.stdout + missing_runtime_doc.stderr), "install.py の runtime docs 不足拒否 message は agent-memory.md を示してください。")

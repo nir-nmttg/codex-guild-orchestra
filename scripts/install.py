@@ -174,6 +174,7 @@ EXPECTED_ORCHESTRA_SKILL_DIRS = {
     'branch-implementation-final-review',
     'browser-research-readonly',
     'communicate-work-estimates',
+    'create-skill-candidate-from-gap',
     'explain-clearly',
     'git-branch-from-session',
     'git-rename-unpushed-branch-from-diff',
@@ -243,6 +244,11 @@ SOURCE_REQUIRED_REL_PATHS = (
 SOURCE_REQUIRED_REL_PATHS += tuple(Path('.codex/agents') / f'{role}.toml' for role in sorted(EXPECTED_AGENT_SANDBOX_MODES))
 SOURCE_REQUIRED_REL_PATHS += tuple(Path('.agents/skills') / skill / 'SKILL.md' for skill in sorted(EXPECTED_ORCHESTRA_SKILL_DIRS))
 SOURCE_REQUIRED_REL_PATHS += tuple(Path('.agents/skills') / skill / 'agents/openai.yaml' for skill in sorted(EXPECTED_ORCHESTRA_SKILL_DIRS))
+SOURCE_REQUIRED_REL_PATHS += (
+    Path('.agents/orchestra/skill-candidates/README.md'),
+    Path('.agents/skills/create-skill-candidate-from-gap/scripts/validate_skill_candidate.py'),
+    Path('.agents/skills/open-subrepo-in-vscode/scripts/open_repositories_in_vscode.py'),
+)
 REPOSITORIES_REL_PATH = Path('repositories')
 ORCHESTRA_SKILL_OWNER = 'agent-guild-orchestra'
 TRUSTED_SOURCE_TOP_LEVELS = {'AGENTS.md', '.agents', '.codex'}
@@ -279,6 +285,9 @@ UNTRUSTED_SOURCE_PATH_TOKENS = {
     'state.sqlite',
     'token',
     'tokens',
+}
+TRUSTED_SOURCE_RISKY_PATH_EXCEPTIONS = {
+    Path('.agents/skills/open-subrepo-in-vscode/scripts/open_repositories_in_vscode.py'),
 }
 PATH_TERM_RE = re.compile(r'[^a-z0-9]+')
 REMOVED_TEMPLATE_REL_PATHS = [
@@ -373,6 +382,8 @@ def map_template_path(rel_path: Path) -> Path:
     posix = rel_path.as_posix()
     if posix == '.agents/orchestra/dashboard.md':
         return Path('.orchestra/dashboard.md')
+    if posix == '.agents/orchestra/skill-candidates/README.md':
+        return Path('.orchestra/skill-candidates/README.md')
     return rel_path
 
 
@@ -626,7 +637,8 @@ def clean_install_target(target_root: Path, prune_git_exclude: bool, dry_run: bo
     remove_path(target_root / '.agents' / 'orchestra', target_root, dry_run)
     clean_owner_scoped_skills(target_root, dry_run)
     remove_path(target_root / '.codex', target_root, dry_run)
-    remove_path(target_root / '.orchestra', target_root, dry_run)
+    remove_path(target_root / '.orchestra' / 'queue', target_root, dry_run)
+    remove_path(target_root / '.orchestra' / 'dashboard.md', target_root, dry_run)
     prune_text_block(target_root / 'AGENTS.md', AGENTS_START, AGENTS_END, target_root, dry_run)
     if prune_git_exclude:
         prune_text_block(target_root / '.git' / 'info' / 'exclude', EXCLUDE_START, EXCLUDE_END, target_root, dry_run)
@@ -1517,6 +1529,8 @@ def validate_source_tree_trust(source_root: Path, allow_non_default_source: bool
 
 
 def risky_source_path_tokens(rel: Path) -> list[str]:
+    if rel in TRUSTED_SOURCE_RISKY_PATH_EXCEPTIONS:
+        return []
     parts = {part.casefold() for part in rel.parts}
     split_terms = {
         term

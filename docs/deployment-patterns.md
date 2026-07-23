@@ -20,6 +20,7 @@
 
 Codex はギルド規約ルートを開いて起動します。
 default `workspace-write` でも `.git/`、`.agents/`、`.codex/` は protected path なので、動的状態は `.orchestra/` に分離して使います。
+Skill candidate は `.orchestra/skill-candidates/<target-repo>/<candidate>/` にだけ隔離し、active `.agents/skills/` へ自動昇格しません。
 初回導入やクリーンインストールは `.agents/orchestra/`、`.codex/`、必要に応じて `.git/info/exclude` を書き換えます。
 通常のターミナルで実行するか、Codex 上では protected path 書き込みを承認してください。
 

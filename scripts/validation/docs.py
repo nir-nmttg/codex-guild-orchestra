@@ -415,6 +415,284 @@ def validate_skills() -> None:
     estimate_skill = read("template/.agents/skills/communicate-work-estimates/SKILL.md")
     for token in ("開始時", "subagentへ委任", "critical path", "残り時間", "増加だけでなく"):
         require(token in estimate_skill, f"communicate-work-estimates skillに `{token}` が必要です。")
+    _validate_skill_candidate_helper()
+    _validate_vscode_launch_skill()
+
+
+def _load_skill_candidate_helper() -> object:
+    helper = ROOT / "template/.agents/skills/create-skill-candidate-from-gap/scripts/validate_skill_candidate.py"
+    spec = importlib.util.spec_from_file_location("validate_skill_candidate", helper)
+    require(spec is not None and spec.loader is not None, "Skill candidate validator を読み込めません。")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _validate_skill_candidate_helper() -> None:
+    """隔離 candidate の正負 contract を一時 directory だけで検証する。"""
+    module = _load_skill_candidate_helper()
+    template_candidate_root = ROOT / "template/.agents/orchestra/skill-candidates/README.md"
+    require(template_candidate_root.is_file(), "template は candidate root marker を含めてください。")
+
+    def make_candidate(guild: Path, target: Path, name: str = "example-candidate") -> Path:
+        candidate = guild / ".orchestra/skill-candidates" / target.name / name
+        candidate.mkdir()
+        (candidate / "agents").mkdir()
+        (candidate / "SKILL.md").write_text(
+            "---\n"
+            f"name: {name}\n"
+            "description: \"隔離 candidate の検証用 Skill です。\"\n"
+            "metadata:\n"
+            "  owner: \"human-review-required\"\n"
+            "  scope: \"skill-candidate\"\n"
+            "  lifecycle: \"needs_human\"\n"
+            "  candidate_only_authority: \"candidate-only\"\n"
+            "  external_actions: \"denied\"\n"
+            "  sensitive_data: \"denied\"\n"
+            "  local_git: \"denied\"\n"
+            "---\n\n"
+            "# candidate\n\n"
+            "## 使う時\n\n"
+            "- validate\n\n"
+            "## 入力\n\n"
+            "- sanitized input\n\n"
+            "## 手順\n\n"
+            "1. validate\n\n"
+            "## 出力\n\n"
+            "- result\n\n"
+            "## 安全\n\n"
+            "- candidate-only; external actions denied; sensitive data denied; local Git denied\n\n"
+            "## Promotion gate\n\n"
+            "- needs_human; independent Trial; structural validation は置き換えない\n\n"
+            "## 停止条件\n\n"
+            "- complete\n",
+            encoding="utf-8",
+        )
+        (candidate / "agents/openai.yaml").write_text(
+            "interface:\n"
+            "  display_name: \"Example Candidate\"\n"
+            "  short_description: \"隔離された候補を決定的に検証するためのSkillです\"\n"
+            f"  default_prompt: \"${name} を使い、候補を検証してください。\"\n",
+            encoding="utf-8",
+        )
+        return candidate
+
+    def must_reject(guild: Path, target: Path, candidate: Path, label: str) -> None:
+        try:
+            module.validate(guild, target, candidate)
+        except module.CandidateError:
+            return
+        require(False, f"Skill candidate validator は {label} を拒否してください。")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        guild = Path(tmp) / "guild"
+        target = guild / "repositories/demo"
+        target.mkdir(parents=True)
+        candidate_root = guild / ".orchestra/skill-candidates"
+        candidate_root.mkdir(parents=True)
+        (candidate_root / "README.md").write_bytes(template_candidate_root.read_bytes())
+        (candidate_root / target.name).mkdir()
+        (guild / ".agents/skills").mkdir(parents=True)
+        candidate = make_candidate(guild, target)
+        module.validate(guild, target, candidate)
+
+        name_mismatch = make_candidate(guild, target, "name-mismatch")
+        (name_mismatch / "SKILL.md").write_text(
+            (name_mismatch / "SKILL.md").read_text(encoding="utf-8").replace("name: name-mismatch", "name: wrong-name", 1),
+            encoding="utf-8",
+        )
+        must_reject(guild, target, name_mismatch, "directory/name mismatch")
+
+        missing_metadata = make_candidate(guild, target, "missing-metadata")
+        (missing_metadata / "SKILL.md").write_text(
+            (missing_metadata / "SKILL.md").read_text(encoding="utf-8").replace('  lifecycle: "needs_human"\n', "", 1),
+            encoding="utf-8",
+        )
+        must_reject(guild, target, missing_metadata, "missing candidate metadata")
+
+        missing_openai = make_candidate(guild, target, "missing-openai")
+        (missing_openai / "agents/openai.yaml").unlink()
+        must_reject(guild, target, missing_openai, "missing openai metadata")
+
+        invalid_openai = make_candidate(guild, target, "invalid-openai")
+        (invalid_openai / "agents/openai.yaml").write_text("interface:\n", encoding="utf-8")
+        must_reject(guild, target, invalid_openai, "invalid openai metadata")
+
+        escaped = Path(tmp) / "outside-candidate"
+        escaped.mkdir()
+        must_reject(guild, target, escaped, "candidate path escape")
+
+        symlinked = candidate_root / target.name / "symlinked-candidate"
+        symlinked.symlink_to(candidate, target_is_directory=True)
+        must_reject(guild, target, symlinked, "symlink candidate")
+
+        collision = make_candidate(guild, target, "active-collision")
+        (guild / ".agents/skills/active-collision").mkdir()
+        must_reject(guild, target, collision, "active Guild Skill collision")
+
+        denied = candidate_root / target.name / "secret-candidate"
+        must_reject(guild, target, denied, "secret-like candidate path")
+
+        extra = make_candidate(guild, target, "extra-payload")
+        (extra / "payload.txt").write_text("no\n", encoding="utf-8")
+        must_reject(guild, target, extra, "extra candidate payload")
+
+        marker = candidate_root / "README.md"
+        marker.unlink()
+        must_reject(guild, target, candidate, "missing candidate marker")
+        marker.mkdir()
+        must_reject(guild, target, candidate, "nonregular candidate marker")
+        marker.rmdir()
+        marker.write_bytes(template_candidate_root.read_bytes())
+
+        nested_target = guild / "repositories/nested/demo"
+        nested_target.mkdir(parents=True)
+        must_reject(guild, nested_target, candidate, "non-direct-child target")
+
+        agents = guild / ".agents"
+        agents_real = guild / "agents-real"
+        agents.rename(agents_real)
+        agents.symlink_to(agents_real, target_is_directory=True)
+        must_reject(guild, target, candidate, "intermediate active-skill symlink")
+        agents.unlink()
+        agents_real.rename(agents)
+
+        intermediate = guild / ".orchestra"
+        moved = guild / "runtime-real"
+        intermediate.rename(moved)
+        intermediate.symlink_to(moved, target_is_directory=True)
+        must_reject(guild, target, candidate, "intermediate runtime symlink")
+
+    skill_text = read("template/.agents/skills/create-skill-candidate-from-gap/SKILL.md")
+    for token in ("repeated independent evidence", "stable prevention artifact", "stable I/O", "deterministic validation", "target helper-issued snapshot", "candidate_content_digest"):
+        require(token in skill_text, f"create-skill-candidate-from-gap に `{token}` が必要です。")
+
+
+def _load_vscode_launch_helper() -> object:
+    helper = ROOT / "template/.agents/skills/open-subrepo-in-vscode/scripts/open_repositories_in_vscode.py"
+    spec = importlib.util.spec_from_file_location("open_repositories_in_vscode", helper)
+    require(spec is not None and spec.loader is not None, "VS Code launch helper を読み込めません。")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _validate_vscode_launch_skill() -> None:
+    """fake だけで helper を検証する。ここでは VS Code を起動しない。"""
+    skill = read("template/.agents/skills/open-subrepo-in-vscode/SKILL.md")
+    for token in (
+        "Root だけ",
+        "sandbox escalation",
+        "人間承認",
+        "launch_request_accepted",
+        "plan_id",
+        "approved_plan_mismatch",
+        'visual_confirmation: "unknown"',
+        "open -a",
+        "shell interpolation",
+    ):
+        require(token in skill, f"open-subrepo-in-vscode skillに `{token}` が必要です。")
+    require("courier" not in skill.casefold(), "open-subrepo-in-vscode は GUI 起動をcourierへ委譲してはいけません。")
+    helper = _load_vscode_launch_helper()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        guild = root / "guild"
+        repositories = guild / "repositories"
+        repository = repositories / "demo"
+        repository.mkdir(parents=True)
+        launcher = root / "code"
+        launcher.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        launcher.chmod(0o700)
+
+        canonical_guild, canonical_repositories = helper.validate_roots(guild, repositories)
+        require(canonical_guild == guild.resolve() and canonical_repositories == repositories.resolve(), "VS Code helper は実在する guild/repositories 実パスを受け付けてください。")
+        for invalid in (guild, repository, root / "missing"):
+            try:
+                helper.validate_roots(guild, invalid)
+            except helper.TargetValidationError:
+                pass
+            else:
+                require(False, f"VS Code helper は不正 target を拒否してください: {invalid}")
+
+        escaped_guild = root / "escaped-guild"
+        escaped_guild.mkdir()
+        outside = root / "outside"
+        outside.mkdir()
+        (escaped_guild / "repositories").symlink_to(outside, target_is_directory=True)
+        try:
+            helper.validate_roots(escaped_guild, escaped_guild / "repositories")
+        except helper.TargetValidationError as exc:
+            require(str(exc) == "repositories_root_symlink", "VS Code helper は repositories symlink escape を拒否してください。")
+        else:
+            require(False, "VS Code helper は repositories symlink escape を拒否してください。")
+
+        bundled = root / "Visual Studio Code.app/Contents/Resources/app/bin/code"
+        bundled.parent.mkdir(parents=True)
+        bundled.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        bundled.chmod(0o700)
+        selected = helper.select_launcher(which=lambda _: None, system="Darwin", bundled_paths=(bundled,))
+        require(selected == bundled.resolve(), "VS Code helper はPATHにcodeがないmacOSでbundled CLIを選んでください。")
+
+        planned = helper.plan_launch(guild, repositories, launcher=launcher)
+        require(planned["status"] == "approval_required", "VS Code helper のplanはapproval_requiredを返してください。")
+        require(isinstance(planned["plan_id"], str) and bool(planned["plan_id"]), "VS Code helper のplanは承認対象のidentityを返してください。")
+        require(planned["argv"] == [str(launcher.resolve()), "-n", str(repositories.resolve())], "VS Code helper は正確な `code -n repositories` argvを作ってください。")
+        require(planned["visual_confirmation"] == "unknown", "VS Code helper のplanは視覚的成功を主張してはいけません。")
+
+        calls: list[object] = []
+        def should_not_run(*args: object, **kwargs: object) -> object:
+            calls.append((args, kwargs))
+            raise AssertionError("plan mode は subprocess を実行してはいけません")
+        original_run = helper.subprocess.run
+        helper.subprocess.run = should_not_run
+        try:
+            no_subprocess_plan = helper.plan_launch(guild, repositories, launcher=launcher)
+        finally:
+            helper.subprocess.run = original_run
+        require(no_subprocess_plan["status"] == "approval_required" and not calls, "VS Code helper のplan modeはsubprocessを呼んではいけません。")
+
+        class Result:
+            def __init__(self, returncode: int) -> None:
+                self.returncode = returncode
+
+        def zero_runner(argv: list[str], *, check: bool) -> Result:
+            calls.append((argv, check))
+            return Result(0)
+        approved_plan_id = planned["plan_id"]
+        accepted = helper.execute_launch(planned, approved_plan_id, runner=zero_runner)
+        require(calls == [([str(launcher.resolve()), "-n", str(repositories.resolve())], False)], "VS Code helper はshellなしで計画済みargvだけを一回実行してください。")
+        require(accepted["status"] == "launch_request_accepted" and accepted["visual_confirmation"] == "unknown", "VS Code helper はexit 0をlaunch request acceptanceだけとして報告してください。")
+
+        rejected = helper.execute_launch(planned, approved_plan_id, runner=lambda argv, *, check: Result(23))
+        require(rejected["status"] == "launch_failed" and rejected["exit_code"] == 23, "VS Code helper はnonzero launcher resultを成功にしてはいけません。")
+
+        mismatch_calls: list[object] = []
+        mismatch = helper.execute_launch(planned, "not-the-approved-plan", runner=lambda *args, **kwargs: mismatch_calls.append((args, kwargs)))
+        require(mismatch["status"] == "approved_plan_mismatch" and not mismatch_calls, "VS Code helper はidentity mismatch時にrunnerを呼んではいけません。")
+
+        missing_id_calls: list[object] = []
+        missing_id = helper.execute_launch(planned, None, runner=lambda *args, **kwargs: missing_id_calls.append((args, kwargs)))
+        require(missing_id["status"] == "approved_plan_id_required" and not missing_id_calls, "VS Code helper は承認identity未指定時にrunnerを呼んではいけません。")
+
+        guild_a = root / "guild-a"
+        guild_b = root / "guild-b"
+        (guild_a / "repositories").mkdir(parents=True)
+        (guild_b / "repositories").mkdir(parents=True)
+        guild_link = root / "guild-link"
+        guild_link.symlink_to(guild_a, target_is_directory=True)
+        first_plan = helper.plan_launch(guild_link, guild_link / "repositories", launcher=launcher)
+        guild_link.unlink()
+        guild_link.symlink_to(guild_b, target_is_directory=True)
+        retarget_calls: list[object] = []
+        retargeted = helper.execute_approved_launch(
+            guild_link,
+            guild_link / "repositories",
+            first_plan["plan_id"],
+            launcher=launcher,
+            runner=lambda *args, **kwargs: retarget_calls.append((args, kwargs)),
+        )
+        require(retargeted["status"] == "approved_plan_mismatch" and not retarget_calls, "VS Code helper は二段階実行中のguild symlink再targetを拒否してください。")
 
 
 def validate_stop_hook() -> None:
