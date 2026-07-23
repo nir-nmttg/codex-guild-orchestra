@@ -64,6 +64,23 @@ def validate_root_orchestration_eval() -> None:
             == {"model": pair.get("model"), "effort": pair.get("model_reasoning_effort")},
             f"Root orchestration {role} pairをsettingsと一致させてください。",
         )
+    settings_root_session = mapping(settings.get("root_session"), "settings.root_session")
+    trace_contract = mapping(manifest.get("trace_contract"), "root_orchestration.trace_contract")
+    require(
+        "browser_control_tool_observation" in sequence(trace_contract.get("root_allowed_actions"), "trace_contract.root_allowed_actions")
+        and "browser_execution" in sequence(trace_contract.get("root_forbidden_actions"), "trace_contract.root_forbidden_actions")
+        and "browser_control_tool_observation" in sequence(settings_root_session.get("owns"), "settings.root_session.owns"),
+        "Rootのbrowser-control tool例外は専用actionだけを許可し、一般browser実行は禁止してください。",
+    )
+    require(
+        "browser_control_tool_observation"
+        not in {
+            action
+            for actions in mapping(trace_contract.get("role_actions"), "trace_contract.role_actions").values()
+            for action in sequence(actions, "trace_contract.role_actions")
+        },
+        "subagentにbrowser-control toolを許可しないでください。",
+    )
 
     cases = mapping(manifest.get("cases"), "root_orchestration.cases")
     for mode in ("high", "xhigh", "ultra"):
@@ -94,6 +111,34 @@ def validate_root_orchestration_eval() -> None:
     root_work_events.append(terminal)
     _renumber(root_work)
     _must_reject(module, manifest, root_work, "Root直接implementation")
+
+    browser_trace = module.build_contract_trace(manifest, "browser_readonly", "high")
+    module.validate_trace(manifest, browser_trace)
+
+    subagent_browser_tool = copy.deepcopy(browser_trace)
+    for raw_event in sequence(subagent_browser_tool["events"], "subagent_browser_tool.events"):
+        event = mapping(raw_event, "subagent_browser_tool.event")
+        if event.get("action") == "browser_control_tool_observation":
+            event["actor"] = "cartographer"
+            event["depth"] = 1
+            break
+    _must_reject(module, manifest, subagent_browser_tool, "subagentによるbrowser-control tool呼び出し")
+
+    browser_before_spec = module.build_contract_trace(manifest, "browser_readonly", "xhigh")
+    browser_events = sequence(browser_before_spec["events"], "browser_before_spec.events")
+    tool_index = next(
+        index
+        for index, event in enumerate(browser_events)
+        if mapping(event, "browser_before_spec.event").get("action") == "browser_control_tool_observation"
+    )
+    spec_index = next(
+        index
+        for index, event in enumerate(browser_events)
+        if mapping(event, "browser_before_spec.event").get("action") == "browser_allowed_operation_specification"
+    )
+    browser_events[tool_index], browser_events[spec_index] = browser_events[spec_index], browser_events[tool_index]
+    _renumber(browser_before_spec)
+    _must_reject(module, manifest, browser_before_spec, "role仕様前のRoot browser-control tool実行")
 
     early_action = module.build_contract_trace(manifest, "solo", "xhigh")
     early_events = sequence(early_action["events"], "early_action.events")

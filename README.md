@@ -171,8 +171,8 @@ secret、token、credential、password、key、認証情報、PIIは読まず、
 - `Guild Law`: 対象リポジトリ、secret・PII、状態更新に関する安全境界
 - task contract: objective、success criteria、scope、authority、validationの明確化
 - `evidence_state`: blocker、失敗したcheck、scope drift、high-risk trigger、検証状況の追跡
-- coordination-only Root: 対象repoを読まない回答・説明だけをfast pathとし、target・authority・snapshot・queue、routing、evidence gate、次action、最終synthesisに専念
-- role-based delegation / Trial: 対象repoの探索、コード読解、実装、test、browser、debug、review evidence収集をnamed roleへ委譲
+- coordination-only Root: 対象repoを読まない回答・説明だけをfast pathとし、target・authority・snapshot・queue、routing、evidence gate、次action、最終synthesisに専念。role仕様どおりのbrowser-control tool実行と観測事実記録だけが狭い例外
+- role-based delegation / Trial: 対象repoの探索、コード読解、実装、test、browserの計画/許可操作仕様化/根拠解釈、debug、review evidence収集をnamed roleへ委譲
 - Root orchestration trace gate: `high / xhigh / ultra`の固定pair、許可edge、target・authority・snapshot refの事前確認、assignmentごとのwait、role phaseと親子report evidence gateの順序、no-direct-fallbackを27 mode/caseの決定的traceで検証。実fan-outの真正性を示す外部証跡は別途必要
 - `Ledger`: 検証根拠と残リスクを記録するSQLite監査履歴
 - helper-issued snapshotとqueue lineageのfail-closedな検証

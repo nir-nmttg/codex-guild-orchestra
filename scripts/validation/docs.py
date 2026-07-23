@@ -331,7 +331,7 @@ def validate_docs_and_instructions() -> None:
     for token in (
         "対象repoを読まない回答・説明",
         "Rootはcoordinationとjudgeに専念",
-        "対象repoの調査、実装、検証、browser、debug、review evidence収集",
+        "browser-control toolだけは担当roleの仕様を実行して観測事実を記録するRoot例外",
         "Rootだけがtop-level custom agent",
         "`inquisitor`だけがdepth 2の`examiner`",
         "`high`、`xhigh`、`ultra`",
@@ -354,10 +354,19 @@ def validate_docs_and_instructions() -> None:
     require("数値confidence" in common and "要求しません" in common, "common.mdは数値confidenceを要求しないでください。")
     for token in (
         "担当roleの完了を待ってevidenceをgate",
-        "対象repoの探索、コード・差分・repo文書の読み取り、実装、validation、browser、debug、review evidence収集",
+        "browser-control toolは例外としてRootだけが",
         "Rootへreportを返します",
     ):
         require(token in common, f"common.md にRoot/worker report loop `{token}` が必要です。")
+
+    for rel in (
+        "template/.agents/skills/browser-research-readonly/SKILL.md",
+        "template/.agents/skills/implementation-behavior-verification/SKILL.md",
+    ):
+        text = read(rel)
+        require("browser-control toolを呼ばない" in text, f"{rel} はsubagentのbrowser-control tool禁止を明記してください。")
+        require("objective・URL・authority・許可操作" in text, f"{rel} はRoot browser handoffを仕様化してください。")
+        require("Root" in text and "観測事実" in text, f"{rel} はRootの観測事実記録を明記してください。")
 
     deployment = read("docs/agent-deployment.md")
     runtime = read("docs/orchestration-runtime.md")

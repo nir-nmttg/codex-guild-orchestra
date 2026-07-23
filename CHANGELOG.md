@@ -6,7 +6,7 @@
 
 ### Breaking changes
 
-- RootをSol固定のcoordination / judge専任とし、対象repoの探索、コード読解、実装、test、browser、debug、review evidence収集をnamed subagentへ必ず委譲
+- RootをSol固定のcoordination / judge専任とし、対象repoの探索、コード読解、実装、test、browserの計画/解釈、debug、review evidence収集をnamed subagentへ必ず委譲。browser-control toolだけはrole仕様どおりRootが実行して観測事実を記録
 - Rootのreasoning effortをproject-localへ固定せず、利用者選択の`high`、`xhigh`、`ultra`を同じnamed-role topologyでサポート
 - deployment pairを役割のauthorityとblast radiusに合わせて再編し、`adventurer`と`examiner`をTerra/high、`sage`をLuna/xhigh、`inquisitor`をSol/xhighへ変更。CourierはSpark/xhighを維持
 - xhigh roleのjob timeoutに必要な余裕を確保するため、`job_max_runtime_seconds`を1800秒から2400秒へ延長

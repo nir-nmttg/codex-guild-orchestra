@@ -39,6 +39,7 @@ trace_contract:
     - assignment_created
     - worker_unavailable
     - agent_wait
+    - browser_control_tool_observation
     - report_evidence_gate
     - next_action
     - needs_human
@@ -53,10 +54,10 @@ trace_contract:
     - trial_acceptance
     - ledger_write
   role_actions:
-    cartographer: [repository_exploration, report_recorded]
+    cartographer: [repository_exploration, browser_planning, browser_allowed_operation_specification, browser_evidence_interpretation, report_recorded]
     guildmaster: [repository_exploration, guild_strategy, report_recorded]
     captain: [repository_exploration, execution_design, report_recorded]
-    adventurer: [repository_exploration, implementation, validation_execution, browser_execution, debugging, report_recorded]
+    adventurer: [repository_exploration, implementation, validation_execution, browser_planning, browser_allowed_operation_specification, browser_evidence_interpretation, debugging, report_recorded]
     artificer: [repository_exploration, implementation, validation_execution, integration, report_recorded]
     inquisitor: [repository_exploration, validation_execution, review_evidence_generation, child_report_evidence_gate, trial_decision, assignment_created, report_recorded]
     examiner: [repository_exploration, review_evidence_generation, report_recorded]
@@ -82,6 +83,7 @@ cases:
     expected_nested_edges: []
     required_role_actions:
       cartographer: [repository_exploration]
+    required_root_actions: []
     terminal_root_action: next_action
     worker_unavailable_role: null
   solo:
@@ -91,6 +93,7 @@ cases:
     expected_nested_edges: []
     required_role_actions:
       adventurer: [repository_exploration, implementation, validation_execution]
+    required_root_actions: []
     terminal_root_action: next_action
     worker_unavailable_role: null
   party:
@@ -102,6 +105,7 @@ cases:
       captain: [execution_design]
       adventurer: [implementation, validation_execution]
       artificer: [integration, validation_execution]
+    required_root_actions: []
     terminal_root_action: next_action
     worker_unavailable_role: null
   focused_trial:
@@ -112,6 +116,7 @@ cases:
     required_role_actions:
       inquisitor: [review_evidence_generation, trial_decision]
       examiner: [review_evidence_generation]
+    required_root_actions: []
     terminal_root_action: next_action
     worker_unavailable_role: null
   safety:
@@ -121,6 +126,7 @@ cases:
     expected_nested_edges: []
     required_role_actions:
       inquisitor: [review_evidence_generation, trial_decision]
+    required_root_actions: []
     terminal_root_action: needs_human
     worker_unavailable_role: null
   guild:
@@ -131,6 +137,7 @@ cases:
     required_role_actions:
       guildmaster: [guild_strategy]
       captain: [execution_design]
+    required_root_actions: []
     terminal_root_action: next_action
     worker_unavailable_role: null
   warden_control:
@@ -140,6 +147,7 @@ cases:
     expected_nested_edges: []
     required_role_actions:
       warden: [diagnosis]
+    required_root_actions: []
     terminal_root_action: next_action
     worker_unavailable_role: null
   sage_focus:
@@ -149,6 +157,7 @@ cases:
     expected_nested_edges: []
     required_role_actions:
       sage: [advice]
+    required_root_actions: []
     terminal_root_action: next_action
     worker_unavailable_role: null
   worker_unavailable:
@@ -157,8 +166,19 @@ cases:
     top_level_role_phases: []
     expected_nested_edges: []
     required_role_actions: {}
+    required_root_actions: []
     terminal_root_action: needs_human
     worker_unavailable_role: cartographer
+  browser_readonly:
+    contract_fixtures: [root_coordination_only.yaml, mapmaking_readonly_no_edit.yaml]
+    expected_top_level_roles: [cartographer]
+    top_level_role_phases: [[cartographer]]
+    expected_nested_edges: []
+    required_role_actions:
+      cartographer: [browser_planning, browser_allowed_operation_specification, browser_evidence_interpretation]
+    required_root_actions: [browser_control_tool_observation]
+    terminal_root_action: next_action
+    worker_unavailable_role: null
 
 live_evidence_status:
   live_execution_completed: false

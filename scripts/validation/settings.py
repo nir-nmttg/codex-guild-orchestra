@@ -232,6 +232,7 @@ def validate_settings() -> None:
             "snapshot_request",
             "direct_assignment",
             "agent_wait",
+            "browser_control_tool_observation",
             "report_evidence_gate",
             "next_action",
             "report_synthesis",
@@ -240,21 +241,23 @@ def validate_settings() -> None:
     )
     require(
         set(sequence(root.get("allowed_observations"), "settings.root_session.allowed_observations"))
-        == {"target_repo_identity", "git_status", "snapshot_helper", "queue_state"},
+        == {"target_repo_identity", "git_status", "snapshot_helper", "queue_state", "browser_observation_facts"},
         "Rootの直接観測はcontrol-plane状態だけにしてください。",
     )
     delegated_work = {
         "repository_exploration",
         "implementation",
         "validation_execution",
-        "browser_execution",
+        "browser_planning",
+        "browser_allowed_operation_specification",
+        "browser_evidence_interpretation",
         "debugging",
         "review_evidence_generation",
     }
     require(set(sequence(root.get("delegated_work"), "settings.root_session.delegated_work")) == delegated_work, "Rootの委譲対象が不正です。")
     require(
         set(sequence(root.get("forbids"), "settings.root_session.forbids"))
-        == delegated_work | {"trial_acceptance", "ledger_write"},
+        == {"repository_exploration", "implementation", "validation_execution", "browser_execution", "debugging", "review_evidence_generation", "trial_acceptance", "ledger_write"},
         "Rootのauthority separationが不正です。",
     )
     require(root.get("report_required_before_next_action") is True, "Rootはworker reportを待ってから次actionを判断してください。")

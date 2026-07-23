@@ -23,7 +23,7 @@
 6. risk-triggeredな独立確認は`inquisitor`が行い、必要な単一focusだけ`examiner`へ渡す。
 7. `courier`がLedger反映と、明示されたlocal Git操作だけを行う。
 
-Rootはtarget・authority・snapshot・queueのcontrol-plane確認、routing、待機、evidence gate、最終synthesisだけを担当します。対象repoの探索、コード・差分の読み取り、実装、test、browser、debug、review evidence収集は担当roleへ委譲します。Rootが`high`、`xhigh`、`ultra`のどのreasoning effortで起動しても、このnamed-role topologyは変わりません。
+Rootはtarget・authority・snapshot・queueのcontrol-plane確認、routing、待機、evidence gate、最終synthesisに加え、roleが仕様化したbrowser-control toolだけを実行して観測事実を記録します。対象repoの探索、コード・差分の読み取り、実装、test、browserの計画/解釈、debug、review evidence収集は担当roleへ委譲します。Rootが`high`、`xhigh`、`ultra`のどのreasoning effortで起動しても、このnamed-role topologyは変わりません。
 
 ## Roles
 

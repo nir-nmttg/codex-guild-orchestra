@@ -90,7 +90,7 @@ flowchart TB
   root -.-> courier
 ```
 
-Rootだけがtop-level agentを起動し、`captain`などはterminalです。唯一の例外として`inquisitor`が`examiner`を直接起動し、完了を待ってevidenceを検証・統合します。nested assignmentのscopeとauthorityは親より狭められますが、helper-issued subject snapshotは親Trialと完全一致させます。depth 2を超える再帰fan-outは禁止します。Rootはtarget、authority、snapshot、queueをcontrol-planeとして確認し、対象repoの探索、コード・差分の読み取り、実装、test、browser、debug、review evidence収集を直接行いません。high/xhigh/ultraのどのmodeでもこの境界を維持します。
+Rootだけがtop-level agentを起動し、`captain`などはterminalです。唯一のnested edgeとして`inquisitor`が`examiner`を直接起動し、完了を待ってevidenceを検証・統合します。nested assignmentのscopeとauthorityは親より狭められますが、helper-issued subject snapshotは親Trialと完全一致させます。depth 2を超える再帰fan-outは禁止します。Rootはtarget、authority、snapshot、queueをcontrol-planeとして確認し、roleが仕様化したbrowser-control toolだけを実行して観測事実を記録します。対象repoの探索、コード・差分の読み取り、実装、test、browserの計画/許可操作仕様化/根拠解釈、debug、review evidence収集を直接行いません。high/xhigh/ultraのどのmodeでもこの境界を維持します。
 
 ## Integration
 

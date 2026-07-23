@@ -82,14 +82,16 @@ def validate_golden_quests() -> None:
     require(control_plane.get("control_plane_only") is True, "Rootをcontrol-plane onlyにしてください。")
     require(
         set(sequence(control_plane.get("allowed_observations"), "root_coordination.control_plane.allowed_observations"))
-        == {"target_repo_identity", "git_status", "snapshot_helper", "queue_state"},
+        == {"target_repo_identity", "git_status", "snapshot_helper", "queue_state", "browser_observation_facts"},
         "Rootの直接観測はcontrol-plane状態だけにしてください。",
     )
     delegated_work = {
         "repository_exploration",
         "implementation",
         "validation_execution",
-        "browser_execution",
+        "browser_planning",
+        "browser_allowed_operation_specification",
+        "browser_evidence_interpretation",
         "debugging",
         "review_evidence_generation",
     }
@@ -98,12 +100,23 @@ def validate_golden_quests() -> None:
         "対象repositoryの作業はworkerへ委譲してください。",
     )
     require(
-        delegated_work | {"trial_acceptance", "ledger_write"}
+        {"repository_exploration", "implementation", "validation_execution", "browser_execution", "debugging", "review_evidence_generation", "trial_acceptance", "ledger_write"}
         == _forbidden(control_plane.get("forbidden_root_work"), "root_coordination.control_plane.forbidden_root_work"),
         "Rootの直接作業禁止集合が不正です。",
     )
     require(control_plane.get("report_required_before_next_action") is True, "Rootはworker report前に次actionへ進まないでください。")
     require(control_plane.get("worker_unavailable_outcome") == "needs_human", "worker不在時はRoot直接fallbackでなくneeds_humanにしてください。")
+    browser_exception = mapping(control_plane.get("browser_control_tool_exception"), "root_coordination.control_plane.browser_control_tool_exception")
+    require(
+        browser_exception
+        == {
+            "root_executes_only": True,
+            "subagent_tool_calls": False,
+            "required_handoff": ["objective", "url", "authority", "allowed_operations"],
+            "root_records": "browser_observation_facts",
+        },
+        "browser-control toolはRoot限定の仕様実行・観測記録例外にしてください。",
+    )
     routing = mapping(root_coordination.get("routing_cases"), "root_coordination.routing_cases")
     require(
         mapping(routing.get("repository_read_only"), "root_coordination.routing_cases.repository_read_only")
@@ -114,6 +127,11 @@ def validate_golden_quests() -> None:
         mapping(routing.get("bounded_mutation"), "root_coordination.routing_cases.bounded_mutation")
         == {"worker_id": "adventurer", "root_executes": False, "report_required": True},
         "bounded mutationはadventurerへ委譲してください。",
+    )
+    require(
+        mapping(routing.get("browser_readonly"), "root_coordination.routing_cases.browser_readonly")
+        == {"worker_id": "cartographer", "root_executes_browser_control_tool": True, "report_required": True},
+        "browser read-onlyはcartographerの仕様とRoot限定tool実行を分離してください。",
     )
     require(
         mapping(routing.get("worker_unavailable"), "root_coordination.routing_cases.worker_unavailable")

@@ -27,7 +27,7 @@
 
 Rootだけがtop-level custom agentを起動します。唯一のnested edgeとして、depth 1の`inquisitor`がrisk-triggeredな単一focusをdepth 2の`examiner`へ委譲できます。`max_depth=2`、`max_threads=64`を使い、その他のcustom agentと`examiner`はterminalです。
 
-- Rootはtarget、authority、snapshot、queueのcontrol-plane確認、routing、待機、reportのevidence gate、次action、最終synthesisだけを担当します。対象repoの探索、コード・差分・repo文書の読み取り、実装、test・build・lint、browser、debug、review evidence収集は規模にかかわらず担当roleへ委譲します。
+- Rootはtarget、authority、snapshot、queueのcontrol-plane確認、routing、待機、reportのevidence gate、次action、最終synthesisに加え、roleが仕様化したbrowser-control toolだけを実行して観測事実を記録します。対象repoの探索、コード・差分・repo文書の読み取り、実装、test・build・lint、browserの計画/許可操作仕様化/根拠解釈、debug、review evidence収集は規模にかかわらず担当roleへ委譲します。
 - 小さなread-only探索は`cartographer`、小さなmutationやbounded validationは追加planning/reviewなしで`adventurer`、独立reviewは`inquisitor`へ直接渡します。
 - read-heavyな独立調査、重ならないowned scope、独立した高リスクreviewを委譲します。
 - bounded実装は`adventurer`、cross-scope glueと共有契約は`artificer`が担当します。

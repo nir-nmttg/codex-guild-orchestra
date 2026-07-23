@@ -1222,23 +1222,26 @@ def validate_settings_release_contract(source_root: Path) -> None:
         'snapshot_request',
         'direct_assignment',
         'agent_wait',
+        'browser_control_tool_observation',
         'report_evidence_gate',
         'next_action',
         'report_synthesis',
     }
-    observations = {'target_repo_identity', 'git_status', 'snapshot_helper', 'queue_state'}
+    observations = {'target_repo_identity', 'git_status', 'snapshot_helper', 'queue_state', 'browser_observation_facts'}
     delegated_work = {
         'repository_exploration',
         'implementation',
         'validation_execution',
-        'browser_execution',
+        'browser_planning',
+        'browser_allowed_operation_specification',
+        'browser_evidence_interpretation',
         'debugging',
         'review_evidence_generation',
     }
     require_exact_string_set('owns', owns)
     require_exact_string_set('allowed_observations', observations)
     require_exact_string_set('delegated_work', delegated_work)
-    require_exact_string_set('forbids', delegated_work | {'trial_acceptance', 'ledger_write'})
+    require_exact_string_set('forbids', {'repository_exploration', 'implementation', 'validation_execution', 'browser_execution', 'debugging', 'review_evidence_generation', 'trial_acceptance', 'ledger_write'})
     if root.get('control_plane_only') is not True or root.get('report_required_before_next_action') is not True:
         raise SystemExit('settings.yaml root_session はcontrol-plane onlyかつworker report待機を必須にしてください。')
     if root.get('worker_unavailable_outcome') != 'needs_human':

@@ -207,9 +207,9 @@ trial:
 
 root_session:
   control_plane_only: true
-  owns: [intake, target_repo_binding, authority_check, snapshot_request, direct_assignment, agent_wait, report_evidence_gate, next_action, report_synthesis]
-  allowed_observations: [target_repo_identity, git_status, snapshot_helper, queue_state]
-  delegated_work: [repository_exploration, implementation, validation_execution, browser_execution, debugging, review_evidence_generation]
+  owns: [intake, target_repo_binding, authority_check, snapshot_request, direct_assignment, agent_wait, browser_control_tool_observation, report_evidence_gate, next_action, report_synthesis]
+  allowed_observations: [target_repo_identity, git_status, snapshot_helper, queue_state, browser_observation_facts]
+  delegated_work: [repository_exploration, implementation, validation_execution, browser_planning, browser_allowed_operation_specification, browser_evidence_interpretation, debugging, review_evidence_generation]
   forbids: [repository_exploration, implementation, validation_execution, browser_execution, debugging, review_evidence_generation, trial_acceptance, ledger_write]
   report_required_before_next_action: true
   worker_unavailable_outcome: needs_human

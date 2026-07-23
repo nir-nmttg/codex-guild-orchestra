@@ -17,7 +17,7 @@
 - `courier` はユーザー指定により `gpt-5.3-codex-spark / xhigh` を維持し、model 選定の対象外としました。
 
 公式の [GPT-5.6 model guidance](https://developers.openai.com/api/docs/guides/latest-model) と [Codex Subagents guidance](https://developers.openai.com/codex/subagents/) に従い、曖昧で多段の planning、tool use、validation、最終 decision を伴う role は高能力側、read-heavy で bounded な supporting work は Terra、高頻度で owner が再検証する狭い work は Luna を候補にしました。
-subagentはtask難度に応じてeffortを動的変更せず、認知負荷とdecision authorityが異なる場合はrole contractを分離して固定pairを与えます。Rootのcomponent referenceはSol/highですが、runtime templateではmodelだけをSolに固定し、effortはsession/global/user choiceへ委ねます。high/xhigh/ultraのすべてでRootはcoordinationとjudgeに専念し、対象repoの探索、コード読解、実装、test、browser、debug、review evidence収集をnamed subagentへ委譲します。
+subagentはtask難度に応じてeffortを動的変更せず、認知負荷とdecision authorityが異なる場合はrole contractを分離して固定pairを与えます。Rootのcomponent referenceはSol/highですが、runtime templateではmodelだけをSolに固定し、effortはsession/global/user choiceへ委ねます。high/xhigh/ultraのすべてでRootはcoordinationとjudgeに専念し、対象repoの探索、コード読解、実装、test、browserの計画/許可操作仕様化/根拠解釈、debug、review evidence収集をnamed subagentへ委譲します。browser-control toolだけはrole仕様どおりRootが実行し、観測事実を記録します。
 価格や平均scoreだけで品質低下を相殺しないよう、選定対象の全roleでcaseごとの探索的t下限を非劣性判定に使います。5.5 regression controlは比較専用で、5.6 deployment推薦集合には含めません。
 
 ## 評価方法

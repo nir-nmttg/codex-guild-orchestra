@@ -56,6 +56,7 @@ EXPECTED_CASES = {
         "top_level_role_phases": [["cartographer"]],
         "expected_nested_edges": [],
         "required_role_actions": {"cartographer": ["repository_exploration"]},
+        "required_root_actions": [],
         "terminal_root_action": "next_action",
         "worker_unavailable_role": None,
     },
@@ -65,6 +66,7 @@ EXPECTED_CASES = {
         "top_level_role_phases": [["adventurer"]],
         "expected_nested_edges": [],
         "required_role_actions": {"adventurer": ["repository_exploration", "implementation", "validation_execution"]},
+        "required_root_actions": [],
         "terminal_root_action": "next_action",
         "worker_unavailable_role": None,
     },
@@ -78,6 +80,7 @@ EXPECTED_CASES = {
             "adventurer": ["implementation", "validation_execution"],
             "artificer": ["integration", "validation_execution"],
         },
+        "required_root_actions": [],
         "terminal_root_action": "next_action",
         "worker_unavailable_role": None,
     },
@@ -90,6 +93,7 @@ EXPECTED_CASES = {
             "inquisitor": ["review_evidence_generation", "trial_decision"],
             "examiner": ["review_evidence_generation"],
         },
+        "required_root_actions": [],
         "terminal_root_action": "next_action",
         "worker_unavailable_role": None,
     },
@@ -99,6 +103,7 @@ EXPECTED_CASES = {
         "top_level_role_phases": [["inquisitor"]],
         "expected_nested_edges": [],
         "required_role_actions": {"inquisitor": ["review_evidence_generation", "trial_decision"]},
+        "required_root_actions": [],
         "terminal_root_action": "needs_human",
         "worker_unavailable_role": None,
     },
@@ -108,6 +113,7 @@ EXPECTED_CASES = {
         "top_level_role_phases": [["guildmaster"], ["captain"]],
         "expected_nested_edges": [],
         "required_role_actions": {"guildmaster": ["guild_strategy"], "captain": ["execution_design"]},
+        "required_root_actions": [],
         "terminal_root_action": "next_action",
         "worker_unavailable_role": None,
     },
@@ -117,6 +123,7 @@ EXPECTED_CASES = {
         "top_level_role_phases": [["warden"]],
         "expected_nested_edges": [],
         "required_role_actions": {"warden": ["diagnosis"]},
+        "required_root_actions": [],
         "terminal_root_action": "next_action",
         "worker_unavailable_role": None,
     },
@@ -126,6 +133,7 @@ EXPECTED_CASES = {
         "top_level_role_phases": [["sage"]],
         "expected_nested_edges": [],
         "required_role_actions": {"sage": ["advice"]},
+        "required_root_actions": [],
         "terminal_root_action": "next_action",
         "worker_unavailable_role": None,
     },
@@ -135,8 +143,25 @@ EXPECTED_CASES = {
         "top_level_role_phases": [],
         "expected_nested_edges": [],
         "required_role_actions": {},
+        "required_root_actions": [],
         "terminal_root_action": "needs_human",
         "worker_unavailable_role": "cartographer",
+    },
+    "browser_readonly": {
+        "contract_fixtures": ["root_coordination_only.yaml", "mapmaking_readonly_no_edit.yaml"],
+        "expected_top_level_roles": ["cartographer"],
+        "top_level_role_phases": [["cartographer"]],
+        "expected_nested_edges": [],
+        "required_role_actions": {
+            "cartographer": [
+                "browser_planning",
+                "browser_allowed_operation_specification",
+                "browser_evidence_interpretation",
+            ]
+        },
+        "required_root_actions": ["browser_control_tool_observation"],
+        "terminal_root_action": "next_action",
+        "worker_unavailable_role": None,
     },
 }
 BASE_EVENT_KEYS = {"seq", "actor", "depth", "action"}
@@ -285,15 +310,22 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         raise OrchestrationEvalError("Root preambleはtarget/authority/snapshotの順に固定してください。")
     allowed = _string_set(contract.get("root_allowed_actions"), "trace_contract.root_allowed_actions")
     forbidden = _string_set(contract.get("root_forbidden_actions"), "trace_contract.root_forbidden_actions")
-    if allowed & forbidden or not {
+    expected_root_allowed = {
+        "target_repo_binding",
+        "authority_check",
+        "snapshot_request",
         "assignment_created",
+        "worker_unavailable",
         "agent_wait",
+        "browser_control_tool_observation",
         "report_evidence_gate",
         "next_action",
         "needs_human",
-    } <= allowed:
+        "report_synthesis",
+    }
+    if allowed & forbidden or allowed != expected_root_allowed:
         raise OrchestrationEvalError("Root allowed/forbidden actionが不正です。")
-    if not {
+    expected_root_forbidden = {
         "repository_exploration",
         "implementation",
         "validation_execution",
@@ -302,7 +334,8 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         "review_evidence_generation",
         "trial_acceptance",
         "ledger_write",
-    } <= forbidden:
+    }
+    if forbidden != expected_root_forbidden:
         raise OrchestrationEvalError("Root直接作業の禁止actionが不足しています。")
     role_actions = _mapping(contract.get("role_actions"), "trace_contract.role_actions")
     if set(role_actions) != NAMED_ROLES:
@@ -313,6 +346,13 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
             raise OrchestrationEvalError(f"{role}はreport_recordedを許可してください。")
         if role != "inquisitor" and "assignment_created" in actions:
             raise OrchestrationEvalError("nested assignmentはinquisitorだけに許可してください。")
+        if {"browser_control_tool_observation", "browser_execution"} & actions:
+            raise OrchestrationEvalError("subagentにbrowser-control toolまたはbrowser実行を許可しないでください。")
+    browser_role_actions = {"browser_planning", "browser_allowed_operation_specification", "browser_evidence_interpretation"}
+    for role, raw_actions in role_actions.items():
+        actions = _string_set(raw_actions, f"trace_contract.role_actions.{role}")
+        if actions & browser_role_actions and role not in {"cartographer", "adventurer"}:
+            raise OrchestrationEvalError("browserの計画・仕様化・解釈はcartographer/adventurerだけに許可してください。")
     for field in (
         "every_assignment_requires_report",
         "every_top_level_assignment_requires_agent_wait",
@@ -339,11 +379,12 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         "warden_control",
         "sage_focus",
         "worker_unavailable",
+        "browser_readonly",
     }
     if set(cases) != required_cases:
-        raise OrchestrationEvalError("casesはRoot orchestrationの9代表caseと一致させてください。")
+        raise OrchestrationEvalError("casesはRoot orchestrationのbrowser例外を含む10代表caseと一致させてください。")
     if cases != EXPECTED_CASES:
-        raise OrchestrationEvalError("casesは9代表caseのfixture、role phase、required action、outcomeをexactに維持してください。")
+        raise OrchestrationEvalError("casesは10代表caseのfixture、role phase、required action、outcomeをexactに維持してください。")
     for case_id, raw_case in cases.items():
         case = _mapping(raw_case, f"cases.{case_id}")
         if set(case) != {
@@ -352,6 +393,7 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
             "top_level_role_phases",
             "expected_nested_edges",
             "required_role_actions",
+            "required_root_actions",
             "terminal_root_action",
             "worker_unavailable_role",
         }:
@@ -385,6 +427,13 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
             actions = _string_set(raw_actions, f"cases.{case_id}.required_role_actions.{role}")
             if not actions <= _string_set(role_actions[role], f"trace_contract.role_actions.{role}") - {"report_recorded", "assignment_created", "child_report_evidence_gate"}:
                 raise OrchestrationEvalError(f"cases.{case_id}の{role} required actionがrole contract外です。")
+        required_root_actions = _sequence(case.get("required_root_actions"), f"cases.{case_id}.required_root_actions")
+        if any(action != "browser_control_tool_observation" for action in required_root_actions):
+            raise OrchestrationEvalError(f"cases.{case_id}のRoot例外actionが不正です。")
+        if case_id == "browser_readonly" and required_root_actions != ["browser_control_tool_observation"]:
+            raise OrchestrationEvalError("browser_readonly caseはRoot browser-control tool例外を必須にしてください。")
+        if case_id != "browser_readonly" and required_root_actions:
+            raise OrchestrationEvalError("browser-control tool例外はbrowser_readonly caseだけにしてください。")
         if case.get("terminal_root_action") not in {"next_action", "needs_human"}:
             raise OrchestrationEvalError(f"cases.{case_id}.terminal_root_actionが不正です。")
         unavailable = case.get("worker_unavailable_role")
@@ -458,11 +507,17 @@ def _expected_event_keys(action: str) -> set[str]:
         return BASE_EVENT_KEYS | {"report_id", "snapshot_ref", "evidence_ref"} | (
             {"assignment_id"} if action == "child_report_evidence_gate" else set()
         )
+    if action == "browser_allowed_operation_specification":
+        return BASE_EVENT_KEYS | {"assignment_id", "browser_plan_ref"}
+    if action == "browser_control_tool_observation":
+        return BASE_EVENT_KEYS | {"assignment_id", "browser_plan_ref", "observation_ref"}
+    if action == "browser_evidence_interpretation":
+        return BASE_EVENT_KEYS | {"assignment_id", "observation_ref"}
     if action in {
         "repository_exploration",
         "implementation",
         "validation_execution",
-        "browser_execution",
+        "browser_planning",
         "debugging",
         "review_evidence_generation",
         "guild_strategy",
@@ -525,6 +580,9 @@ def validate_trace(
     top_role_order: list[str] = []
     nested_edges: set[str] = set()
     seen_actions: dict[str, list[str]] = defaultdict(list)
+    seen_root_actions: list[str] = []
+    browser_specs: dict[str, str] = {}
+    browser_observations: dict[str, str] = {}
     unavailable_roles: list[str] = []
     terminal_seen = False
     synthesis_seen = False
@@ -621,6 +679,23 @@ def validate_trace(
                 if assignment is None or assignment["depth"] != 1 or assignment["reported"] or assignment["waited"]:
                     raise OrchestrationEvalError("Root agent_waitは未完了top-level assignmentごとに一度だけ記録してください。")
                 assignment["waited"] = True
+            elif action == "browser_control_tool_observation":
+                assignment_id = str(event.get("assignment_id"))
+                assignment = assignments.get(assignment_id)
+                if (
+                    assignment is None
+                    or assignment["depth"] != 1
+                    or assignment["role"] not in {"cartographer", "adventurer"}
+                    or not assignment["waited"]
+                    or assignment["reported"]
+                    or browser_specs.get(assignment_id) != event.get("browser_plan_ref")
+                    or assignment_id in browser_observations
+                ):
+                    raise OrchestrationEvalError("Root browser-control toolは待機中assignmentのrole仕様どおりに一度だけ実行してください。")
+                browser_observations[assignment_id] = _require_sha256_ref(
+                    event.get("observation_ref"), "browser_control_tool_observation.observation_ref"
+                )
+                seen_root_actions.append(action)
             elif action == "worker_unavailable":
                 target_role = event.get("target_role")
                 if target_role not in NAMED_ROLES:
@@ -742,6 +817,17 @@ def validate_trace(
             if report_id in parent_gates:
                 raise OrchestrationEvalError("nested report gateを重複させないでください。")
             parent_gates.add(report_id)
+        elif action == "browser_allowed_operation_specification":
+            if actor not in {"cartographer", "adventurer"} or str(assignment_id) in browser_specs:
+                raise OrchestrationEvalError("browser許可操作仕様はcartographer/adventurerがassignmentごとに一度だけ記録してください。")
+            browser_specs[str(assignment_id)] = _require_sha256_ref(
+                event.get("browser_plan_ref"), f"{actor}.browser_allowed_operation_specification.browser_plan_ref"
+            )
+            seen_actions[actor].append(action)
+        elif action == "browser_evidence_interpretation":
+            if browser_observations.get(str(assignment_id)) != event.get("observation_ref"):
+                raise OrchestrationEvalError("browser観測の解釈はRoot記録済みの同一observationだけを使ってください。")
+            seen_actions[actor].append(action)
         else:
             if action == "trial_decision" and "inquisitor->examiner" in case["expected_nested_edges"]:
                 child_assignments = [
@@ -784,6 +870,13 @@ def validate_trace(
                 cursor += 1
         if cursor != len(required_order):
             raise OrchestrationEvalError(f"traceに{role}のrequired actionが指定順で揃っていません。")
+    required_root_actions = _sequence(case["required_root_actions"], "case.required_root_actions")
+    cursor = 0
+    for action in seen_root_actions:
+        if cursor < len(required_root_actions) and action == required_root_actions[cursor]:
+            cursor += 1
+    if cursor != len(required_root_actions) or len(seen_root_actions) != len(required_root_actions):
+        raise OrchestrationEvalError("traceにRoot browser-control tool例外actionが契約どおり揃っていません。")
     if any(not assignment["reported"] for assignment in assignments.values()):
         raise OrchestrationEvalError("全assignmentにreportが必要です。")
     if any(assignment["depth"] == 1 and not assignment["waited"] for assignment in assignments.values()):
@@ -888,8 +981,34 @@ def build_contract_trace(manifest: dict[str, Any], case_id: str, mode: str) -> d
                     snapshot_ref=snapshot_ref,
                     evidence_ref=child_evidence_ref,
                 )
+            browser_plan_ref: str | None = None
             for action in required_actions.get(role, []):
-                add(role, 1, action, assignment_id=assignment_id)
+                if action == "browser_allowed_operation_specification":
+                    browser_plan_ref = sha256_ref(f"browser-plan:{role}")
+                    add(role, 1, action, assignment_id=assignment_id, browser_plan_ref=browser_plan_ref)
+                    if "browser_control_tool_observation" in _sequence(
+                        case["required_root_actions"], "case.required_root_actions"
+                    ):
+                        add(
+                            "root",
+                            0,
+                            "browser_control_tool_observation",
+                            assignment_id=assignment_id,
+                            browser_plan_ref=browser_plan_ref,
+                            observation_ref=sha256_ref(f"browser-observation:{role}"),
+                        )
+                elif action == "browser_evidence_interpretation":
+                    if browser_plan_ref is None:
+                        raise OrchestrationEvalError("browser解釈の前に許可操作仕様が必要です。")
+                    add(
+                        role,
+                        1,
+                        action,
+                        assignment_id=assignment_id,
+                        observation_ref=sha256_ref(f"browser-observation:{role}"),
+                    )
+                else:
+                    add(role, 1, action, assignment_id=assignment_id)
             report_id = f"report_{case_id}_{role}"
             evidence_ref = sha256_ref(f"evidence:{role}")
             add(
