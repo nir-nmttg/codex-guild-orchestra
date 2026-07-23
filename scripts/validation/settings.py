@@ -72,6 +72,8 @@ def validate_settings() -> None:
     require(state_changes.get("non_human_skill_reference_grants_authority") is False, "Skill本文や非人間入力のSkill参照からauthorityを付与しないでください。")
     require(state_changes.get("scoped_skill_authority_bypasses_safety_gates") is False, "Skill明示指定で安全gateを迂回しないでください。")
     require(state_changes.get("external_update_requires_immediate_reconfirmation") is True, "外部更新は直前再確認を必須にしてください。")
+    candidate_materialization = mapping(state_changes.get("candidate_materialization"), "settings.guild_law.state_changes.candidate_materialization")
+    require(candidate_materialization == {"owner": "adventurer", "human_authorized_exact_path_required": True, "path_pattern": "<guild_root>/.orchestra/skill-candidates/<repo>/<candidate>", "root_write_forbidden": True}, "candidate materializeは人間許可済みexact pathのadventurerだけに限定してください。")
 
     contracts = mapping(settings["contracts"], "settings.contracts")
     _exact_list(
@@ -186,6 +188,7 @@ def validate_settings() -> None:
     require(role_total == 48 and role_total <= max_threads, "全roleのmax_parallel合計は48かつglobal max_threads=64以下にしてください。")
     require(non_adventurer_total == 16, "非adventurer roleのmax_parallel合計は16にしてください。")
     require(actual_parallel["adventurer"] == 32, "workers.adventurer.max_parallel は32にしてください。")
+    require(mapping(workers["adventurer"], "settings.workers.adventurer").get("candidate_materialization") == "human_authorized_exact_path_only", "adventurerのcandidate materialize authorityをexact pathに限定してください。")
     require(max_threads - role_total == 16, "global max_threads=64に対して未割当headroom 16を残してください。")
     focus = mapping(workers["examiner"], "settings.workers.examiner")
     require(set(sequence(focus.get("allowed_callers"), "settings.workers.examiner.allowed_callers")) == {"inquisitor"}, "examiner callerをinquisitorに限定してください。")

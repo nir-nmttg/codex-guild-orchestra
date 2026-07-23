@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import shutil
 import sqlite3
@@ -10,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 from .core import ROOT, require
 from .rules import LEDGER_TABLES
@@ -179,7 +182,10 @@ def _assert_installed_surface(target: Path, allowed_extra_skills: set[str] | Non
     missing_tables = sorted(LEDGER_TABLES - tables)
     require(not missing_tables, "install.py が初期化した runtime DB に不足 table があります: " + ", ".join(missing_tables))
     for path in _installed_text_paths(target):
-        text = path.read_text(encoding="utf-8").casefold()
+        try:
+            text = path.read_text(encoding="utf-8").casefold()
+        except UnicodeDecodeError:
+            continue
         for token in INSTALLED_OLD_TERM_TOKENS:
             require(token not in text, f"install.py の導入結果に旧語彙 `{token}` が残っています: {path.relative_to(target)}")
 
@@ -400,6 +406,8 @@ def validate_install_upgrade_smoke() -> None:
             "---\nname: canonical-orchestra\ndescription: canonical owner wins\nowner: third-party\nmetadata:\n  owner: agent-guild-orchestra\n  scope: target-repository-workflow\n---\n",
             encoding="utf-8",
         )
+        invalid_utf8_skill = skill_root / "invalid-utf8.md"
+        invalid_utf8_skill.write_bytes(b"---\nmetadata:\n  owner: third-party\n---\n\xff\x00preserve\n")
         original_yaml = INSTALLER.yaml
         try:
             for parser_name, parser in (("PyYAML", original_yaml), ("fallback", None)):
@@ -417,8 +425,12 @@ def validate_install_upgrade_smoke() -> None:
                     and INSTALLER.read_skill_owner(canonical_orchestra) == "agent-guild-orchestra",
                     f"install.py の{parser_name} parserはmetadata.ownerを旧top-level ownerより優先してください。",
                 )
+                require(
+                    INSTALLER.read_skill_owner(invalid_utf8_skill) is None,
+                    f"install.py の{parser_name} parserは非UTF-8 Skillのownerを不明として扱ってください。",
+                )
 
-                clean_target = skill_root / f"clean-{parser_name.casefold()}"
+                clean_target = (skill_root / f"clean-{parser_name.casefold()}").resolve()
                 keep_skill = clean_target / ".agents/skills/keep/SKILL.md"
                 remove_skill = clean_target / ".agents/skills/remove/SKILL.md"
                 keep_skill.parent.mkdir(parents=True)
@@ -428,6 +440,25 @@ def validate_install_upgrade_smoke() -> None:
                 INSTALLER.clean_owner_scoped_skills(clean_target, dry_run=False)
                 require(keep_skill.exists(), f"install.py の{parser_name} clean-install cleanupはcanonical third-party Skillを保持してください。")
                 require(not remove_skill.exists(), f"install.py の{parser_name} clean-install cleanupはcanonical orchestra Skillを除去してください。")
+
+            for error_type in (PermissionError, OSError):
+                failed_clean_target = (skill_root / f"unreadable-{error_type.__name__}").resolve()
+                owned_skill = failed_clean_target / ".agents/skills/owned/SKILL.md"
+                owned_skill.parent.mkdir(parents=True)
+                owned_skill.write_text(
+                    "---\nname: owned\nmetadata:\n  owner: agent-guild-orchestra\n---\n",
+                    encoding="utf-8",
+                )
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output), patch.object(Path, "read_text", side_effect=error_type("synthetic owner read failure")):
+                    try:
+                        INSTALLER.clean_owner_scoped_skills(failed_clean_target, dry_run=False)
+                    except error_type:
+                        pass
+                    else:
+                        require(False, f"install.py は{error_type.__name__}をowner不明へ変換せず伝播してください。")
+                require(owned_skill.exists(), f"install.py は{error_type.__name__}時にowner Skillを削除しないでください。")
+                require("remove" not in output.getvalue(), f"install.py は{error_type.__name__}時に削除成功を出力しないでください。")
         finally:
             INSTALLER.yaml = original_yaml
 
@@ -622,10 +653,37 @@ def validate_install_upgrade_smoke() -> None:
         existing_database = target / ".orchestra/queue/state.sqlite"
         existing_database.parent.mkdir(parents=True, exist_ok=True)
         existing_database.write_bytes(b"legacy runtime state")
+        stale_queue_file = target / ".orchestra/queue/stale.txt"
+        stale_queue_file.write_text("stale runtime state\n", encoding="utf-8")
         (target / ".orchestra/dashboard.md").write_text("legacy dashboard\n", encoding="utf-8")
         clean_candidate = target / ".orchestra/skill-candidates/demo/keep/SKILL.md"
         clean_candidate.parent.mkdir(parents=True)
         clean_candidate.write_text("candidate\n", encoding="utf-8")
+        valid_external_skill = target / ".agents/skills/valid-external/SKILL.md"
+        valid_external_skill.parent.mkdir(parents=True)
+        valid_external_skill.write_text(
+            "---\nname: valid-external\nmetadata:\n  owner: third-party\n---\n",
+            encoding="utf-8",
+        )
+        invalid_utf8_external_skill = target / ".agents/skills/non-utf8-external/SKILL.md"
+        invalid_utf8_external_skill_bytes = b"---\nmetadata:\n  owner: third-party\n---\n\xff\x00preserve\n"
+        invalid_utf8_external_skill.parent.mkdir(parents=True)
+        invalid_utf8_external_skill.write_bytes(invalid_utf8_external_skill_bytes)
+        invalid_utf8_external_asset = target / ".agents/skills/non-utf8-external/resources/blob.bin"
+        invalid_utf8_external_asset_bytes = b"\x00\xffexternal-skill-asset\n"
+        invalid_utf8_external_asset.parent.mkdir()
+        invalid_utf8_external_asset.write_bytes(invalid_utf8_external_asset_bytes)
+        legacy_owned_skill = target / ".agents/skills/legacy-owned/SKILL.md"
+        legacy_owned_skill.parent.mkdir()
+        legacy_owned_skill.write_text(
+            "---\nname: legacy-owned\nowner: agent-guild-orchestra\n---\n",
+            encoding="utf-8",
+        )
+        unknown_runtime_file = target / ".orchestra/legacy-runtime.txt"
+        unknown_runtime_file.write_text("legacy\n", encoding="utf-8")
+        unknown_runtime_child = target / ".orchestra/unknown-runtime/cache.bin"
+        unknown_runtime_child.parent.mkdir()
+        unknown_runtime_child.write_bytes(b"legacy")
 
         clean_dry_run = _run_install("--target", target, "--mode", "copy", "--clean-install", "--dry-run")
         clean_dry_run_output = clean_dry_run.stdout + clean_dry_run.stderr
@@ -635,11 +693,30 @@ def validate_install_upgrade_smoke() -> None:
         require("既存状態を保持" not in clean_dry_run_output, "install.py --clean-install --dry-run は既存 runtime state を保持すると表示しないでください。")
 
         clean_installed = _run_install("--target", target, "--mode", "copy", "--clean-install")
+        clean_installed_output = clean_installed.stdout + clean_installed.stderr
         require(clean_installed.returncode == 0, "install.py --clean-install smoke が失敗しました: " + clean_installed.stderr)
-        _assert_installed_surface(target)
+        require(
+            "Skill の所有者情報を UTF-8 として読めないため保持します: .agents/skills/non-utf8-external" in clean_installed_output,
+            "install.py --clean-install は非UTF-8 external Skillの保全理由だけを警告してください。",
+        )
+        require(
+            "preserve" not in clean_installed_output and "\x00" not in clean_installed_output,
+            "install.py --clean-install の非UTF-8 Skill警告は内容やraw bytesを出力しないでください。",
+        )
+        _assert_installed_surface(target, {"valid-external", "non-utf8-external"})
         _assert_agents_block_idempotent(target, expect_update_position=False)
         _assert_git_exclude_block_idempotent(target, expect_update_position=False)
         require(clean_candidate.read_text(encoding="utf-8") == "candidate\n", "install.py --clean-install は runtime sibling candidate を保持してください。")
+        require(valid_external_skill.exists(), "install.py --clean-install はvalid external owner Skillを保持してください。")
+        require(
+            invalid_utf8_external_skill.read_bytes() == invalid_utf8_external_skill_bytes
+            and invalid_utf8_external_asset.read_bytes() == invalid_utf8_external_asset_bytes,
+            "install.py --clean-install は非UTF-8 external Skill directoryの全内容をbyte-for-byte保持してください。",
+        )
+        require(not legacy_owned_skill.exists(), "install.py --clean-install はvalid legacy orchestra owner Skillを除去してください。")
+        require(not unknown_runtime_file.exists() and not unknown_runtime_child.exists(), "install.py --clean-install は skill-candidates 以外の未知runtime siblingを除去してください。")
+        require(not stale_queue_file.exists(), "install.py --clean-install は既存queue内容を除去して初期化してください。")
+        require((target / ".orchestra/dashboard.md").read_bytes() == (ROOT / "template/.agents/orchestra/dashboard.md").read_bytes(), "install.py --clean-install はdashboardを初期状態へ戻してください。")
 
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "guild"
@@ -1027,6 +1104,44 @@ def validate_install_upgrade_smoke() -> None:
 
     missing_quest_awareness_skill = run_with_mutated_source("missing quest-awareness-loop skill", lambda source: shutil.rmtree(source / ".agents/skills/quest-awareness-loop"))
     require("quest-awareness-loop" in (missing_quest_awareness_skill.stdout + missing_quest_awareness_skill.stderr), "install.py の quest-awareness-loop 不足拒否 message は skill 名を示してください。")
+
+    def add_empty_unexpected_skill_directory(source: Path) -> None:
+        (source / ".agents/skills/empty-skill/agents").mkdir(parents=True)
+
+    run_with_allowed_mutated_source("empty unexpected Skill directory", add_empty_unexpected_skill_directory)
+
+    def add_unexpected_skill_file(source: Path) -> None:
+        path = source / ".agents/skills/unexpected-skill/README.md"
+        path.parent.mkdir()
+        path.write_text("material\n", encoding="utf-8")
+
+    unexpected_skill_file = run_with_mutated_source("通常fileを含む未知Skill directory", add_unexpected_skill_file)
+    require(
+        "unexpected: unexpected-skill" in (unexpected_skill_file.stdout + unexpected_skill_file.stderr),
+        "install.py は file を含む unexpected Skill directory を明示的に拒否してください。",
+    )
+
+    def add_unexpected_skill_manifest(source: Path) -> None:
+        path = source / ".agents/skills/unexpected-manifest/SKILL.md"
+        path.parent.mkdir()
+        path.write_text("---\nname: unexpected-manifest\n---\n", encoding="utf-8")
+
+    unexpected_skill_manifest = run_with_mutated_source("SKILL.mdを含む未知Skill directory", add_unexpected_skill_manifest)
+    require(
+        "unexpected: unexpected-manifest" in (unexpected_skill_manifest.stdout + unexpected_skill_manifest.stderr),
+        "install.py は SKILL.md を含む unexpected Skill directory を明示的に拒否してください。",
+    )
+
+    def add_unexpected_skill_symlink(source: Path) -> None:
+        path = source / ".agents/skills/unexpected-symlink/linked-config.toml"
+        path.parent.mkdir()
+        path.symlink_to(source / ".codex/config.toml")
+
+    unexpected_skill_symlink = run_with_mutated_source("symlinkを含む未知Skill directory", add_unexpected_skill_symlink)
+    require(
+        "symlink" in (unexpected_skill_symlink.stdout + unexpected_skill_symlink.stderr),
+        "install.py は symlink を含む unexpected Skill directory を拒否してください。",
+    )
 
     missing_skill_openai = run_with_mutated_source(
         "missing skill openai metadata",

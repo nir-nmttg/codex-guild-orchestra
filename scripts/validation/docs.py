@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 
 from .core import ROOT, load_yaml, mapping, read, require, sequence, tomllib, yaml
@@ -184,6 +185,17 @@ def validate_agents() -> None:
         for token in QUALITY_REDUCING_TOKENS:
             require(token not in developer, f"{rel} に旧制約 `{token}` が残っています。")
 
+    adventurer_developer = str(tomllib.loads(read("template/.codex/agents/adventurer.toml"))["developer_instructions"])
+    for token in ("人間が許可", "assignment", "exact `.orchestra/skill-candidates/<repo>/<candidate>/`", "新規materialize"):
+        require(token in adventurer_developer, f"adventurer roleのcandidate materialize契約に `{token}` が必要です。")
+    agents_contract = read("template/AGENTS.md")
+    require("exact `<guild_root>/.orchestra/skill-candidates/<repo>/<candidate>/`" in agents_contract and "`adventurer`が新規materialize" in agents_contract, "AGENTS.mdのcandidate materialize owner/path契約が不足しています。")
+    candidate_skill = read("template/.agents/skills/create-skill-candidate-from-gap/SKILL.md")
+    require("materialize owner" in candidate_skill and "`adventurer` owner" in candidate_skill and "exact candidate path" in candidate_skill, "candidate Skillのowner/path契約が不足しています。")
+    settings = mapping(load_yaml("template/.agents/orchestra/config/settings.yaml"), "settings.yaml")
+    candidate_materialization = mapping(mapping(mapping(settings.get("guild_law"), "settings.guild_law").get("state_changes"), "settings.guild_law.state_changes").get("candidate_materialization"), "settings.guild_law.state_changes.candidate_materialization")
+    require(candidate_materialization.get("owner") == "adventurer" and candidate_materialization.get("human_authorized_exact_path_required") is True and candidate_materialization.get("root_write_forbidden") is True, "settingsのcandidate materialize owner/path/Root境界が不足しています。")
+
     config = tomllib.loads(read("template/.codex/config.toml"))
     require(config.get("model") == expected_root_model, "Root templateのmodelはSolにしてください。")
     require("model_reasoning_effort" not in config, "Root templateでreasoning effortを固定しないでください。")
@@ -287,6 +299,9 @@ def validate_docs_and_instructions() -> None:
         "`inquisitor`だけがdepth 2の`examiner`",
         "`high`、`xhigh`、`ultra`",
         "Rootは返されたevidenceをsuccess criteriaとsnapshotへ照合して次actionを決めます",
+        "exact `<guild_root>/.orchestra/skill-candidates/<repo>/<candidate>/`",
+        "`adventurer`が新規materialize",
+        "Rootは書き込まずcoordination-only",
     ):
         require(token in agents, f"AGENTS.md にRoot coordination-only契約 `{token}` が必要です。")
     for stale_root_contract in (
@@ -429,7 +444,7 @@ def _load_skill_candidate_helper() -> object:
 
 
 def _validate_skill_candidate_helper() -> None:
-    """隔離 candidate の正負 contract を一時 directory だけで検証する。"""
+    """隔離candidateの正負contractを一時directoryだけで検証する。"""
     module = _load_skill_candidate_helper()
     template_candidate_root = ROOT / "template/.agents/orchestra/skill-candidates/README.md"
     require(template_candidate_root.is_file(), "template は candidate root marker を含めてください。")
@@ -494,6 +509,9 @@ def _validate_skill_candidate_helper() -> None:
         (candidate_root / target.name).mkdir()
         (guild / ".agents/skills").mkdir(parents=True)
         candidate = make_candidate(guild, target)
+        must_reject(guild, target, candidate, "non-Git target")
+        initialized = subprocess.run(["git", "init", "-q", str(target)], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        require(initialized.returncode == 0, "Skill candidate validatorの正例Git rootを初期化できません。")
         module.validate(guild, target, candidate)
 
         name_mismatch = make_candidate(guild, target, "name-mismatch")
@@ -547,6 +565,8 @@ def _validate_skill_candidate_helper() -> None:
 
         nested_target = guild / "repositories/nested/demo"
         nested_target.mkdir(parents=True)
+        nested_initialized = subprocess.run(["git", "init", "-q", str(nested_target)], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        require(nested_initialized.returncode == 0, "Skill candidate validatorの負例nested Git rootを初期化できません。")
         must_reject(guild, nested_target, candidate, "non-direct-child target")
 
         agents = guild / ".agents"
@@ -564,7 +584,7 @@ def _validate_skill_candidate_helper() -> None:
         must_reject(guild, target, candidate, "intermediate runtime symlink")
 
     skill_text = read("template/.agents/skills/create-skill-candidate-from-gap/SKILL.md")
-    for token in ("repeated independent evidence", "stable prevention artifact", "stable I/O", "deterministic validation", "target helper-issued snapshot", "candidate_content_digest"):
+    for token in ("repeated independent evidence", "stable prevention artifact", "stable I/O", "deterministic validation", "target helper-issued snapshot", "candidate_content_digest", "`adventurer` owner", "Rootはtarget、authority、assignment、reportを調整するだけ"):
         require(token in skill_text, f"create-skill-candidate-from-gap に `{token}` が必要です。")
 
 
@@ -578,7 +598,7 @@ def _load_vscode_launch_helper() -> object:
 
 
 def _validate_vscode_launch_skill() -> None:
-    """fake だけで helper を検証する。ここでは VS Code を起動しない。"""
+    """fakeだけでhelperを検証し、ここではVS Codeを起動しない。"""
     skill = read("template/.agents/skills/open-subrepo-in-vscode/SKILL.md")
     for token in (
         "Root だけ",
@@ -590,6 +610,9 @@ def _validate_vscode_launch_skill() -> None:
         'visual_confirmation: "unknown"',
         "open -a",
         "shell interpolation",
+        "relative pathは拒否",
+        "PATH上の`code`はdiscovery hint",
+        "launcher_unavailable",
     ):
         require(token in skill, f"open-subrepo-in-vscode skillに `{token}` が必要です。")
     require("courier" not in skill.casefold(), "open-subrepo-in-vscode は GUI 起動をcourierへ委譲してはいけません。")
@@ -607,6 +630,13 @@ def _validate_vscode_launch_skill() -> None:
 
         canonical_guild, canonical_repositories = helper.validate_roots(guild, repositories)
         require(canonical_guild == guild.resolve() and canonical_repositories == repositories.resolve(), "VS Code helper は実在する guild/repositories 実パスを受け付けてください。")
+        for relative_guild, relative_repositories in ((Path("guild"), repositories), (guild, Path("repositories"))):
+            try:
+                helper.validate_roots(relative_guild, relative_repositories)
+            except helper.TargetValidationError:
+                pass
+            else:
+                require(False, "VS Code helper はrelative pathを拒否してください。")
         for invalid in (guild, repository, root / "missing"):
             try:
                 helper.validate_roots(guild, invalid)
@@ -633,6 +663,16 @@ def _validate_vscode_launch_skill() -> None:
         bundled.chmod(0o700)
         selected = helper.select_launcher(which=lambda _: None, system="Darwin", bundled_paths=(bundled,))
         require(selected == bundled.resolve(), "VS Code helper はPATHにcodeがないmacOSでbundled CLIを選んでください。")
+        untrusted = root / "untrusted-code"
+        untrusted.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        untrusted.chmod(0o700)
+        selected_with_untrusted_path = helper.select_launcher(which=lambda _: str(untrusted), system="Darwin", bundled_paths=(bundled,))
+        require(selected_with_untrusted_path == bundled.resolve(), "VS Code helper は固定bundleと異なるPATH launcherを無視してください。")
+        require(helper.select_launcher(which=lambda _: str(untrusted), system="Darwin", bundled_paths=()) is None, "VS Code helper は未知PATH launcherだけの環境をlauncher_unavailableにしてください。")
+        trusted_path_link = root / "trusted-code"
+        trusted_path_link.symlink_to(bundled)
+        selected_with_trusted_path = helper.select_launcher(which=lambda _: str(trusted_path_link), system="Darwin", bundled_paths=(bundled,))
+        require(selected_with_trusted_path == bundled.resolve(), "VS Code helper は固定bundleと同一実体のPATH launcherを受け付けてください。")
 
         planned = helper.plan_launch(guild, repositories, launcher=launcher)
         require(planned["status"] == "approval_required", "VS Code helper のplanはapproval_requiredを返してください。")
