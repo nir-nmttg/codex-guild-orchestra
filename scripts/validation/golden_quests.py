@@ -382,10 +382,10 @@ def validate_golden_quests() -> None:
     preflight_snapshot = _canonical_snapshot(courier.get("preflight_snapshot"), "courier.preflight_snapshot")
     require(preflight_snapshot == input_snapshot, "courier preflight canonical snapshotはinput/authorization snapshotと完全一致してください。")
     postconditions = mapping(courier.get("postconditions"), "courier.postconditions")
-    required_postconditions = {"git_status_checked", "commit_hash_recorded", "committed_paths_match_scope", "remaining_changes_reported", "branch_recorded", "upstream_validation_result_recorded", "ledger_event_disposition_recorded", "committed_diff_matches_accepted_hash", "external_state_unchanged", "postwrite_snapshot_issued", "postwrite_snapshot_is_separate_evidence", "postwrite_untracked_from_postwrite_state"}
+    required_postconditions = {"git_status_checked", "commit_hash_recorded", "committed_paths_match_scope", "remaining_changes_reported", "branch_recorded", "upstream_validation_result_recorded", "ledger_event_disposition_recorded", "committed_diff_matches_accepted_hash", "external_state_unchanged", "postwrite_untracked_from_postwrite_state"}
     require(set(postconditions) == required_postconditions and all(value is True for value in postconditions.values()), "courier postconditionはclosedな必須集合で、critical booleanをすべてtrueにしてください。")
     postwrite_snapshot = _canonical_snapshot(courier.get("postwrite_snapshot"), "courier.postwrite_snapshot", postwrite=True)
-    require(postwrite_snapshot.get("snapshot_id") != input_snapshot.get("snapshot_id") and postwrite_snapshot.get("scope_paths") == input_snapshot.get("scope_paths") and postwrite_snapshot.get("base_ref") == postwrite_snapshot.get("revision_id"), "post-write snapshotは別evidenceで、scopeを保持しpost-write revision/base lineageを満たしてください。")
+    require(postwrite_snapshot.get("scope_paths") == input_snapshot.get("scope_paths") and postwrite_snapshot.get("base_ref") == postwrite_snapshot.get("revision_id"), "post-write snapshotはworking_tree_content kindで、scopeを保持しpost-write revision/base lineageを満たしてください。")
     destructive = mapping(courier.get("destructive_operations"), "courier.destructive_operations")
     require(
         set(sequence(destructive.get("requires_immediate_human_confirmation"), "courier.destructive_operations.requires_immediate_human_confirmation"))

@@ -39,8 +39,31 @@ def _assert_rejected(name: str, mutator: Callable[[dict[str, Any]], None], expec
         golden_quests._fixture = original
 
 
+def _assert_accepted(name: str, mutator: Callable[[dict[str, Any]], None]) -> None:
+    document = copy.deepcopy(load_yaml(str(FIXTURE)))
+    mutator(document)
+    original = golden_quests._fixture
+
+    def fixture(name: str) -> dict[str, object]:
+        if name == "courier_explicit_git_postcondition.yaml":
+            return document
+        return original(name)
+
+    golden_quests._fixture = fixture
+    try:
+        golden_quests.validate_golden_quests()
+    except ValidationError as exc:
+        raise AssertionError(f"{name} should be accepted but was rejected: {exc}") from exc
+    finally:
+        golden_quests._fixture = original
+
+
 def validate_courier_contract_mutations() -> None:
     golden_quests.validate_golden_quests()
+    _assert_accepted(
+        "same_digest_postwrite_snapshot",
+        lambda doc: doc["expected"].__setitem__("postwrite_snapshot", copy.deepcopy(doc["input"]["subject_snapshot"])),
+    )
     cases: list[Mutation] = [
         ("authorization_snapshot_mismatch", lambda doc: doc["expected"]["authorization"]["subject_snapshot"].__setitem__("revision_id", "commit:wrong"), "canonical snapshot"),
         ("preflight_snapshot_mismatch", lambda doc: doc["expected"]["preflight_snapshot"].__setitem__("revision_id", "commit:wrong"), "preflight canonical snapshot"),
@@ -48,8 +71,10 @@ def validate_courier_contract_mutations() -> None:
         ("extra_canonical_field", lambda doc: doc["input"]["subject_snapshot"].__setitem__("unexpected", True), "canonical snapshot fields"),
         ("postwrite_scope_mismatch", lambda doc: doc["expected"]["postwrite_snapshot"].__setitem__("scope_paths", ["src/other.py"]), "post-write snapshot"),
         ("postwrite_lineage_mismatch", lambda doc: doc["expected"]["postwrite_snapshot"].__setitem__("base_ref", "commit:wrong"), "post-write snapshot"),
+        ("postwrite_kind_mismatch", lambda doc: doc["expected"]["postwrite_snapshot"].__setitem__("kind", "commit_range"), "postwrite_snapshot.kind"),
         ("target_repo_root_confirmed_false", lambda doc: doc["expected"]["preconditions"].__setitem__("target_repo_root_confirmed", False), "helper snapshot完全一致"),
         ("committed_paths_match_scope_false", lambda doc: doc["expected"]["postconditions"].__setitem__("committed_paths_match_scope", False), "courier postcondition"),
+        ("postwrite_untracked_state_false", lambda doc: doc["expected"]["postconditions"].__setitem__("postwrite_untracked_from_postwrite_state", False), "courier postcondition"),
         ("external_state_unchanged_false", lambda doc: doc["expected"]["postconditions"].__setitem__("external_state_unchanged", False), "courier postcondition"),
     ]
     for name, mutator, expected_error in cases:
@@ -58,4 +83,4 @@ def validate_courier_contract_mutations() -> None:
 
 if __name__ == "__main__":
     validate_courier_contract_mutations()
-    print("courier-contract-mutations: baseline passed; all expected mutations rejected")
+    print("courier-contract-mutations: baseline passed; same-digest postwrite accepted; all expected mutations rejected")

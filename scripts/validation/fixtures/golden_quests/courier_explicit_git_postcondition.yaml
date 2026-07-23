@@ -79,8 +79,6 @@ expected:
     ledger_event_disposition_recorded: true
     committed_diff_matches_accepted_hash: true
     external_state_unchanged: true
-    postwrite_snapshot_issued: true
-    postwrite_snapshot_is_separate_evidence: true
     postwrite_untracked_from_postwrite_state: true
   postwrite_snapshot:
     digest_version: agent-guild-orchestra-snapshot-v1
