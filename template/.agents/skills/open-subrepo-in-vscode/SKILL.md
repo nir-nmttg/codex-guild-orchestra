@@ -31,10 +31,10 @@ metadata:
 
 ## 手順
 
-1. Root は入力を推測・再発見せず、明示された絶対 `guild_root` と `repositories_root` を helper の `--plan` に渡す。helper は実パスを検証し、`repositories_root` が実在する `<guild_root>/repositories` そのものか、symlink escape や個別 repo ではないかを判定する。`--plan` は subprocess を起動せず、canonical target、launcher identity/path、正確な argv から決定的な `plan_id` を返す。
+1. Root は入力を推測・再発見せず、明示された絶対 `guild_root` と `repositories_root` を helper の `--plan` に渡す。relative pathは拒否する。helper は実パスを検証し、`repositories_root` が実在する `<guild_root>/repositories` そのものか、symlink escape や個別 repo ではないかを判定する。`--plan` は subprocess を起動せず、canonical target、launcher identity/path、正確な argv から決定的な `plan_id` を返す。
 2. `--plan` が `approval_required` を返した場合だけ、Root は canonical target、launcher、正確な argv、`plan_id`、視覚的確認がまだ unknown であることを表示して、現在の runtime が要求する sandbox escalation / 人間承認を取得する。承認が拒否・未取得・runtime で失敗した時は `approval_denied` または `approval_required` として止め、成功とは報告しない。
 3. 承認済みの Root だけが同じ明示引数に `--execute --approved-plan-id "<plan_id>"` を付けて helper を実行する。runtime の GUI 実行用 escalation を使い、shell、`open -a`、任意の launcher path、フォルダ探索を渡さない。helper は実行直前に同じ情報を再計画し、`plan_id` が承認済み identity と一致する時だけ、その再計画済み argv `<launcher> -n <repositories_root>` を実行する。不一致時は runner を呼ばず `approved_plan_mismatch` で止まる。
-4. helper の JSON 結果をそのまま根拠として扱う。nonzero exit、launcher 不在、入力不正、runtime command failure は成功にしない。exit 0 の `launch_request_accepted` は OS が起動要求を受け付けた意味だけであり、VS Code の表示は `visual_confirmation: "unknown"` のままである。人間が確認した場合だけ別途 visual success を報告する。
+4. helper の JSON 結果をそのまま根拠として扱う。nonzero exit、launcher 不在、入力不正、runtime command failure は成功にしない。exit 0 の `launch_request_accepted` は OS が起動要求を受け付けた意味だけであり、VS Code の表示は `visual_confirmation: "unknown"` のままである。人間が確認した場合だけ別途 visual success を報告する。信頼済みlauncherがない`launcher_unavailable`では`open -a`等へ切り替えず、人間がVS Codeから手動でfolderを開くfallbackだけを案内する。
 
 ## 出力
 
@@ -48,6 +48,7 @@ metadata:
 
 - Root はこの Skill の明示 helper だけを実行し、GUI 起動を他の custom agent に委譲したり、その authority を拡張したりしない。
 - helper は `repositories_root` が実在する実パスの `<guild_root>/repositories` と完全一致しない場合、symlink escape、個別 repo、missing path、wrong path を拒否する。
+- helper は`guild_root`と`repositories_root`のabsolute pathだけを受理する。PATH上の`code`はdiscovery hintに限定し、canonical pathが固定macOS bundle CLIと同一実体の時だけ信頼する。不一致ならPATH launcherを実行せず、固定bundleを直接検証し、それもなければ`launcher_unavailable`で止める。
 - shell interpolation を使わず argv list だけを実行する。`open -a`、任意のアプリ名、任意の実行ファイル path は受け付けない。
 - runtime の sandbox escalation と人間承認なしに `--execute` を実行しない。承認の失敗や実行の nonzero exit を「開いた」と言い換えない。
 - `--execute` は承認済み `plan_id` を必須とし、実行直前の canonical target・launcher identity/path・argv から再計算した identity と一致しない時は起動しない。比較後に外部から filesystem が変更される競合までは helper 単独で除去できないため、実行 argv は比較に使った再計画結果だけを使い、runtime escalation は迂回しない。

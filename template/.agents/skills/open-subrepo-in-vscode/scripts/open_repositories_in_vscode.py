@@ -39,12 +39,18 @@ def _real_directory(path: Path, label: str) -> Path:
 
 def validate_roots(guild_root: str | Path, repositories_root: str | Path) -> tuple[Path, Path]:
     """与えられた target が正確に許可される時だけ canonical root を返す。"""
-    guild = _real_directory(Path(guild_root), "guild_root")
+    supplied_guild = Path(guild_root)
+    supplied_repositories = Path(repositories_root)
+    if not supplied_guild.is_absolute():
+        raise TargetValidationError("guild_root_must_be_absolute")
+    if not supplied_repositories.is_absolute():
+        raise TargetValidationError("repositories_root_must_be_absolute")
+    guild = _real_directory(supplied_guild, "guild_root")
     expected = guild / "repositories"
     if expected.is_symlink():
         raise TargetValidationError("repositories_root_symlink")
     repositories = _real_directory(expected, "repositories_root")
-    supplied = Path(repositories_root)
+    supplied = supplied_repositories
     if supplied.is_symlink():
         raise TargetValidationError("repositories_root_symlink")
     supplied_real = _real_directory(supplied, "repositories_root")
@@ -100,18 +106,17 @@ def select_launcher(
     system: str | None = None,
     bundled_paths: Sequence[Path] = DEFAULT_MACOS_BUNDLED_CODE_PATHS,
 ) -> Path | None:
-    """起動や shell を使わず、検証済みの VS Code CLI を選ぶ。"""
+    """起動やshellを使わず、固定bundleと同一実体のVS Code CLIだけを選ぶ。"""
+    if (system or platform.system()) != "Darwin":
+        return None
+    trusted = [verified for candidate in bundled_paths if (verified := _verified_executable(candidate)) is not None]
     path_launcher = which("code")
     if path_launcher:
-        verified = _verified_executable(Path(path_launcher))
-        if verified is not None:
+        supplied = Path(path_launcher)
+        verified = _verified_executable(supplied) if supplied.is_absolute() else None
+        if verified is not None and verified in trusted:
             return verified
-    if (system or platform.system()) == "Darwin":
-        for candidate in bundled_paths:
-            verified = _verified_executable(candidate)
-            if verified is not None:
-                return verified
-    return None
+    return trusted[0] if trusted else None
 
 
 def plan_launch(guild_root: str | Path, repositories_root: str | Path, *, launcher: Path | None = None) -> dict[str, object]:

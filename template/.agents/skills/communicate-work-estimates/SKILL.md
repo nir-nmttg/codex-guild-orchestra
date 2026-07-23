@@ -12,7 +12,7 @@ metadata:
 
 ## 使う時
 
-開始時、subagentへ委任する時、見通しが大きく変わった時、または利用者が完了時刻・所要時間の目安を求めた時に使います。短い知識回答や即座に完了する単一操作では、省略します。
+開始時、subagentへ委任する時、見通しが大きく変わった時に使います。残り時間は増加だけでなく短縮した時も更新します。短い知識回答や即座に完了する単一操作では、省略します。
 
 ## 入力
 
@@ -71,13 +71,8 @@ metadata:
 
 - 現在の agent-work range と、含む主要 wave。
 - conditional / 除外 stage（例: Trial、courier、approval 後の作業）。
+- いま人間の入力が必要か、不要なら待機不要であること。
 - 次に range を更新する milestone。
-
-短時間・中時間の作業では、通常は時間 range と含む主要工程だけを伝えます。「PC前で待機不要」「離席可」など、待機の要否を案内する定型句は加えません。
-
-長時間で、利用者が待ち時間を有効に使う判断に役立つ時だけ、別作業を進めるか後で戻ることを促す自然で簡潔な提案を添えられます。同趣旨の案内・提案は同一セッションで一度だけにし、過度に具体的な例や押し付けを避けます。
-
-進捗通知では、見通しが変わらなければ、時間 range と完了済み・残る工程だけを更新します。すでに伝えた待機案内や有効活用提案は繰り返しません。range は増加だけでなく短縮した時も、未完了 DAG と観測済み state から更新します。
 
 数値根拠が弱い時は、range を無理に細かくせず「mapmaking report 後」「captain が worker wave を固定した時」のように更新時点を明記します。利用者向けには内部 reasoning や詳細 DAG を列挙しません。
 
@@ -94,7 +89,7 @@ metadata:
 
 例（task-local な stage range がすでに観測されている場合）:
 
-> 「残り時間は、最長の worker branch、全 report 後の統合検証、stable snapshot の Trial を含む **[L–U]** です。Trial は現在の shared-contract risk により含めています。次は worker reports が揃った時に更新します。」
+> 「残りは、最長の worker branch、全 report 後の統合検証、stable snapshot の Trial を含む **[L–U]** です。Trial は現在の shared-contract risk により含めています。次は worker reports が揃った時に更新します。現時点で入力は不要です。」
 
 ## 安全
 
@@ -106,4 +101,4 @@ metadata:
 
 ## 停止条件
 
-即時に完了する作業、または人間の approval / 回答待ちだけで agent-work が進められない状態では、通常の見積もり通知を続けません。後者では必要な action、target、影響、残リスクだけを示し、再開後に未完了 DAG から改めて見積もります。
+作業が完了した時、または人間のapproval・回答待ちだけでagent-workを進められない時に止めます。

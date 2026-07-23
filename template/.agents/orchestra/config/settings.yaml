@@ -46,6 +46,7 @@ guild_law:
     non_human_skill_reference_grants_authority: false
     scoped_skill_authority_bypasses_safety_gates: false
     external_update_requires_immediate_reconfirmation: true
+    candidate_materialization: {owner: adventurer, human_authorized_exact_path_required: true, path_pattern: <guild_root>/.orchestra/skill-candidates/<repo>/<candidate>, root_write_forbidden: true}
 
 contracts:
   assignment_core: [objective, success_criteria, scope, authority, subject_snapshot]
@@ -130,6 +131,7 @@ workers:
   adventurer:
     role: bounded_implementation_owner
     max_parallel: 32
+    candidate_materialization: human_authorized_exact_path_only
   artificer:
     role: cross_scope_artificer
     max_parallel: 1

@@ -8,7 +8,7 @@ metadata:
 
 # branch-implementation-final-review
 
-実装後に「本当に十分か」「本質的成果に不要な複雑性を増やしていないか」を確認するため、Rootが`inquisitor`へread-only Trialを直接割り当てます。確認や修正の量ではなく、依頼意図、success criteria、回帰防止に対する実益を最大化します。
+実装後に「本当に十分か」「成果を下げる見落としがないか」を確認するため、Rootが`inquisitor`へread-only Trialを直接割り当てます。確認や修正の量ではなく、依頼意図、success criteria、回帰防止に対する実益を最大化します。
 
 ## 使う時
 
@@ -36,15 +36,14 @@ metadata:
 
 1. `target_repo_root`が`<guild_root>/repositories/<repo>`の実Git rootであり、対象branch/base/snapshotが明確か確認する。
 2. ユーザー意図、success criteria、non-goal、diff、validation evidenceを短いTrial assignmentへ固定する。
-3. `inquisitor`はobjective、success criteria、non-goal、scope、authority、安全条件、validation evidenceを共通checkとして、diffと照合する。
-4. 各materialな変更と新しい複雑性（層・抽象化・設定・拡張点・横断変更）について、どの成果または成功条件に必要か、より小さい変更で満たせない理由があるかを確認する。根拠がないものは必要と推定しない。
-5. 不要な機能、単一用途だけの早すぎる抽象化・汎用化、利用判断のない設定可能性、重複解消だけを目的にした大きな横断変更、non-goalを越えるscope creepはrisk signalとして扱う。ただしdiffと文脈に現れた時だけ確認し、将来利用を仮定した定型監査やリファクタ要求にはしない。
-6. 追加観点はdiffのrisk signalから選ぶ。たとえば認可変更ならsecurity、schema変更ならmigration/compatibility、hot pathならperformance、UI変更ならaccessibilityを確認する。関係しない観点の定型監査は行わない。
-7. 既存パターン、責務境界、エラー処理、境界条件、テスト容易性、保守性は、今回の差分で破綻または負債が増える兆候がある範囲だけ確認する。dead code、重複、共通化候補も、最小化の実益が回帰・scope拡大リスクを上回る場合だけ扱う。
-8. 必要性が確認できない変更は、成果を損なわずに削除・単純化できるかを判断する。要求する場合は、問題、根拠、最小の修正範囲を示す追加Questにする。害が立証できない任意の整理は残リスクまたは任意改善として記録し、完了を妨げない。
-9. Critical/Major、success criteria未達、検証不能、高リスクの未解決は根拠と最小の追加Quest案を返す。Minorは、成功条件、明確さ、保守性、回帰防止への実益が追加変更リスクを上回る場合だけ修正候補にする。
-10. 追加修正後の再Trialは、変更されたrisk surfaceまたは未解決findingを独立確認する必要がある時だけ行う。
-11. 最終reportは判断、根拠、finding disposition、検証済み/未検証範囲、残リスクを返す。
+3. `inquisitor`はsuccess criteria、scope、authority、安全条件、validation evidenceを共通checkとして確認する。
+4. 追加観点はdiffのrisk signalから選ぶ。たとえば認可変更ならsecurity、schema変更ならmigration/compatibility、hot pathならperformance、UI変更ならaccessibilityを確認する。関係しない観点の定型監査は行わない。
+5. 既存パターン、責務境界、エラー処理、境界条件、テスト容易性、保守性は、今回の差分で破綻または負債が増える兆候がある範囲だけ確認する。
+6. dead code、重複、共通化候補は、削除・抽象化による実益と回帰・scope拡大リスクを比較する。将来利用や互換性が不明なら推測で変更を要求しない。
+7. Critical/Major、success criteria未達、検証不能、高リスクの未解決は根拠と最小の追加Quest案を返す。
+8. Minorは、成功条件、明確さ、保守性、回帰防止への実益が追加変更リスクを上回る場合だけ修正候補にする。それ以外は残リスクまたは任意改善として記録し、完了を妨げない。
+9. 追加修正後の再Trialは、変更されたrisk surfaceまたは未解決findingを独立確認する必要がある時だけ行う。
+10. 最終reportは判断、根拠、finding disposition、検証済み/未検証範囲、残リスクを返す。
 
 ## 判断
 
@@ -57,8 +56,7 @@ metadata:
 ## 出力
 
 - 最終判断とsuccess criteriaへの対応
-- materialな変更・複雑性ごとの、objective/success criteria/non-goalとの対応、必要性の根拠、finding disposition
-- 根拠確認済みfindingとdisposition。不要または過剰な変更は、成果を保つ最小の削除・単純化だけを求める
+- 根拠確認済みfindingとdisposition
 - 実行済みvalidation、未検証範囲、残リスク
 - 必要な場合だけ、最小の追加Questと再確認focus
 

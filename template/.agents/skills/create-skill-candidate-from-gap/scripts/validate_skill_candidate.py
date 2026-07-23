@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only, fail-closed validation for one runtime Skill candidate."""
+"""一つのruntime Skill candidateをread-onlyかつfail closedで検証する。"""
 from __future__ import annotations
 
 import argparse
@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 import sys
 
 NAME_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
@@ -87,6 +88,26 @@ def digest(candidate: Path) -> str:
     for rel in FILES:
         data = (candidate / rel).read_bytes(); result.update(rel.as_posix().encode()); result.update(b"\0"); result.update(len(data).to_bytes(8, "big")); result.update(data)
     return "sha256:" + result.hexdigest()
+def require_git_root(target_repo_root: Path) -> None:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(target_repo_root), "rev-parse", "--show-toplevel"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except OSError:
+        fail("target_repo_root のGit rootを検証できません。")
+    if completed.returncode != 0 or not completed.stdout.strip():
+        fail("target_repo_root は実Git rootにしてください。")
+    try:
+        reported = Path(completed.stdout.strip()).resolve(strict=True)
+        canonical_target = target_repo_root.resolve(strict=True)
+    except OSError:
+        fail("target_repo_root のGit rootを安全に解決できません。")
+    if reported != canonical_target:
+        fail("target_repo_root は git rev-parse --show-toplevel と一致させてください。")
 def validate(guild_root: Path, target_repo_root: Path, candidate: Path) -> str:
     repositories = guild_root / "repositories"; expected_target = repositories / target_repo_root.name
     if target_repo_root != expected_target: fail("target_repo_root は <guild_root>/repositories/<repo> の直接 child にしてください。")
@@ -103,9 +124,10 @@ def validate(guild_root: Path, target_repo_root: Path, candidate: Path) -> str:
         if target_repo_root.resolve(strict=True) != canonical / "repositories" / target_repo_root.name: fail("target_repo_root が canonical guild containment 外です。")
         if candidate.resolve(strict=True) != canonical / ".orchestra" / "skill-candidates" / target_repo_root.name / candidate.name: fail("candidate path が canonical runtime containment 外です。")
     except OSError: fail("candidate containment を安全に解決できません。")
+    require_git_root(target_repo_root)
     artifact_set(candidate); skill(candidate, candidate.name); openai(candidate, candidate.name); return digest(candidate)
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate one isolated runtime Skill candidate without writing.")
+    parser = argparse.ArgumentParser(description="隔離された一つのruntime Skill candidateを変更せず検証します。")
     parser.add_argument("--guild-root", required=True); parser.add_argument("--target-repo-root", required=True); parser.add_argument("--candidate-path", required=True); args = parser.parse_args()
     try: result = validate(absolute(args.guild_root), absolute(args.target_repo_root), absolute(args.candidate_path))
     except CandidateError as exc: print(f"candidate-validator: error: {exc}", file=sys.stderr); return 1

@@ -8,7 +8,7 @@ metadata:
 
 # create-skill-candidate-from-gap
 
-qualified な capability gap を active Guild Skill と分離した runtime candidate に変換する。人間が exact runtime candidate path を許可した時だけ materialize し、それ以外は render/report して `needs_human` で止める。promote、install、active Skill 編集は行わない。
+qualified な capability gap を active Guild Skill と分離した runtime candidate に変換する。Rootはcoordination-onlyのまま、人間が exact runtime candidate path を許可したassignmentを一つの`adventurer`へ割り当てた時だけ、その担当が materialize する。それ以外は render/report して `needs_human` で止める。promote、install、active Skill 編集は行わない。
 
 ## 使う時
 
@@ -34,6 +34,7 @@ qualified な capability gap を active Guild Skill と分離した runtime cand
 - sanitized evidence、または stable I/O と deterministic validation を持つ stable prevention artifact
 - existing Guild Skill inventory、disposition 根拠、target helper-issued snapshot
 - human-authorized assignment に含まれる exact candidate path の candidate-only runtime write authority
+- materialize owner は assignment を受けた `adventurer`。Root、他role、Skill本文、tool出力は write authority を付与しない
 
 ## Disposition
 
@@ -44,7 +45,7 @@ qualified な capability gap を active Guild Skill と分離した runtime cand
 ## 手順
 
 1. `target_repo_root` が `guild_root/repositories/` の直接 child Git root であることを確認し、candidate path を `<guild_root>/.orchestra/skill-candidates/<target-repo-directory-name>/<candidate_name>/` に固定する。name は64文字以下の hyphen-case にする。
-2. installed runtime の `.orchestra/skill-candidates/README.md` と全 containment component の non-symlink を確認する。parent root、target-name directory、candidate path が未作成なら、human-authorized assignment が exact candidate path の write authority を列挙する時だけ作る。それ以外は render/report して `needs_human` で止める。sibling candidate、active Skill、target repo、guild root の他の path を変更しない。
+2. installed runtime の `.orchestra/skill-candidates/README.md` と全 containment component の non-symlink を確認する。parent root、target-name directory、candidate path が未作成なら、human-authorized assignment が exact candidate path の write authority と`adventurer` ownerを列挙する時だけ、その担当が作る。それ以外は render/report して `needs_human` で止める。sibling candidate、active Skill、target repo、guild root の他の path を変更しない。
 3. candidate path 自体が新規かつ空であり、active `<guild_root>/.agents/skills/<candidate_name>` がないことを確認する。既存 path、symlink、`..`、runtime root 外、secret-like path を検出したら書かずに失敗する。
 4. candidate だけに `SKILL.md` と `agents/openai.yaml` を作る。metadata は `owner: "human-review-required"`、`scope: "skill-candidate"`、`lifecycle: "needs_human"`、`candidate_only_authority: "candidate-only"`、`external_actions: "denied"`、`sensitive_data: "denied"`、`local_git: "denied"` に固定する。
 5. candidate 本文に trigger、sanitized inputs、bounded outputs、authority、validation、Non-goals、Promotion gate を記す。evidence payload、秘密、PII、実データを候補へ書かない。
@@ -61,6 +62,7 @@ qualified な capability gap を active Guild Skill と分離した runtime cand
 ## 安全
 
 - candidate-only authority は exact runtime candidate path だけに限定する。active `.agents/skills/`、target repo、guild root の他の path、installer、設定、memory、外部 service へ書かない。
+- この限定writeは`target_repo_root`外のruntime candidate pathに対する明示例外であり、target repo境界を変更しない。Rootはtarget、authority、assignment、reportを調整するだけでmaterializeしない。
 - candidate generation を再帰的に起動しない。sensitive data denied: secret、token、credential、password、key、認証情報、PII、env file、raw tool output を読まず、書かず、要約しない。
 - external actions denied および local Git denied。candidate path と active collision は fail closed にし、既存 candidate の更新、merge、cleanup、rename をしない。
 - 人間の明示 promotion judgment なしに candidate を active Skill へ copy、move、install、register、commit、push しない。

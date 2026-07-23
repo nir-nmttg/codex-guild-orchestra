@@ -1,3 +1,3 @@
-# Runtime Skill candidates
+# runtime Skill candidate
 
-Keep human-reviewed, non-active Skill candidates in target-repository and candidate-name child directories. Do not place active Skills, evidence payloads, or credentials here.
+人間が確認する非active Skill候補だけを、対象repo名とcandidate名の子directoryへ隔離します。active Skill、evidence payload、認証情報は置きません。
