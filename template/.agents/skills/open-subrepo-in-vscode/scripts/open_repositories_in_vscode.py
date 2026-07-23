@@ -230,6 +230,15 @@ def _failure(error: str) -> dict[str, object]:
     }
 
 
+def _public_result_view(result: dict[str, object]) -> dict[str, object]:
+    """ログ出力向けに機微情報を伏せた結果を返す。"""
+    redacted = dict(result)
+    for key in ("guild_root", "repositories_root", "launcher", "argv"):
+        if key in redacted and redacted[key] is not None:
+            redacted[key] = "<redacted>"
+    return redacted
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="限定された一つの VS Code 起動要求を準備または発行します。")
     parser.add_argument("--guild-root", required=True, help="推測しない明示 guild root。")
@@ -249,7 +258,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = _failure(str(exc))
     if args.execute and result.get("status") == "approval_required":
         result = execute_approved_launch(args.guild_root, args.repositories_root, args.approved_plan_id)
-    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    print(json.dumps(_public_result_view(result), ensure_ascii=False, sort_keys=True))
     return 0 if result.get("status") in {"approval_required", "launch_request_accepted"} else 1
 
 
