@@ -109,14 +109,14 @@ def select_launcher(
     """起動やshellを使わず、固定bundleと同一実体のVS Code CLIだけを選ぶ。"""
     if (system or platform.system()) != "Darwin":
         return None
-    trusted = [verified for candidate in bundled_paths if (verified := _verified_executable(candidate)) is not None]
+    bundled_launchers = [verified for candidate in bundled_paths if (verified := _verified_executable(candidate)) is not None]
     path_launcher = which("code")
     if path_launcher:
         supplied = Path(path_launcher)
         verified = _verified_executable(supplied) if supplied.is_absolute() else None
-        if verified is not None and verified in trusted:
+        if verified is not None and verified in bundled_launchers:
             return verified
-    return trusted[0] if trusted else None
+    return bundled_launchers[0] if bundled_launchers else None
 
 
 def plan_launch(guild_root: str | Path, repositories_root: str | Path, *, launcher: Path | None = None) -> dict[str, object]:
