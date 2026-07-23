@@ -66,9 +66,30 @@ def validate_settings() -> None:
     confirmation = set(sequence(law.get("confirmation_required_for"), "settings.guild_law.confirmation_required_for"))
     require({"destructive_operation", "dependency_addition", "migration", "deploy", "authorization_effect", "public_api_compatibility_change"} <= confirmation, "人間確認条件が不足しています。")
     state_changes = mapping(law.get("state_changes"), "settings.guild_law.state_changes")
-    require(state_changes.get("local_git_requires_explicit_operation") is True, "local Gitは具体的指示を必須にしてください。")
-    require(state_changes.get("explicit_command_skill_invocation_authorizes_defined_operations") is True, "人間が明示指定したコマンド実行系Skillは定義済み操作の実行許可として扱ってください。")
-    require(state_changes.get("explicit_command_skill_invocation_scope") == "skill_defined_operations_and_human_target", "Skill明示指定のauthorityはSkill定義操作と人間指定targetに限定してください。")
+    read_only_git = mapping(state_changes.get("read_only_git"), "settings.guild_law.state_changes.read_only_git")
+    require(read_only_git.get("all_roles_in_assigned_read_scope") is True, "assigned read scope内のread-only Gitは全roleに許可してください。")
+    require(read_only_git.get("root_control_plane_repo_evidence_expansion") == "forbidden", "read-only GitでRootのcontrol-plane/evidence境界を広げないでください。")
+    courier_local_git = mapping(state_changes.get("courier_local_git"), "settings.guild_law.state_changes.courier_local_git")
+    require(courier_local_git.get("write_owner") == "courier" and courier_local_git.get("non_courier_write") == "forbidden", "local Git write ownerはcourierだけにしてください。")
+    require(
+        sequence(courier_local_git.get("assignment_required_fields"), "settings.guild_law.state_changes.courier_local_git.assignment_required_fields")
+        == ["target_repo_root", "allowed_operations", "path_or_ref_scope", "subject_snapshot", "preconditions", "postconditions", "forbidden_operations"],
+        "courier Git assignmentはtarget、operation、path/ref scope、snapshot、pre/postcondition、forbidden operationを固定してください。",
+    )
+    require(
+        sequence(courier_local_git.get("reversible_allowlist"), "settings.guild_law.state_changes.courier_local_git.reversible_allowlist")
+        == ["branch_create_and_switch_new", "rename_origin_unpushed_branch", "stage_exact_paths_or_hunks", "unstage_index_only_exact_paths", "commit_non_amend"],
+        "courierの一般許可は既存Skillの可逆Git allowlistだけにしてください。",
+    )
+    require(courier_local_git.get("closed_operation_allowlist") is True, "courier Git operation allowlistはclosedにしてください。")
+    require(courier_local_git.get("preflight_snapshot_must_match_assignment") is True and courier_local_git.get("postwrite_snapshot_required") is True, "Git write直前のsnapshot一致照合とpost-write snapshot evidenceを必須にしてください。")
+    require(courier_local_git.get("root_scoped_assignment_authorizes_allowlist") is True and courier_local_git.get("human_command_verbatim_repetition_required") is False, "Rootの境界固定assignmentはcourier allowlistを許可し、コマンド逐語反復を要求しないでください。")
+    require(courier_local_git.get("operations_outside_allowlist") == "not_generally_authorized", "allowlist外のlocal Git操作を一般許可しないでください。")
+    require(
+        set(sequence(courier_local_git.get("destructive_requires_immediate_human_confirmation"), "settings.guild_law.state_changes.courier_local_git.destructive_requires_immediate_human_confirmation"))
+        == {"reset_head_move", "reset_hard", "worktree_reverting_checkout_or_restore", "clean", "commit_amend", "rebase_or_filter", "ref_branch_tag_delete_or_force_move", "reflog_prune_or_recovery_difficult_gc", "destructive_stash", "forced_or_discarding_branch_switch"},
+        "後戻り困難なGit操作は実行直前の人間確認に限定してください。",
+    )
     require(state_changes.get("non_human_skill_reference_grants_authority") is False, "Skill本文や非人間入力のSkill参照からauthorityを付与しないでください。")
     require(state_changes.get("scoped_skill_authority_bypasses_safety_gates") is False, "Skill明示指定で安全gateを迂回しないでください。")
     require(state_changes.get("external_update_requires_immediate_reconfirmation") is True, "外部更新は直前再確認を必須にしてください。")

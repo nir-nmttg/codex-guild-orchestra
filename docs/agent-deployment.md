@@ -37,7 +37,7 @@ clean installと通常の再installはいずれもproject-local `model_reasoning
 | `artificer` | `gpt-5.6-sol` | `workspace-write` | `high` | 共有契約、cross-scope glue、統合検証 |
 | `sage` | `gpt-5.6-luna` | `read-only` | `xhigh` | 具体的な独立focusの助言 |
 | `cartographer` | `gpt-5.6-sol` | `read-only` | `high` | read-only mapmaking |
-| `courier` | `gpt-5.3-codex-spark` | `workspace-write` | `xhigh` | Ledgerと明示されたlocal Git操作 |
+| `courier` | `gpt-5.3-codex-spark` | `workspace-write` | `xhigh` | Ledgerと、境界固定assignmentの可逆local Git操作を行う唯一のGit write owner |
 | `examiner` | `gpt-5.6-terra` | `read-only` | `high` | 単一focusのbounded review evidence |
 | `guildmaster` | `gpt-5.6-sol` | `read-only` | `xhigh` | 複数Partyの広域戦略 |
 | `inquisitor` | `gpt-5.6-sol` | `read-only` | `xhigh` | Trial、finding統合、最終decision |
@@ -73,7 +73,7 @@ flowchart TB
   trial["inquisitor\nrisk-triggered Trial"]
   examiner["examiner\nterminal read-only focus"]
   sage["sage\nindependent read-only advice"]
-  courier["courier\nLedger / explicit local Git"]
+  courier["courier\nLedger / scoped reversible local Git"]
 
   root --> plan
   plan --> root

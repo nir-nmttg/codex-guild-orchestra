@@ -13,6 +13,7 @@ from validation.basic import (
     validate_version,
 )
 from validation.claude_compat_smoke import validate_claude_compat_smoke
+from validation.courier_contract_mutations import validate_courier_contract_mutations
 from validation.core import ValidationError
 from validation.docs import validate_agents, validate_docs_and_instructions, validate_skills, validate_stop_hook
 from validation.golden_quests import validate_golden_quests
@@ -36,6 +37,7 @@ def main() -> int:
         validate_sqlite_schema,
         validate_queue_db_smoke,
         validate_golden_quests,
+        validate_courier_contract_mutations,
         validate_model_selection_eval,
         validate_root_orchestration_eval,
         validate_snapshot_digest,
