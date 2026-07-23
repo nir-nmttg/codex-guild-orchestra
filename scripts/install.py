@@ -443,12 +443,14 @@ def remove_path(path: Path, target_root: Path, dry_run: bool) -> None:
         path.unlink()
 
 
-def read_skill_owner(skill_path: Path) -> str | None:
+def read_skill_owner(skill_path: Path, unreadable_warning_path: Path | None = None) -> str | None:
     if not skill_path.exists() or not skill_path.is_file():
         return None
     try:
         text = skill_path.read_text(encoding='utf-8')
-    except OSError:
+    except UnicodeDecodeError:
+        if unreadable_warning_path is not None:
+            log(f'注意: Skill の所有者情報を UTF-8 として読めないため保持します: {unreadable_warning_path}')
         return None
     if not text.startswith('---\n'):
         return None
@@ -500,7 +502,7 @@ def clean_owner_scoped_skills(target_root: Path, dry_run: bool) -> None:
         validate_target_managed_path(child, target_root)
         skill_path = child / 'SKILL.md' if child.is_dir() else child
         validate_target_managed_path(skill_path, target_root)
-        owner = read_skill_owner(skill_path)
+        owner = read_skill_owner(skill_path, child.relative_to(target_root))
         if owner == ORCHESTRA_SKILL_OWNER:
             remove_path(child, target_root, dry_run)
 
@@ -637,11 +639,25 @@ def clean_install_target(target_root: Path, prune_git_exclude: bool, dry_run: bo
     remove_path(target_root / '.agents' / 'orchestra', target_root, dry_run)
     clean_owner_scoped_skills(target_root, dry_run)
     remove_path(target_root / '.codex', target_root, dry_run)
-    remove_path(target_root / '.orchestra' / 'queue', target_root, dry_run)
-    remove_path(target_root / '.orchestra' / 'dashboard.md', target_root, dry_run)
+    clean_runtime_siblings(target_root, dry_run)
     prune_text_block(target_root / 'AGENTS.md', AGENTS_START, AGENTS_END, target_root, dry_run)
     if prune_git_exclude:
         prune_text_block(target_root / '.git' / 'info' / 'exclude', EXCLUDE_START, EXCLUDE_END, target_root, dry_run)
+
+
+def clean_runtime_siblings(target_root: Path, dry_run: bool) -> None:
+    runtime_root = target_root / '.orchestra'
+    candidate_root = runtime_root / 'skill-candidates'
+    validate_target_managed_path(runtime_root, target_root)
+    validate_target_managed_path(candidate_root, target_root)
+    if not runtime_root.exists():
+        return
+    if not runtime_root.is_dir():
+        raise SystemExit('導入先の `.orchestra` はdirectoryにしてください。')
+    for child in sorted(runtime_root.iterdir()):
+        validate_target_managed_path(child, target_root)
+        if child.name != 'skill-candidates':
+            remove_path(child, target_root, dry_run)
 
 
 def reset_runtime_state(target_root: Path, dry_run: bool) -> None:
@@ -912,7 +928,10 @@ def copy_template_files(
 
 def prune_removed_template_files(source_root: Path, target_root: Path, dry_run: bool) -> None:
     for rel in REMOVED_TEMPLATE_REL_PATHS:
-        if (source_root / rel).exists():
+        source_path = source_root / rel
+        if source_path.exists() and (
+            not source_path.is_dir() or source_directory_has_material(source_path)
+        ):
             continue
         remove_path(target_root / rel, target_root, dry_run)
 
@@ -1495,7 +1514,7 @@ def validate_source_file_set_preflight(source_root: Path) -> None:
         raise SystemExit('source template に必須 file が不足しています: ' + ', '.join(missing))
 
     skills_root = source_root / '.agents' / 'skills'
-    actual_skills = {path.name for path in skills_root.iterdir() if path.is_dir()} if skills_root.is_dir() else set()
+    actual_skills = source_skill_directory_names(skills_root)
     if actual_skills != EXPECTED_ORCHESTRA_SKILL_DIRS:
         missing_skills = sorted(EXPECTED_ORCHESTRA_SKILL_DIRS - actual_skills)
         unexpected_skills = sorted(actual_skills - EXPECTED_ORCHESTRA_SKILL_DIRS)
@@ -1505,6 +1524,26 @@ def validate_source_file_set_preflight(source_root: Path) -> None:
         if unexpected_skills:
             details.append('unexpected: ' + ', '.join(unexpected_skills))
         raise SystemExit('source template の .agents/skills directory set が期待値と一致しません: ' + '; '.join(details))
+
+
+def source_skill_directory_names(skills_root: Path) -> set[str]:
+    if not skills_root.is_dir():
+        return set()
+    return {
+        path.name
+        for path in skills_root.iterdir()
+        if path.is_dir() and (
+            path.name in EXPECTED_ORCHESTRA_SKILL_DIRS or source_directory_has_material(path)
+        )
+    }
+
+
+def source_directory_has_material(directory: Path) -> bool:
+    """directoryに、空directory以外の内容があるかを返します。"""
+    for path in directory.rglob('*'):
+        if path.is_symlink() or not path.is_dir():
+            return True
+    return False
 
 
 def preflight_source_template(source_root: Path) -> None:

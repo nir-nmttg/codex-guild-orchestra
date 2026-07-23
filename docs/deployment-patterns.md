@@ -61,6 +61,7 @@ Skill candidate は `.orchestra/skill-candidates/<target-repo>/<candidate>/` に
 
 クリーンインストールは、ギルド規約ルートへ導入済みのランタイム一式をいったん片付けてから再導入します。
 メジャー更新時や、テンプレートを完全に入れ替えたい時に使います。
+`.orchestra/skill-candidates/`だけは人間review待ち候補として保持し、queue、dashboard、その他の既存・未知`.orchestra/` siblingは除去して現在のtemplateから初期化します。
 `clean_install.sh` wrapper はバックアップを作らず、既存導入物、`metadata.owner: agent-guild-orchestra` の同梱 Skillを片付けてから置き換えます。旧版との互換性のため、frontmatter直下の`owner`もcleanup時だけ認識します。
 `scripts/docker_python.sh scripts/install.py --target /path/to/guild-root --mode copy --clean-install` を使う場合も、バックアップなしで実行できます。導入先は `/` や `$HOME` ではなく、専用のギルド規約ルートを指定してください。
 `repositories/` 配下の実リポジトリ移動や破壊的 cleanup は行いません。

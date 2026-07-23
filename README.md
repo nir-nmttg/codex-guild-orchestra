@@ -109,12 +109,12 @@ make validate
 | `.agents/orchestra/` | 削除後、現在のtemplateから再作成 |
 | `.agents/skills/` | 本プロジェクトがownerのskillだけを削除後、再作成。他ownerのskillは保持 |
 | `.codex/` | ディレクトリ全体を削除後、再作成。独自設定がある場合はbackupから必要部分を選んで復元 |
-| `.orchestra/` | 削除後、queue・Ledger・dashboardを初期状態で再作成 |
+| `.orchestra/` | `skill-candidates/`だけを保持し、他の既存・未知runtime siblingを削除後、queue・Ledger・dashboardを初期状態で再作成 |
 | `AGENTS.md` | 本プロジェクトの管理ブロックだけを除去後、再作成。ブロック外は保持 |
 | `.git/info/exclude` | 本プロジェクトの管理ブロックだけを除去後、再作成。ブロック外は保持 |
 | `repositories/`とその配下 | 保持。移動・削除・backupの対象外 |
 
-`.orchestra/`の監査履歴が必要な場合や`.codex/`に独自設定がある場合は、実行前にbackupの保存先と復元方針を確認してください。
+`.orchestra/`の監査履歴や`skill-candidates/`以外の独自runtime artifactが必要な場合、または`.codex/`に独自設定がある場合は、実行前にbackupの保存先と復元方針を確認してください。
 
 ## 変更される範囲とバックアップ
 
