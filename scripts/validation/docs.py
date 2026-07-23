@@ -75,9 +75,32 @@ VSCODE_SKILL_FRONTMATTER_FIELDS = {
     "user-invocable",
 }
 
+DISPLAY_NAME_TOKEN_FORMS = {
+    "from": ("from",),
+    "github": ("GitHub",),
+    "in": ("in",),
+    "vscode": ("VS", "Code"),
+}
+
 
 def _line_count(rel: str) -> int:
     return len(read(rel).splitlines())
+
+
+def _format_skill_display_name(name: str) -> str:
+    words: list[str] = []
+    read_only = False
+    for token in name.split("-"):
+        if token == "readonly":
+            read_only = True
+            continue
+        words.extend(DISPLAY_NAME_TOKEN_FORMS.get(token, (token.capitalize(),)))
+    display_name = " ".join(words)
+    if read_only:
+        display_name += " (" + "Read-Only" + ")"
+    if name == "communicate-work-estimates":
+        display_name += " (" + "Root-Only" + ")"
+    return display_name
 
 
 def _validate_root_only_work_estimates(description: str, interface: dict[str, object]) -> None:
@@ -421,6 +444,11 @@ def validate_skills() -> None:
                 isinstance(interface.get(key), str) and bool(interface[key].strip()),
                 f"{openai_rel}.interface.{key} は空でない文字列にしてください。",
             )
+        expected_display_name = _format_skill_display_name(name)
+        require(
+            interface["display_name"] == expected_display_name,
+            f"{openai_rel}.interface.display_name はskill directory名から導出した正規表示名と完全一致させてください。",
+        )
         short_description = interface["short_description"]
         require(25 <= len(short_description) <= 64, f"{openai_rel}.interface.short_description は25〜64文字にしてください。")
         require(
