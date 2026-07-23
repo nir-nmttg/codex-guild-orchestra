@@ -88,12 +88,12 @@ def _launcher_identity(launcher: Path) -> dict[str, int | str]:
     }
 
 
-def _plan_id(guild: Path, repositories: Path, launcher: Path, argv: list[str]) -> str:
+def _plan_id(guild: Path, repositories: Path, launcher_identity: dict[str, int | str], argv: list[str]) -> str:
     payload = {
         "version": PLAN_ID_VERSION,
         "guild_root": str(guild),
         "repositories_root": str(repositories),
-        "launcher": _launcher_identity(launcher),
+        "launcher": launcher_identity,
         "argv": argv,
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -131,6 +131,7 @@ def plan_launch(guild_root: str | Path, repositories_root: str | Path, *, launch
             "guild_root": str(guild),
             "repositories_root": str(repositories),
             "launcher": None,
+            "launcher_identity": None,
             "argv": None,
             "exit_code": None,
             "plan_id": None,
@@ -144,11 +145,13 @@ def plan_launch(guild_root: str | Path, repositories_root: str | Path, *, launch
             "guild_root": str(guild),
             "repositories_root": str(repositories),
             "launcher": None,
+            "launcher_identity": None,
             "argv": None,
             "exit_code": None,
             "plan_id": None,
         }
     argv = [str(verified), "-n", str(repositories)]
+    launcher_identity = _launcher_identity(verified)
     return {
         "status": "approval_required",
         "launch_state": "not_requested",
@@ -156,9 +159,10 @@ def plan_launch(guild_root: str | Path, repositories_root: str | Path, *, launch
         "guild_root": str(guild),
         "repositories_root": str(repositories),
         "launcher": str(verified),
+        "launcher_identity": launcher_identity,
         "argv": argv,
         "exit_code": None,
-        "plan_id": _plan_id(guild, repositories, verified, argv),
+        "plan_id": _plan_id(guild, repositories, launcher_identity, argv),
     }
 
 
@@ -223,6 +227,7 @@ def _failure(error: str) -> dict[str, object]:
         "guild_root": None,
         "repositories_root": None,
         "launcher": None,
+        "launcher_identity": None,
         "argv": None,
         "exit_code": None,
         "plan_id": None,
@@ -231,9 +236,9 @@ def _failure(error: str) -> dict[str, object]:
 
 
 def _public_result_view(result: dict[str, object]) -> dict[str, object]:
-    """ログ出力向けに機微情報を伏せた結果を返す。"""
+    """通常の診断出力向けに、approval 専用のローカル値を伏せる。"""
     redacted = dict(result)
-    for key in ("guild_root", "repositories_root", "launcher", "argv"):
+    for key in ("guild_root", "repositories_root", "launcher", "launcher_identity", "argv"):
         if key in redacted and redacted[key] is not None:
             redacted[key] = "<redacted>"
     return redacted
@@ -258,7 +263,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = _failure(str(exc))
     if args.execute and result.get("status") == "approval_required":
         result = execute_approved_launch(args.guild_root, args.repositories_root, args.approved_plan_id)
-    print(json.dumps(_public_result_view(result), ensure_ascii=False, sort_keys=True))
+    # --plan の JSON だけが、人間承認のための構造化された完全な表示である。
+    # --execute と失敗結果は通常の診断出力なので、ローカル path / argv を伏せる。
+    output = result if args.plan else _public_result_view(result)
+    print(json.dumps(output, ensure_ascii=False, sort_keys=True))
     return 0 if result.get("status") in {"approval_required", "launch_request_accepted"} else 1
 
 

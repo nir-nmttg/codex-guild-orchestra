@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import importlib.util
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -726,7 +729,47 @@ def _validate_vscode_launch_skill() -> None:
         require(planned["status"] == "approval_required", "VS Code helper のplanはapproval_requiredを返してください。")
         require(isinstance(planned["plan_id"], str) and bool(planned["plan_id"]), "VS Code helper のplanは承認対象のidentityを返してください。")
         require(planned["argv"] == [str(launcher.resolve()), "-n", str(repositories.resolve())], "VS Code helper は正確な `code -n repositories` argvを作ってください。")
+        require(planned["launcher_identity"] == helper._launcher_identity(launcher), "VS Code helper のplanは承認対象のlauncher identityを返してください。")
         require(planned["visual_confirmation"] == "unknown", "VS Code helper のplanは視覚的成功を主張してはいけません。")
+
+        original_select_launcher = helper.select_launcher
+        helper.select_launcher = lambda: launcher
+        try:
+            plan_stdout = io.StringIO()
+            with contextlib.redirect_stdout(plan_stdout):
+                plan_exit = helper.main([
+                    "--guild-root", str(guild),
+                    "--repositories-root", str(repositories),
+                    "--plan",
+                ])
+        finally:
+            helper.select_launcher = original_select_launcher
+        cli_plan = json.loads(plan_stdout.getvalue())
+        require(plan_exit == 0 and cli_plan["status"] == "approval_required", "VS Code helper のCLI --planは承認用planを返してください。")
+        require(cli_plan["guild_root"] == str(guild.resolve()) and cli_plan["repositories_root"] == str(repositories.resolve()), "VS Code helper のCLI --planはcanonical targetを表示してください。")
+        require(cli_plan["launcher"] == str(launcher.resolve()) and cli_plan["launcher_identity"] == planned["launcher_identity"], "VS Code helper のCLI --planはlauncher identity/pathを表示してください。")
+        require(cli_plan["argv"] == planned["argv"] and cli_plan["plan_id"] == planned["plan_id"], "VS Code helper のCLI --planは正確なargvと決定的なplan_idを表示してください。")
+
+        original_execute_approved_launch = helper.execute_approved_launch
+        helper.select_launcher = lambda: launcher
+        helper.execute_approved_launch = lambda *args, **kwargs: dict(planned, status="approved_plan_mismatch")
+        try:
+            diagnostic_stdout = io.StringIO()
+            with contextlib.redirect_stdout(diagnostic_stdout):
+                diagnostic_exit = helper.main([
+                    "--guild-root", str(guild),
+                    "--repositories-root", str(repositories),
+                    "--execute",
+                    "--approved-plan-id", str(planned["plan_id"]),
+                ])
+        finally:
+            helper.select_launcher = original_select_launcher
+            helper.execute_approved_launch = original_execute_approved_launch
+        cli_diagnostic = json.loads(diagnostic_stdout.getvalue())
+        require(diagnostic_exit == 1 and cli_diagnostic["status"] == "approved_plan_mismatch", "VS Code helper のCLI execute mismatchを成功にしてはいけません。")
+        for key in ("guild_root", "repositories_root", "launcher", "launcher_identity", "argv"):
+            require(cli_diagnostic[key] == "<redacted>", f"VS Code helper の通常CLI診断は `{key}` をredactionしてください。")
+        require(str(guild.resolve()) not in diagnostic_stdout.getvalue() and str(launcher.resolve()) not in diagnostic_stdout.getvalue(), "VS Code helper の通常CLI診断はapproval専用のローカル値を露出してはいけません。")
 
         calls: list[object] = []
         def should_not_run(*args: object, **kwargs: object) -> object:

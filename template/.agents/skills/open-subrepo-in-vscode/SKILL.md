@@ -31,16 +31,15 @@ metadata:
 
 ## 手順
 
-1. Root は入力を推測・再発見せず、明示された絶対 `guild_root` と `repositories_root` を helper の `--plan` に渡す。relative pathは拒否する。helper は実パスを検証し、`repositories_root` が実在する `<guild_root>/repositories` そのものか、symlink escape や個別 repo ではないかを判定する。`--plan` は subprocess を起動せず、canonical target、launcher identity/path、正確な argv から決定的な `plan_id` を返す。
+1. Root は入力を推測・再発見せず、明示された絶対 `guild_root` と `repositories_root` を helper の `--plan` に渡す。relative pathは拒否する。helper は実パスを検証し、`repositories_root` が実在する `<guild_root>/repositories` そのものか、symlink escape や個別 repo ではないかを判定する。`--plan` は subprocess を起動せず、canonical target、launcher identity/path、正確な argv から決定的な `plan_id` を返す。この `--plan` JSON だけが承認用の完全表示であり、通常の診断結果ではこれらのローカル値を redaction する。
 2. `--plan` が `approval_required` を返した場合だけ、Root は canonical target、launcher、正確な argv、`plan_id`、視覚的確認がまだ unknown であることを表示して、現在の runtime が要求する sandbox escalation / 人間承認を取得する。承認が拒否・未取得・runtime で失敗した時は `approval_denied` または `approval_required` として止め、成功とは報告しない。
 3. 承認済みの Root だけが同じ明示引数に `--execute --approved-plan-id "<plan_id>"` を付けて helper を実行する。runtime の GUI 実行用 escalation を使い、shell、`open -a`、任意の launcher path、フォルダ探索を渡さない。helper は実行直前に同じ情報を再計画し、`plan_id` が承認済み identity と一致する時だけ、その再計画済み argv `<launcher> -n <repositories_root>` を実行する。不一致時は runner を呼ばず `approved_plan_mismatch` で止まる。
-4. helper の JSON 結果をそのまま根拠として扱う。nonzero exit、launcher 不在、入力不正、runtime command failure は成功にしない。exit 0 の `launch_request_accepted` は OS が起動要求を受け付けた意味だけであり、VS Code の表示は `visual_confirmation: "unknown"` のままである。人間が確認した場合だけ別途 visual success を報告する。信頼済みlauncherがない`launcher_unavailable`では`open -a`等へ切り替えず、人間がVS Codeから手動でfolderを開くfallbackだけを案内する。
+4. `--plan` の JSON を承認根拠として扱い、canonical target、launcher、`launcher_identity`、正確な argv、`plan_id` を承認前に表示する。`--execute` と失敗時の通常診断 JSON は local target・launcher・argv・launcher identity を redaction する。nonzero exit、launcher 不在、入力不正、runtime command failure は成功にしない。exit 0 の `launch_request_accepted` は OS が起動要求を受け付けた意味だけであり、VS Code の表示は `visual_confirmation: "unknown"` のままである。人間が確認した場合だけ別途 visual success を報告する。信頼済みlauncherがない`launcher_unavailable`では`open -a`等へ切り替えず、人間がVS Codeから手動でfolderを開くfallbackだけを案内する。
 
 ## 出力
 
 - `status`: `approval_required`、`launch_request_accepted`、または失敗状態
-- canonical な `guild_root` と `repositories_root`
-- 選択された launcher と正確な argv（`-n` を含む）
+- 承認用の `--plan` JSON には、canonical な `guild_root` と `repositories_root`、選択された launcher、`launcher_identity`、正確な argv（`-n` を含む）
 - `plan_id`、`exit_code`、`launch_state`、`visual_confirmation`
 - 承認未取得・拒否、launcher 不在、入力不正、実行失敗の理由
 
